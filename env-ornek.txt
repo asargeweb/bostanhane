@@ -1,0 +1,23 @@
+# Bostanhane — ortam değişkenleri
+# Bu dosyayı ".env" adıyla kopyalayın. .env dosyası git'e GÖNDERİLMEZ.
+
+# Django
+DJANGO_SECRET_KEY=buraya-uzun-rastgele-bir-metin
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
+
+# Veritabanı motoru: sqlite veya postgres
+# Şimdilik sqlite ile başlıyoruz; hiçbir kurulum gerektirmez.
+DB_MOTOR=sqlite
+
+# PostgreSQL'e geçtiğinizde DB_MOTOR=postgres yapıp aşağıyı doldurun
+DB_NAME=bostanhane
+DB_USER=postgres
+DB_PASSWORD=
+DB_HOST=127.0.0.1
+DB_PORT=5432
+
+# Sonraki fazlarda doldurulacak
+# ODEME_SAGLAYICI_API_KEY=
+# EPOSTA_API_KEY=
+# HARITA_API_KEY=

@@ -1,0 +1,121 @@
+{# Bostanhane — yayına hazırlık sayfası. Dosya yolu: templates/core/ana_sayfa.html #}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{# Site tamamlanana kadar arama motorlarına kapalı. Açılışta bu satır silinecek. #}
+<meta name="robots" content="noindex, nofollow">
+<title>Bostanhane — Mahallenizin manavı, teslim gününde kapınızda</title>
+<meta name="description" content="Bostanhane, Beyşehir'de mahalle bazlı çalışan butik online manav. Siparişler kesim saatinde kapanır, ürün size göre alınır.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --yesil:#1F5132; --filiz:#79A548; --harman:#D98A2B;
+    --krem:#F6F3EA; --beyaz:#fff; --ink:#16281C; --ink2:#5B675A; --line:#E3DDCD;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--krem);color:var(--ink);
+       font:16px/1.65 Karla,"Segoe UI",system-ui,sans-serif}
+  .sayfa{max-width:900px;margin:0 auto;padding:36px 20px 64px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:44px}
+  .marka{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:22px;color:var(--yesil)}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(30px,6vw,46px);
+     line-height:1.15;letter-spacing:-.02em;margin:0 0 16px;max-width:16ch;text-wrap:balance}
+  .lede{font-size:18px;color:var(--ink2);max-width:52ch;margin:0 0 28px}
+  .kart{background:var(--beyaz);border:1px solid var(--line);border-radius:18px;padding:24px;margin-bottom:22px}
+  .adimlar{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;margin:0}
+  .adim{display:flex;gap:11px}
+  .no{flex:0 0 28px;height:28px;border-radius:50%;background:var(--yesil);color:#fff;
+      display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .adim b{display:block;font-size:15px;margin-bottom:2px}
+  .adim p{margin:0;font-size:14px;color:var(--ink2)}
+  h2{font-family:Fraunces,Georgia,serif;font-size:21px;font-weight:600;margin:0 0 6px}
+  .alt{color:var(--ink2);font-size:14.5px;margin:0 0 18px}
+  form{display:flex;flex-wrap:wrap;gap:10px}
+  input{flex:1 1 200px;border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+        font:15px Karla,sans-serif;color:var(--ink);background:#fff}
+  input:focus{outline:2px solid var(--filiz);outline-offset:1px}
+  button{background:var(--yesil);color:#fff;border:none;border-radius:12px;padding:13px 24px;
+         font:700 15px Karla,sans-serif;cursor:pointer}
+  button:hover{background:#17402A}
+  .mesaj{background:#EEF4EC;border:1px solid var(--filiz);color:#2E6B2A;border-radius:12px;
+         padding:12px 14px;margin-bottom:18px;font-size:14.5px}
+  .mahalleler{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+  .mahalle{background:var(--krem);border:1px solid var(--line);border-radius:999px;
+           padding:7px 14px;font-size:13.5px}
+  .mahalle b{color:var(--yesil)}
+  .kvkk{font-size:12.5px;color:var(--ink2);margin-top:12px}
+  footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--line);
+         color:var(--ink2);font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+  a{color:var(--yesil)}
+</style>
+</head>
+<body>
+<div class="sayfa">
+  <header>
+    <svg viewBox="0 0 96 96" width="44" height="44" xmlns="http://www.w3.org/2000/svg" aria-label="Bostanhane">
+      <path d="M10 42 L48 12 L86 42" fill="none" stroke="#1F5132" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <g stroke="#1F5132" stroke-width="5" stroke-linecap="round" fill="none">
+        <path d="M31 76 V66"/><path d="M48 76 V58"/><path d="M65 76 V66"/></g>
+      <circle cx="31" cy="62" r="6" fill="#79A548"/>
+      <circle cx="48" cy="53" r="7" fill="#1F5132"/>
+      <circle cx="65" cy="62" r="6" fill="#D98A2B"/>
+      <path d="M18 76 H78" stroke="#1F5132" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+    <span class="marka">bostanhane</span>
+  </header>
+
+  <h1>Mahallenizin manavı, teslim gününde kapınızda</h1>
+  <p class="lede">
+    Beyşehir'de kısa süre içinde başlıyoruz. Siparişler kesim saatinde kapanır, ürün ertesi sabah
+    size göre alınır. Depoda beklemez; tartılır, paketlenir ve aynı gün kapınıza gelir.
+  </p>
+
+  <div class="kart">
+    <div class="adimlar">
+      <div class="adim"><div class="no">1</div><div><b>Siparişini ver</b><p>Mahallenin teslim gününe sepetini hazırla.</p></div></div>
+      <div class="adim"><div class="no">2</div><div><b>Kesim saati</b><p>Teslimattan bir gün önce sipariş kapanır.</p></div></div>
+      <div class="adim"><div class="no">3</div><div><b>Sabah alınır</b><p>Sadece satılan kadar ürün alınır, tartılır.</p></div></div>
+      <div class="adim"><div class="no">4</div><div><b>Kapına gelir</b><p>Teslimde "eksiksiz aldım" onayını verirsin.</p></div></div>
+    </div>
+  </div>
+
+  <div class="kart">
+    <h2>Açıldığımızda ilk siz haberdar olun</h2>
+    <p class="alt">Mahallenizi yazın; sıraya aldığımızda size haber verelim.</p>
+
+    {% if messages %}
+      {% for mesaj in messages %}<div class="mesaj">{{ mesaj }}</div>{% endfor %}
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {{ form.eposta }}
+      {{ form.mahalle_adi }}
+      {{ form.telefon }}
+      <button type="submit">Haber ver</button>
+    </form>
+    {% if form.errors %}
+      <p class="kvkk" style="color:#8A3B2A">Lütfen e-posta adresinizi kontrol edin.</p>
+    {% endif %}
+    <p class="kvkk">
+      Bilgileriniz yalnızca açılış duyurusu için kullanılır, üçüncü kişilerle paylaşılmaz.
+    </p>
+
+    {% if mahalleler %}
+      <div class="mahalleler">
+        {% for mahalle in mahalleler %}
+          <span class="mahalle"><b>{{ mahalle.ad }}</b> · {{ mahalle.teslim_gunleri_metni }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <footer>
+    <span>Bostanhane{% if magaza %} · {{ magaza.ilce }}, {{ magaza.il }}{% endif %}</span>
+    <span><a href="https://instagram.com/bostanhane.tr">instagram.com/bostanhane.tr</a></span>
+  </footer>
+</div>
+</body>
+</html>

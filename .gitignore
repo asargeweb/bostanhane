@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Sanal ortam
+venv/
+.venv/
+
+# Django
+*.log
+*.sqlite3
+*.sqlite3-journal
+/media/
+/staticfiles/
+
+# Ortam değişkenleri — şifreler burada, asla gönderilmez
+.env
+.env.*
+!.env.ornek
+
+# Editör ve işletim sistemi
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Mobil (ileride)
+node_modules/
+.expo/

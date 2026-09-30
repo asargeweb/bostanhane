@@ -1,0 +1,9 @@
+# Bostanhane — Python paketleri
+Django>=6.1,<7.0
+djangorestframework>=3.16
+psycopg[binary]>=3.2
+dj-database-url>=2.3
+python-dotenv>=1.0
+Pillow>=11.0
+whitenoise>=6.8
+gunicorn>=23.0
