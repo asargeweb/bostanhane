@@ -3,20 +3,32 @@ Bostanhane — core uygulaması modelleri
 
 Bu dosya `core/models.py` yerine geçer.
 
-Buradaki dört yapı sistemin iskeletidir:
-  Magaza          → "Bostanhane Beyşehir"
-  Mahalle         → mağazanın hizmet verdiği mahalle
-  HaftalikTeslimGunu → mahallenin hangi günler ziyaret edildiği (kural)
-  TeslimTakvimi   → belirli bir tarihteki somut teslimat (sipariş buna bağlanır)
+İki ayrı şey var ve ayrı olmaları önemli:
 
-Kural ile takvim neden ayrı? Kural "Müftü Mahallesi salı ve cuma" der.
-Takvim ise "3 Ekim Cuma, kapasite 40, durum açık" der. Siparişler takvime bağlanır;
-böylece bir günü kapatmak, kapasitesini değiştirmek veya tatil ilan etmek mümkün olur.
+**Coğrafya** — resmî idari yapı. Değişmez, herkes için aynıdır:
+    Il → Ilce → Mahalle        "Konya → Beyşehir → Müftü Mahallesi"
+
+**Hizmet alanı** — hangi mağaza hangi mahalleye gidiyor, kaç siparişe kadar:
+    Magaza → HizmetMahallesi → HaftalikTeslimGunu → TeslimTakvimi
+
+Neden ayrı? Çünkü üyenin adresi Türkiye'nin her yerinde olabilir (kargo kanalı),
+ama yerel teslimat yalnızca mağazanın gittiği mahallelerde vardır. Adres coğrafi
+mahalleye bağlanır; o mahallede aktif bir HizmetMahallesi kaydı varsa yerel
+teslimat açıktır, yoksa yalnızca kargo seçeneği görünür.
+
+Zincirin son iki halkası:
+    HaftalikTeslimGunu → *kural*:      "Müftü salı ve cuma, kesim 1 gün önce 18:00"
+    TeslimTakvimi      → *somut gün*:  "3 Ekim Cuma, kapasite 45, durum açık"
+
+Kural ile takvim neden ayrı? Hayat kuralı bozar: bayram olur, araç arızalanır,
+kapasite dolar. Takvim kaydı sayesinde tek bir gün kapatılabilir, kapasitesi
+değiştirilebilir; haftalık kural bozulmaz. **Siparişler TeslimTakvimi'ne bağlanır.**
 """
+
+from datetime import datetime, timedelta, time
 
 from django.db import models
 from django.utils import timezone
-from datetime import datetime, timedelta, time
 
 
 class ZamanDamgali(models.Model):
@@ -39,14 +51,106 @@ class Gun(models.IntegerChoices):
     PAZAR = 6, "Pazar"
 
 
+# ==========================================================================
+# COĞRAFYA — resmî idari yapı
+# ==========================================================================
+class Il(models.Model):
+    """81 il. `cografya_yukle` komutu doldurur; elle girilmesi gerekmez."""
+
+    ad = models.CharField("il", max_length=40, unique=True)
+    slug = models.SlugField("kısa ad", max_length=50, unique=True)
+    plaka = models.PositiveSmallIntegerField("plaka kodu", unique=True)
+
+    class Meta:
+        verbose_name = "il"
+        verbose_name_plural = "iller"
+        ordering = ["ad"]
+
+    def __str__(self):
+        return self.ad
+
+    @property
+    def ilce_sayisi(self):
+        return self.ilceler.count()
+
+
+class Ilce(models.Model):
+    """İlçe. Şimdilik yalnızca Konya ve Karaman ilçeleri yüklü."""
+
+    il = models.ForeignKey(Il, on_delete=models.CASCADE,
+                           related_name="ilceler", verbose_name="il")
+    ad = models.CharField("ilçe", max_length=60)
+    slug = models.SlugField("kısa ad", max_length=70)
+
+    class Meta:
+        verbose_name = "ilçe"
+        verbose_name_plural = "ilçeler"
+        ordering = ["il__ad", "ad"]
+        unique_together = [("il", "slug")]
+
+    def __str__(self):
+        return f"{self.ad} / {self.il.ad}"
+
+    @property
+    def mahalle_sayisi(self):
+        return self.mahalleler.count()
+
+
+class Mahalle(models.Model):
+    """
+    Resmî mahalle.
+
+    6360 sayılı kanunla büyükşehir ilçelerinde köyler de mahalleye dönüştü;
+    bu yüzden `tip` alanı merkez mahallesi ile köy kökenli mahalleyi ayırıyor.
+    Pilot çalışma merkez mahallelerinde yürüyecek, kırsal mahalleler sonra.
+    """
+
+    class Tip(models.TextChoices):
+        MERKEZ = "merkez", "Merkez mahallesi"
+        KIRSAL = "kirsal", "Köy kökenli mahalle"
+
+    ilce = models.ForeignKey(Ilce, on_delete=models.CASCADE,
+                             related_name="mahalleler", verbose_name="ilçe")
+    ad = models.CharField("mahalle", max_length=120)
+    slug = models.SlugField("kısa ad", max_length=140)
+    tip = models.CharField("tip", max_length=10, choices=Tip.choices, default=Tip.MERKEZ)
+    posta_kodu = models.CharField("posta kodu", max_length=5, blank=True)
+
+    class Meta:
+        verbose_name = "mahalle"
+        verbose_name_plural = "mahalleler"
+        ordering = ["ilce__il__ad", "ilce__ad", "ad"]
+        unique_together = [("ilce", "slug")]
+
+    def __str__(self):
+        return f"{self.ad} — {self.ilce.ad}"
+
+    @property
+    def il(self):
+        return self.ilce.il
+
+    @property
+    def tam_ad(self):
+        return f"{self.ad}, {self.ilce.ad}/{self.ilce.il.ad}"
+
+    def yerel_hizmet(self):
+        """Bu mahalleye giden aktif hizmet kaydı. None dönerse yerel teslimat yok."""
+        return self.hizmet_kayitlari.filter(aktif=True).select_related("magaza").first()
+
+
+# ==========================================================================
+# HİZMET ALANI — hangi mağaza nereye gidiyor
+# ==========================================================================
 class Magaza(ZamanDamgali):
     """Bir şube. Aynı zamanda ürünlerin tartılıp paketlendiği butik depodur."""
 
     ad = models.CharField("mağaza adı", max_length=120, help_text="Örnek: Bostanhane Beyşehir")
     slug = models.SlugField("kısa ad", max_length=140, unique=True,
                             help_text="Adreste görünecek hali. Örnek: beysehir")
-    il = models.CharField("il", max_length=60)
-    ilce = models.CharField("ilçe", max_length=60)
+    il = models.ForeignKey(Il, on_delete=models.PROTECT,
+                           related_name="magazalar", verbose_name="il")
+    ilce = models.ForeignKey(Ilce, on_delete=models.PROTECT,
+                             related_name="magazalar", verbose_name="ilçe")
     adres = models.TextField("açık adres", blank=True)
     enlem = models.DecimalField("enlem", max_digits=9, decimal_places=6, null=True, blank=True)
     boylam = models.DecimalField("boylam", max_digits=9, decimal_places=6, null=True, blank=True)
@@ -63,29 +167,53 @@ class Magaza(ZamanDamgali):
     def __str__(self):
         return self.ad
 
+    @property
+    def konum(self):
+        return f"{self.ilce.ad}, {self.il.ad}"
 
-class Mahalle(ZamanDamgali):
-    """Mağazanın hizmet verdiği mahalle."""
+
+class HizmetMahallesi(ZamanDamgali):
+    """
+    "Bostanhane Beyşehir, Müftü Mahallesi'ne gidiyor; günde 45 siparişe kadar."
+
+    Mağaza ile mahalle arasındaki bağ. Teslim günleri ve kapasite buraya bağlıdır,
+    coğrafi mahalleye değil — çünkü aynı mahalleye ileride başka bir mağaza da
+    hizmet verebilir ve her mağazanın kendi günü, kendi kapasitesi olur.
+    """
 
     magaza = models.ForeignKey(Magaza, on_delete=models.CASCADE,
-                               related_name="mahalleler", verbose_name="mağaza")
-    ad = models.CharField("mahalle adı", max_length=120)
-    slug = models.SlugField("kısa ad", max_length=140)
+                               related_name="hizmet_mahalleleri", verbose_name="mağaza")
+    mahalle = models.ForeignKey(Mahalle, on_delete=models.PROTECT,
+                                related_name="hizmet_kayitlari", verbose_name="mahalle")
     gunluk_kapasite = models.PositiveIntegerField(
         "günlük teslimat kapasitesi", default=40,
         help_text="Bir teslim gününde kaç siparişe kadar alınabilir.")
     sira = models.PositiveIntegerField("sıra", default=0,
                                        help_text="Listelerde görünme sırası.")
-    aktif = models.BooleanField("aktif", default=True)
+    aktif = models.BooleanField("aktif", default=True,
+                                help_text="Kapalıysa bu mahallede yerel teslimat görünmez.")
 
     class Meta:
-        verbose_name = "mahalle"
-        verbose_name_plural = "mahalleler"
-        ordering = ["sira", "ad"]
-        unique_together = [("magaza", "slug")]
+        verbose_name = "hizmet verilen mahalle"
+        verbose_name_plural = "hizmet verilen mahalleler"
+        ordering = ["magaza__ad", "sira", "mahalle__ad"]
+        unique_together = [("magaza", "mahalle")]
 
     def __str__(self):
-        return f"{self.ad} — {self.magaza.ad}"
+        return f"{self.mahalle.ad} — {self.magaza.ad}"
+
+    @property
+    def ad(self):
+        """Şablonlarda mahalle adı gibi davranabilsin."""
+        return self.mahalle.ad
+
+    @property
+    def il(self):
+        return self.mahalle.ilce.il
+
+    @property
+    def ilce(self):
+        return self.mahalle.ilce
 
     def teslim_gunleri_metni(self):
         """'Salı ve Cuma' gibi okunur bir metin döner."""
@@ -102,8 +230,9 @@ class Mahalle(ZamanDamgali):
 class HaftalikTeslimGunu(ZamanDamgali):
     """Mahallenin haftalık teslim kuralı. Takvim bu kurala göre üretilir."""
 
-    mahalle = models.ForeignKey(Mahalle, on_delete=models.CASCADE,
-                                related_name="haftalik_gunler", verbose_name="mahalle")
+    hizmet_mahallesi = models.ForeignKey(
+        HizmetMahallesi, on_delete=models.CASCADE,
+        related_name="haftalik_gunler", verbose_name="hizmet verilen mahalle")
     gun = models.IntegerField("teslim günü", choices=Gun.choices)
     teslim_baslangic = models.TimeField("teslimat başlangıç", default=time(9, 0))
     teslim_bitis = models.TimeField("teslimat bitiş", default=time(18, 0))
@@ -120,14 +249,14 @@ class HaftalikTeslimGunu(ZamanDamgali):
     class Meta:
         verbose_name = "haftalık teslim günü"
         verbose_name_plural = "haftalık teslim günleri"
-        ordering = ["mahalle", "gun"]
-        unique_together = [("mahalle", "gun")]
+        ordering = ["hizmet_mahallesi", "gun"]
+        unique_together = [("hizmet_mahallesi", "gun")]
 
     def __str__(self):
-        return f"{self.mahalle.ad} — {self.get_gun_display()}"
+        return f"{self.hizmet_mahallesi.mahalle.ad} — {self.get_gun_display()}"
 
     def gecerli_kapasite(self):
-        return self.kapasite or self.mahalle.gunluk_kapasite
+        return self.kapasite or self.hizmet_mahallesi.gunluk_kapasite
 
 
 class TeslimTakvimi(ZamanDamgali):
@@ -139,8 +268,9 @@ class TeslimTakvimi(ZamanDamgali):
         TAMAMLANDI = "tamamlandi", "Tamamlandı"
         IPTAL = "iptal", "İptal"
 
-    mahalle = models.ForeignKey(Mahalle, on_delete=models.CASCADE,
-                                related_name="takvim", verbose_name="mahalle")
+    hizmet_mahallesi = models.ForeignKey(
+        HizmetMahallesi, on_delete=models.CASCADE,
+        related_name="takvim", verbose_name="hizmet verilen mahalle")
     tarih = models.DateField("teslim tarihi")
     kesim_zamani = models.DateTimeField("kesim zamanı")
     kapasite = models.PositiveIntegerField("kapasite", default=40)
@@ -150,11 +280,11 @@ class TeslimTakvimi(ZamanDamgali):
     class Meta:
         verbose_name = "teslim takvimi"
         verbose_name_plural = "teslim takvimi"
-        ordering = ["tarih", "mahalle"]
-        unique_together = [("mahalle", "tarih")]
+        ordering = ["tarih", "hizmet_mahallesi"]
+        unique_together = [("hizmet_mahallesi", "tarih")]
 
     def __str__(self):
-        return f"{self.mahalle.ad} — {self.tarih:%d.%m.%Y}"
+        return f"{self.hizmet_mahallesi.mahalle.ad} — {self.tarih:%d.%m.%Y}"
 
     # -- yardımcılar ------------------------------------------------------
     @property
@@ -187,7 +317,7 @@ class TeslimTakvimi(ZamanDamgali):
             if kesim_zamani <= timezone.localtime():
                 continue  # kesim saati geçmiş, bu tarihi üretme
             kayit, yeni = cls.objects.get_or_create(
-                mahalle=kural.mahalle,
+                hizmet_mahallesi=kural.hizmet_mahallesi,
                 tarih=tarih,
                 defaults={
                     "kesim_zamani": kesim_zamani,

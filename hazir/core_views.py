@@ -43,10 +43,15 @@ def ana_sayfa(request):
     else:
         form = IlgiFormu()
 
-    magaza = Magaza.objects.filter(aktif=True).first()
+    magaza = Magaza.objects.filter(aktif=True).select_related("il", "ilce").first()
     mahalleler = []
     if magaza:
-        mahalleler = magaza.mahalleler.filter(aktif=True).prefetch_related("haftalik_gunler")
+        # Hizmet verilen mahalleler; `ad` ve `teslim_gunleri_metni` şablonda
+        # mahalle gibi davranıyor, bu yüzden şablonu değiştirmek gerekmedi.
+        mahalleler = (magaza.hizmet_mahalleleri
+                      .filter(aktif=True)
+                      .select_related("mahalle")
+                      .prefetch_related("haftalik_gunler"))
 
     return render(request, "core/ana_sayfa.html", {
         "form": form,

@@ -50,6 +50,8 @@ mağazasını. Bu kısıtlama sorgu seviyesinde uygulanmalı, sadece şablonda g
 - Mahalle bazlı teslim günü; kesim saati teslimattan 1 gün önce, varsayılan 18:00
 - Tartılı üründe **provizyon** alınır (tahmini tutar + tampon), tartımdan sonra kesin tutar çekilir
 - Ödeme sadece sanal POS; kapıda ödeme yok. Kart bilgisi sistemde tutulmaz, yalnızca sağlayıcı token'ı
+- **Giriş anahtarı telefon numarası** (10 hane, `5321112233`). Kullanıcı adı yok, e-posta isteğe bağlı
+- Paketleme elemanı ve kurye Django yönetim paneline girmez; kendi sade ekranlarını kullanır
 - Teslimde üye "eksiksiz teslim aldım" onayı verir; cevap gelmezse 24 saat sonra otomatik onay
 - Kusurlu üründe fotoğraflı talep → mağaza yöneticisi kararı → kısmi iade
 - Web ve mobil birlikte geliştirilir; ikisi aynı çekirdeği ve API'yi kullanır
@@ -66,18 +68,32 @@ mağazasını. Bu kısıtlama sorgu seviyesinde uygulanmalı, sadece şablonda g
 | Veritabanı | SQLite (yerel) / PostgreSQL (canlı), `DB_MOTOR` ile seçilir |
 | Web arayüz | Django template'leri |
 | Mobil | React Native (Expo), repo içinde `mobile/` klasöründe (henüz yok) |
-| Canlı ortam | Railway (proje `bostanhane`, servisler `web` + `Postgres`); `main`'e her push otomatik yayınlanır |
+| Canlı ortam | Sunucu kararı verilmedi; Railway veya kendi sunucu |
 
 ### Klasör düzeni
 
 ```
 bostanhane/            ← proje ayarları (settings.py, urls.py)
-core/                  ← mağaza, mahalle, teslim takvimi
+core/                  ← coğrafya (il/ilçe/mahalle), mağaza, hizmet alanı, teslim takvimi
+hesaplar/              ← kullanıcı, roller, izinler, adres
 hazir/                 ← Claude'un hazırladığı, kopyalanmayı bekleyen dosyalar
 venv/                  ← sanal ortam (git'e girmez)
 .env                   ← şifreler (git'e girmez)
 adim-*.md              ← adım adım kurulum ve geliştirme notları
 ```
+
+### Yönetim komutları
+
+| Komut | Ne yapar |
+|---|---|
+| `roller_kur` | Rol gruplarını ve yetkilerini oluşturur/güvenceller. **Yeni uygulama eklendikçe `hesaplar/izinler.py`'ye satır ekleyip tekrar çalıştırılır.** |
+| `ilk_yonetici` | Ortam değişkenlerinden süper admin açar (canlı ortam için) |
+| `cografya_yukle` | 81 il, tanımlı ilçeler ve mahalleleri yükler. Liste `core/cografya_verisi.py`'de |
+| `ilk_veri` | Coğrafyayı kontrol eder; veritabanı boşsa Beyşehir mağazasını da kurar |
+| `ornek_veri` | Mağaza, pilot hizmet mahalleleri, teslim günleri, 8 haftalık takvim |
+| `ornek_hesaplar` | Örnek personel ve üye (şifresiz — giriş yapamazlar) |
+
+Canlı ortamda bu komutlar `Procfile` içinde her dağıtımda kendiliğinden çalışır.
 
 ### Planlanan uygulamalar (sırayla eklenecek)
 
@@ -87,18 +103,55 @@ adim-*.md              ← adım adım kurulum ve geliştirme notları
 
 ## 5. Veri modeli — kurulan kısım
 
-`core` uygulamasında dört model var:
+### hesaplar
 
-- **Magaza** — şube; aynı zamanda butik depo
-- **Mahalle** — mağazanın hizmet verdiği mahalle; günlük kapasitesi var
+- **Kullanici** — `AbstractBaseUser` üzerine kurulu; `USERNAME_FIELD = "telefon"`.
+  `rol` alanı beş rolden birini taşır, `magaza` personeli şubesine bağlar.
+  `save()` içinde: telefon tek biçime indirilir, role göre `is_staff` ayarlanır,
+  rolün yetki grubu bağlanır.
+- **Adres** — üyenin teslimat adresi. Resmî (coğrafi) mahalleye bağlı,
+  bina/kat/daire ayrı alanlarda, enlem-boylam ile harita iğnesi.
+  İlk adres otomatik varsayılan olur; varsayılan her zaman tektir.
+- **hesaplar/izinler.py** — rol → yetki listesi. Yeni uygulama eklendikçe buraya satır
+  eklenir ve `roller_kur` çalıştırılır.
+- **core/admin_araclar.py** — `MagazaKisitliAdmin` karışımı. Mağaza izolasyonunu sorgu
+  seviyesinde uygular. Yeni bir store-bazlı model eklerken admin sınıfına bu karışım
+  eklenir, `magaza_yolu` (ve gerekiyorsa `suzulecek_modeller`) tanımlanır. `Magaza` panelinde
+  yol `"pk"`. Karışım liste yan süzgeçlerini de daraltır (`liste_filtrelerini_daralt`);
+  `suzulecek_modeller` varsayılanı `hizmetmahallesi`'ni içerir. Mağazaya bağlanamayan
+  `IlgiKaydi`'ni yalnızca süper admin görür. **Yeni `hazir/` dosyası yazarken bunlar korunmalı.**
+
+### core — coğrafya ile hizmet alanı ayrı
+
+**Coğrafya** (resmî idari yapı, değişmez, `cografya_yukle` doldurur):
+
+- **Il** — 81 il, plaka koduyla
+- **Ilce** — şimdilik Konya (31) ve Karaman (6)
+- **Mahalle** — resmî mahalle. `tip` alanı merkez mahallesi / köy kökenli ayrımını tutar
+  (6360 sayılı kanunla büyükşehir ilçelerinde köyler mahalleye dönüştü).
+  Beyşehir: 70 mahalle, 13'ü merkez
+
+**Hizmet alanı** (bizim kararımız):
+
+- **Magaza** — şube; aynı zamanda butik depo. `il` ve `ilce` artık FK
+- **HizmetMahallesi** — "Beyşehir mağazası Müftü'ye gidiyor, günde 45 sipariş".
+  Kapasite ve sıra buradadır
 - **HaftalikTeslimGunu** — *kural*: "Müftü salı ve cuma, kesim 1 gün önce 18:00"
-- **TeslimTakvimi** — *somut gün*: "3 Ekim Cuma, kapasite 45, durum açık, kesim 2 Ekim 18:00"
+- **TeslimTakvimi** — *somut gün*: "3 Ekim Cuma, kapasite 45, durum açık"
+
+**Coğrafya ile hizmet alanı neden ayrı?** Kargo kanalı. Üyenin adresi Türkiye'nin her
+yerinde olabilir; yerel teslimat yalnızca mağazanın gittiği mahallelerde vardır.
+`Adres` coğrafi mahalleye bağlanır, `adres.yerel_teslimat_var` yerel teslimatın açık
+olup olmadığını söyler. Ayrıca aynı mahalleye ileride ikinci bir mağaza da hizmet
+verebilir, her biri kendi günü ve kapasitesiyle.
 
 **Kural ile takvim neden ayrı?** Hayat kuralı bozar: bayram olur, araç arızalanır, kapasite dolar.
 Takvim kaydı sayesinde tek bir gün kapatılabilir veya kapasitesi değiştirilebilir; haftalık kural
 bozulmaz. **Siparişler `TeslimTakvimi`'ne bağlanacak**, mahalleye değil.
 
 `TeslimTakvimi.kural_uret()` bir kuraldan ileriye dönük takvim üretir; var olana dokunmaz.
+`core/araclar.py` → `turkce_slug()`: Django'nun slugify'ı Türkçe harfleri düşürüyor ("Müftü"
+→ "mft"), bu yüzden kendi çevirimizi kullanıyoruz.
 
 ---
 
@@ -106,6 +159,9 @@ bozulmaz. **Siparişler `TeslimTakvimi`'ne bağlanacak**, mahalleye değil.
 
 - **Model, alan ve değişken adları Türkçe.** `Magaza`, `teslim_gunleri`, `kesim_zamani`.
   Türkçe karakter kullanılmaz (ş, ğ, ı yerine s, g, i). `verbose_name` değerleri düzgün Türkçe olur.
+  **Tek istisna:** Django'nun kendi aradığı alan adları İngilizce kalır —
+  `password`, `last_login`, `is_active`, `is_staff`, `is_superuser`. Başka isim kabul etmiyor.
+- Alan adı asla alt çizgiyle bitmez (Django `fields.E001` hatası verir): `not_` değil `aciklama`
 - Her modelde `verbose_name`, `verbose_name_plural`, `__str__` ve `Meta.ordering` bulunur
 - Ortak alanlar için `core.models.ZamanDamgali` soyut modeli kullanılır
 - Para alanları `DecimalField(max_digits=10, decimal_places=2)`; float kullanılmaz
@@ -158,22 +214,29 @@ Marka kılavuzu: `..\logo\bostanhane-marka-kilavuzu.html`.
 ## 9. Şu anki durum (30 Eylül 2026)
 
 **Yapıldı:** Marka adı ve logo kesinleşti, alan adı alındı (bostanhane.com), iş planı ve yol
-haritası yazıldı, ana sayfa ve teslim günü akışı tasarlandı, yatırımcı dokümanı hazırlandı.
+haritası yazıldı, ana sayfa ve teslim günü akışı tasarlandı, yatırımcı dokümanı hazırlandı,
+Instagram görselleri hazırlandı. Adım 1–2 tamam: `core` uygulaması, dört model, yönetim paneli,
+"yakında" sayfası, GitHub + Railway + bostanhane.com canlıda.
 
-**Tamamlandı (30 Eylül 2026):** Adım 1 (kurulum) ve Adım 2 (`core` uygulaması, dört model,
-yönetim paneli, örnek veri). Veritabanı `bostanhane.sqlite3` (eski boş `db.sqlite3` kullanılmıyor).
-`TeslimTakvimi.not_` alanı Django kuralı gereği `aciklama` olarak yeniden adlandırıldı.
-YAPILACAKLAR.md Aşama A (yerel kurulum, yakında sayfası, `IlgiKaydi`, yerel yönetici `bostanci`)
-ve Aşama B (kod GitHub'da: github.com/asargeweb/bostanhane, gizli depo) tamam.
-Aşama C: Railway'de yayında (geçici adres web-production-f37e2.up.railway.app), veritabanı tabloları kurulu.
-Canlıda `ornek_veri` ve `createsuperuser` kullanıcı tarafından `railway ssh` ile çalıştırılacak.
-Aşama D: site canlıda. Asıl adres https://www.bostanhane.com (Squarespace'te `www` CNAME → Railway,
-SSL geçerli). Kök `bostanhane.com` Railway'de tanımlı değil; Squarespace onu 301 ile www'ye yönlendiriyor.
+**Şu anda:** Adım 3 (`hesaplar`) yerelde kuruldu. Adım 3B (`il/ilçe/mahalle`) dosyaları
+`hazir/` klasöründe, talimat `adim-3b-cografya.md`. İkisi birlikte canlıya gidecek;
+kullanıcı modeli ve mahalle tablosu değiştiği için veritabanı sıfırdan kuruluyor
+(sitede henüz gerçek kayıt yok, kayıp yok).
 
 **Sonraki adımlar:**
-1. Adım 3: `hesaplar` — kullanıcı, roller, mağaza bağlantısı, üye adresi
-2. Adım 4: `katalog` — kategori, ürün, birim, tartılı mı, kanal bayrakları, fiyat, stok
-3. Adım 5: `siparis` — sepet, sipariş, kesim işlemi, alım listesi
+1. Adım 4: `katalog` — kategori, ürün, birim, tartılı mı, kanal bayrakları, fiyat, stok
+   (önce Ersin'le ilk 30–40 ürün listesi ve hangilerinin kargoya uygun olduğu konuşulacak)
+2. Adım 5: `siparis` — sepet, sipariş, kesim işlemi, alım listesi
+3. Adım 6: üye girişi ve kayıt ekranları (SMS doğrulama), paketleme ve kurye ekranları
 
-**Henüz karar verilmedi:** ödeme sağlayıcısı
+**Bekleyen işler (Ersin tarafı):**
+- Apex alan adı: `bostanhane.com` → `https://www.bostanhane.com` yönlendirmesi
+  (Squarespace 301) ve SSL doğrulaması
+- @bostanhane.tr Instagram hesabının açılması
+- Sanal POS başvurusu (iyzico / PayTR): provizyon + sonradan çekim, kart saklama (token),
+  kısmi iade, provizyon geçerlilik süresi sorulacak
+- Kurumsal e-posta sağlayıcısı kararı
+- Pilot mahalleler ve teslim günlerinin kesinleşmesi, ilk 30–40 ürünün listesi
+
+**Henüz karar verilmedi:** sunucu (Railway mi kendi sunucu mu), ödeme sağlayıcısı
 (iyzico / PayTR), kurumsal e-posta sağlayıcısı, tedarikçi rolünün sisteme girip girmeyeceği.

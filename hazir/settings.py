@@ -67,6 +67,7 @@ UCUNCU_PARTI_APPS = [
 # Bostanhane uygulamaları — yeni modül ekledikçe buraya eklenecek
 BOSTANHANE_APPS = [
     "core",
+    "hesaplar",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + UCUNCU_PARTI_APPS + BOSTANHANE_APPS
@@ -136,6 +137,22 @@ else:
             "NAME": BASE_DIR / "bostanhane.sqlite3",
         }
     }
+
+# --------------------------------------------------------------------------
+# Kullanıcı modeli
+#
+# Django'nun hazır kullanıcı tablosu yerine kendi modelimizi kullanıyoruz:
+# giriş anahtarı kullanıcı adı değil **telefon numarası**.
+#
+# Bu satır projenin en başında konur. Sonradan değiştirmek veritabanının
+# sıfırlanmasını gerektirir, çünkü bütün yetki tabloları buna bağlanır.
+# --------------------------------------------------------------------------
+AUTH_USER_MODEL = "hesaplar.Kullanici"
+
+# Giriş sayfası henüz yazılmadı; şimdilik yönetim panelinin girişi kullanılıyor.
+LOGIN_URL = "/yonetim/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/"
 
 # --------------------------------------------------------------------------
 # Parola kuralları
