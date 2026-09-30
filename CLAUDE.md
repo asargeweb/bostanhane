@@ -66,7 +66,7 @@ mağazasını. Bu kısıtlama sorgu seviyesinde uygulanmalı, sadece şablonda g
 | Veritabanı | SQLite (yerel) / PostgreSQL (canlı), `DB_MOTOR` ile seçilir |
 | Web arayüz | Django template'leri |
 | Mobil | React Native (Expo), repo içinde `mobile/` klasöründe (henüz yok) |
-| Canlı ortam | Sunucu kararı verilmedi; Railway veya kendi sunucu |
+| Canlı ortam | Railway (proje `bostanhane`, servisler `web` + `Postgres`); `main`'e her push otomatik yayınlanır |
 
 ### Klasör düzeni
 
@@ -165,12 +165,15 @@ yönetim paneli, örnek veri). Veritabanı `bostanhane.sqlite3` (eski boş `db.s
 `TeslimTakvimi.not_` alanı Django kuralı gereği `aciklama` olarak yeniden adlandırıldı.
 YAPILACAKLAR.md Aşama A (yerel kurulum, yakında sayfası, `IlgiKaydi`, yerel yönetici `bostanci`)
 ve Aşama B (kod GitHub'da: github.com/asargeweb/bostanhane, gizli depo) tamam.
-Sırada Aşama C (Railway) ve D (bostanhane.com bağlama); bunları kullanıcı kendi panelinden yapıyor.
+Aşama C: Railway'de yayında (geçici adres web-production-f37e2.up.railway.app), veritabanı tabloları kurulu.
+Canlıda `ornek_veri` ve `createsuperuser` kullanıcı tarafından `railway ssh` ile çalıştırılacak.
+Aşama D: site canlıda. Asıl adres https://www.bostanhane.com (Squarespace'te `www` CNAME → Railway,
+SSL geçerli). Kök `bostanhane.com` Railway'de tanımlı değil; Squarespace onu 301 ile www'ye yönlendiriyor.
 
 **Sonraki adımlar:**
 1. Adım 3: `hesaplar` — kullanıcı, roller, mağaza bağlantısı, üye adresi
 2. Adım 4: `katalog` — kategori, ürün, birim, tartılı mı, kanal bayrakları, fiyat, stok
 3. Adım 5: `siparis` — sepet, sipariş, kesim işlemi, alım listesi
 
-**Henüz karar verilmedi:** sunucu (Railway mi kendi sunucu mu), ödeme sağlayıcısı
+**Henüz karar verilmedi:** ödeme sağlayıcısı
 (iyzico / PayTR), kurumsal e-posta sağlayıcısı, tedarikçi rolünün sisteme girip girmeyeceği.
