@@ -163,7 +163,9 @@ haritası yazıldı, ana sayfa ve teslim günü akışı tasarlandı, yatırımc
 **Tamamlandı (30 Eylül 2026):** Adım 1 (kurulum) ve Adım 2 (`core` uygulaması, dört model,
 yönetim paneli, örnek veri). Veritabanı `bostanhane.sqlite3` (eski boş `db.sqlite3` kullanılmıyor).
 `TeslimTakvimi.not_` alanı Django kuralı gereği `aciklama` olarak yeniden adlandırıldı.
-Kalan tek iş: kullanıcının `python manage.py createsuperuser` ile kendi hesabını açması.
+YAPILACAKLAR.md Aşama A (yerel kurulum, yakında sayfası, `IlgiKaydi`, yerel yönetici `bostanci`)
+ve Aşama B (kod GitHub'da: github.com/asargeweb/bostanhane, gizli depo) tamam.
+Sırada Aşama C (Railway) ve D (bostanhane.com bağlama); bunları kullanıcı kendi panelinden yapıyor.
 
 **Sonraki adımlar:**
 1. Adım 3: `hesaplar` — kullanıcı, roller, mağaza bağlantısı, üye adresi
