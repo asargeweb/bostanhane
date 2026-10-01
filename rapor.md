@@ -45,6 +45,77 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, öğle — Rota eşitleme + Adım 4 (katalog) yerelde kuruldu, push edildi
+
+### Sıra değişti — neden
+Talimattaki İş 1 (`ornek_veri --rotalari_esitle`) tek başına çalışamazdı: yeni
+`ornek_veri.py` `SatisAyarlari`'nı içe aktarıyor, o model ise İş 5'teki `core_models.py` ile
+geliyor. Ersin'in onayıyla sıra: önce yerelde Adım 4'ün tamamı + eşitleme, sonra tek push.
+
+### Yapıldı
+- `pip install -r requirements.txt` (openpyxl), `startapp katalog`, `adim-4-katalog.md` A3'teki
+  dosyalar + `core_models.py`, `core_admin.py`, `ornek_veri.py` yerine kondu.
+- `makemigrations core` (`0002_satisayarlari`), `makemigrations katalog` (`0001_initial`), `migrate`, `roller_kur`.
+- `ornek_veri --rotalari_esitle` iki kez (ikincisi tekrar-çalıştırma testi).
+- `urun_yukle --kuru_prova`, sonra `urun_yukle`.
+- CLAUDE.md: komut tablosuna `urun_yukle` satırı + `--rotalari_esitle` notu (talimattaki metin aynen).
+- Argümansız `format_html(...)` araması: projede yok.
+- Push: `330ef86 Adim 4: katalog, satis ayarlari ve ornek_veri --rotalari_esitle`.
+
+### Çıktılar
+```
+  − Müftü: Salı kaldırıldı
+  − Müftü: Cuma kaldırıldı
+  − Bahçelievler: Çarşamba kaldırıldı
+  − Yeni: Pazartesi kaldırıldı
+  − Yeni: Cuma kaldırıldı
+Beyşehir'de 70 mahalle tanımlı: 13 aktif, 57 pasif.
+Eşitleme: 5 fazla teslim günü ve 39 takvim kaydı silindi.
+```
+İkinci çalıştırma: `Eşitleme: 0 fazla teslim günü ve 0 takvim kaydı silindi.` ve
+`Satış ayarları: minimum 500 ₺ · teslimat 50 ₺ · ücretsiz eşiği 1000 ₺ (panelden değiştirilir)`.
+13 mahallenin günleri tam rotada (tablodaki gibi). Yerel ana sayfada 13 mahalle rozeti.
+
+```
+50 yeni ürün, 0 güncellenen, 6 yeni kategori, 0 fiyat yazıldı.
+50 ürünün fiyatı yok, bu yüzden satışa açılmadı.
+```
+Kayıt sayıları: Kategori 6 · Urun 50 · MagazaUrun 50 · SatisAyarlari 1.
+Panel (süper admin, test istemcisi): `/yonetim/`, katalog kategori/ürün/mağaza ürünü,
+`core/satisayarlari`, `core/magaza`, `core/hizmetmahallesi`, `/` → hepsi **200**.
+Roller: Mağaza Yöneticisi 36, Paketleme 7, Kurye 5 yetki.
+
+### Sorunlar / gözlemler
+- **39 vs 40 takvim kaydı:** Beklenen 40, silinen 39. Bugün ve geçmiş tarihli takvim kaydı
+  yok, yani "geçmişe dokunmama" kuralından değil. Tahmin: yereldeki takvim 30 Eylül'de
+  üretildi, sandbox'takinden bir hafta-sonu günü kaymış. Sonuç doğru (günler rotada).
+- **`env-ornek.txt` yorumu eski:** "burada değiştirip yeniden başlatmak yeter" diyor; artık
+  bu değerler yalnızca yeni mağazanın ilk `SatisAyarlari` kaydını oluşturuyor, sonrası panelde.
+  Cowork düzeltsin (dosyayı değiştirmedim).
+- **Canlıda ürün yok:** Excel repoda değil (`..\icerik\`), canlıda `urun_yukle` çalışamaz.
+  Adım 4 talimatı "panelden elle girin" diyor — 50 ürünü elle girmek uzun. Karar bekliyor (aşağıda).
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `CLAUDE.md` | Komut tablosuna `urun_yukle`, altına `--rotalari_esitle` notu | Talimat İş 3 | — (hazir'de eşi yok) |
+
+Kurulan diğer bütün dosyalar `hazir/` ile birebir aynı.
+
+### Canlı — durum
+- Railway dağıtımı **SUCCESS** (08:25 UTC, commit `330ef86`). Site ve `/yonetim/login/` 200.
+- Canlı ana sayfa hâlâ 3 eski mahalle — beklenen; `ornek_veri --rotalari_esitle` canlıda
+  henüz çalıştırılmadı (Claude Code'un canlıda komut izni yok, Ersin'in çalıştırması bekleniyor).
+
+### İş 4 — Railway değişkenleri
+Claude Code okuyamıyor (izin yok). Ersin panelden bakıp yazacak:
+`DATABASE_URL`, `YONETICI_TELEFON`, `YONETICI_AD` tanımlı mı, `YONETICI_KULLANICI` silinmiş mi.
+
+### Karar bekleyen
+- Canlıya 50 ürün nasıl gidecek: (a) panelden elle, (b) `urunler.xlsx`'i repoya
+  (ör. `veri/urunler.xlsx`) koyup canlıda bir kez `urun_yukle --dosya veri/urunler.xlsx`.
+  Claude Code (b)'yi öneriyor: fiyatlar sonra canlı panelden girilir, ayrışma olmaz.
+
 ## 1 Ekim 2026, sabah — Yeni ornek_veri yerelde kuruldu; canlıda eski 3 mahalle duruyor
 
 ### Yapıldı
