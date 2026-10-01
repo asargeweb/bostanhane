@@ -23,9 +23,11 @@ from datetime import time
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from core.models import (
-    Gun, HaftalikTeslimGunu, HizmetMahallesi, Ilce, Magaza, Mahalle, TeslimTakvimi,
+    Gun, HaftalikTeslimGunu, HizmetMahallesi, Ilce, Magaza, Mahalle,
+    SatisAyarlari, TeslimTakvimi,
 )
 
 
@@ -64,7 +66,19 @@ KIRSAL_KAPASITE = 20      # köy kökenli mahalleler açıldığında başlangı
 class Command(BaseCommand):
     help = "Beyşehir mağazasını, merkez hizmet mahallelerini ve takvimi oluşturur."
 
+    def add_arguments(self, ayristirici):
+        ayristirici.add_argument(
+            "--rotalari_esitle", action="store_true",
+            help="Merkez mahallelerinde yukarıdaki rotada olmayan teslim günlerini siler. "
+                 "Rotalar değiştiğinde eski günlerin üzerine birikmesini önler.")
+
     def handle(self, *args, **secenekler):
+        self.esitle = secenekler["rotalari_esitle"]
+        if self.esitle:
+            self.stdout.write(self.style.WARNING(
+                "Rota eşitleme açık: rotada olmayan teslim günleri ve onların gelecekteki "
+                "takvim kayıtları silinecek."))
+
         # -- coğrafya hazır mı --------------------------------------------
         ilce = Ilce.objects.filter(il__ad="Konya", slug="beysehir").first()
         if ilce is None:
@@ -90,9 +104,20 @@ class Command(BaseCommand):
         )
         self.yaz(f"Mağaza: {magaza.ad} ({magaza.konum})", yeni)
 
+        # Satış ayarları kaydı: yeni mağazada sinyal açıyor, eski mağazada
+        # (bu kayıt eklenmeden önce oluşmuş olanda) burada açılıyor.
+        ayarlar = SatisAyarlari.getir(magaza)
+        self.stdout.write(
+            f"  Satış ayarları: minimum {ayarlar.min_sepet_tutari:.0f} ₺ · "
+            f"teslimat {ayarlar.teslimat_ucreti:.0f} ₺ · "
+            f"ücretsiz eşiği {ayarlar.ucretsiz_teslimat_esigi:.0f} ₺ "
+            f"(panelden değiştirilir)")
+
         # -- merkez mahalleleri: aktif, teslim günleriyle -------------------
         self.stdout.write("\nMerkez mahalleleri (aktif):")
         toplam_takvim = 0
+        toplam_silinen_kural = 0
+        toplam_silinen_gun = 0
         sira = 0
         for mahalle_slug, rota in MERKEZ_ROTALARI.items():
             mahalle = Mahalle.objects.filter(ilce=ilce, slug=mahalle_slug).first()
@@ -119,6 +144,11 @@ class Command(BaseCommand):
                     },
                 )
                 toplam_takvim += len(TeslimTakvimi.kural_uret(kural, hafta_sayisi=8))
+
+            if self.esitle:
+                silinen_kural, silinen_gun = self.rotayi_esitle(hizmet, gunler)
+                toplam_silinen_kural += silinen_kural
+                toplam_silinen_gun += silinen_gun
 
             gun_metni = hizmet.teslim_gunleri_metni()
             self.yaz(f"  {mahalle.ad} — rota {rota} · {gun_metni}", yeni)
@@ -149,7 +179,60 @@ class Command(BaseCommand):
             f"Beyşehir'de {Mahalle.objects.filter(ilce=ilce).count()} mahalle tanımlı: "
             f"{aktif_adet} aktif, {pasif_adet} pasif."
         )
+        if self.esitle:
+            self.stdout.write(
+                f"Eşitleme: {toplam_silinen_kural} fazla teslim günü ve "
+                f"{toplam_silinen_gun} takvim kaydı silindi."
+            )
         self.stdout.write("Yönetim paneli: /yonetim/core/hizmetmahallesi/")
+
+    # ----------------------------------------------------------------------
+    def rotayi_esitle(self, hizmet, gunler):
+        """
+        Mahallenin teslim günlerini rotaya indirir: rotada olmayan
+        `HaftalikTeslimGunu` kayıtlarını ve onlardan üretilmiş **gelecek**
+        takvim günlerini siler.
+
+        Neden gerekti: `get_or_create` eksik günü ekler ama fazlasını almaz.
+        Rotalar değiştiğinde eski günler yenilerin üzerine birikiyordu —
+        Müftü dört günlük görünüyordu.
+
+        Yalnızca `--rotalari_esitle` ile çalışır. Varsayılan davranış
+        "var olana dokunma" olarak kalıyor; panelden elle eklenen bir teslim
+        günü bir komut yüzünden kaybolmasın.
+        """
+        silinen_kural = 0
+        for kural in hizmet.haftalik_gunler.exclude(gun__in=gunler):
+            self.stdout.write(self.style.WARNING(
+                f"  − {hizmet.mahalle.ad}: {kural.get_gun_display()} kaldırıldı"))
+            kural.delete()
+            silinen_kural += 1
+
+        # Takvim kayıtları kurala değil mahalleye bağlı; bu yüzden haftanın
+        # gününe bakarak temizliyoruz. Geçmişe dokunmuyoruz: tarihçe kalsın.
+        bugun = timezone.localdate()
+        silinen_gun = 0
+        for kayit in hizmet.takvim.filter(tarih__gt=bugun):
+            if kayit.tarih.weekday() in gunler:
+                continue
+            if not self.takvim_silinebilir(kayit):
+                self.stdout.write(self.style.WARNING(
+                    f"    ! {kayit.tarih:%d.%m.%Y} siparişli, silinmedi"))
+                continue
+            kayit.delete()
+            silinen_gun += 1
+
+        return silinen_kural, silinen_gun
+
+    @staticmethod
+    def takvim_silinebilir(kayit):
+        """
+        Takvim gününe bağlı sipariş var mı? Sipariş modeli henüz yok; koşulu
+        şimdiden yazıyoruz ki `siparis` uygulaması eklendiğinde bu komut
+        gerçek siparişli bir günü silmeye kalkmasın.
+        """
+        siparisler = getattr(kayit, "siparisler", None)
+        return siparisler is None or not siparisler.exists()
 
     def yaz(self, metin, yeni):
         if yeni:

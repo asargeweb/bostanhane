@@ -17,6 +17,41 @@ DB_PASSWORD=
 DB_HOST=127.0.0.1
 DB_PORT=5432
 
+# --------------------------------------------------------------------------
+# İş kuralları
+#
+# Bunlar iş kararı, kod değil. Değiştirmek için kodu düzeltmek gerekmez:
+# burada (ya da Railway'in Variables sekmesinde) değeri değiştirip
+# uygulamayı yeniden başlatmak yeter.
+# --------------------------------------------------------------------------
+
+# Sepet, bu tutarın altında siparişe kapalı. Haftalık pazar alışverişine göre
+# belirlendi; butik manav tek seferde dolu sepet satar.
+MIN_SEPET_TUTARI=500
+
+# Teslimat ücreti (TL)
+TESLIMAT_UCRETI=50
+
+# Bu tutarın üstündeki siparişte teslimat ücretsiz
+UCRETSIZ_TESLIMAT_ESIGI=1000
+
+# Tartılı üründe provizyon tamponu. 0.15 = %15
+# Karttan bloke edilen tutar: tahmini tutar × (1 + tampon)
+PROVIZYON_TAMPON_ORANI=0.15
+
+# Üye "eksiksiz teslim aldım" demezse kaç saat sonra otomatik onaylanır
+OTOMATIK_TESLIM_ONAYI_SAAT=24
+
+# Teslimden sonra kaç saat içinde iade/talep açılabilir
+TALEP_ACMA_SURESI_SAAT=24
+
+# --------------------------------------------------------------------------
+# Yönetici hesabı — yalnızca canlı ortamda (Railway) gerekir
+# --------------------------------------------------------------------------
+# YONETICI_TELEFON=5321112233
+# YONETICI_AD=Ad Soyad
+# YONETICI_SIFRE=
+
 # Sonraki fazlarda doldurulacak
 # ODEME_SAGLAYICI_API_KEY=
 # EPOSTA_API_KEY=

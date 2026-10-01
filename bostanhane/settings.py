@@ -68,6 +68,7 @@ UCUNCU_PARTI_APPS = [
 BOSTANHANE_APPS = [
     "core",
     "hesaplar",
+    "katalog",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + UCUNCU_PARTI_APPS + BOSTANHANE_APPS
@@ -189,14 +190,30 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --------------------------------------------------------------------------
-# Bostanhane iş kuralları — varsayılanlar
-# Bunlar ileride yönetim panelinden değiştirilebilir hale gelecek.
+# Bostanhane iş kuralları
+#
+# Hepsi .env dosyasından okunur. Sebebi: bunlar iş kararı, kod değil.
+# Teslimat ücretini değiştirmek için kodu düzeltip yeniden dağıtmak gerekmesin —
+# Railway'de değişkeni değiştirip servisi yeniden başlatmak yeter.
+#
+# İleride yönetim panelinden mağaza bazında değiştirilebilir hale gelecek
+# (Karaman'ın teslimat ücreti Beyşehir'den farklı olabilir).
 # --------------------------------------------------------------------------
+def sayi_ayar(anahtar, varsayilan):
+    """Ortam değişkenini sayıya çevirir. Bozuk değer varsa varsayılana döner."""
+    try:
+        return float(ayar(anahtar, varsayilan))
+    except (TypeError, ValueError):
+        return float(varsayilan)
+
+
 BOSTANHANE = {
-    "MIN_SEPET_TUTARI": 150,          # TL
-    "TESLIMAT_UCRETI": 40,            # TL
-    "UCRETSIZ_TESLIMAT_ESIGI": 300,   # TL
-    "PROVIZYON_TAMPON_ORANI": 0.15,   # %15
-    "OTOMATIK_TESLIM_ONAYI_SAAT": 24, # saat
-    "TALEP_ACMA_SURESI_SAAT": 24,     # saat
+    # Haftalık pazar alışverişine göre belirlendi: butik manav tek seferde
+    # dolu sepet satar, kurye başına durak sayısı azalır, rota kendini çıkarır.
+    "MIN_SEPET_TUTARI": sayi_ayar("MIN_SEPET_TUTARI", 500),            # TL
+    "TESLIMAT_UCRETI": sayi_ayar("TESLIMAT_UCRETI", 50),               # TL
+    "UCRETSIZ_TESLIMAT_ESIGI": sayi_ayar("UCRETSIZ_TESLIMAT_ESIGI", 1000),  # TL
+    "PROVIZYON_TAMPON_ORANI": sayi_ayar("PROVIZYON_TAMPON_ORANI", 0.15),    # %15
+    "OTOMATIK_TESLIM_ONAYI_SAAT": int(sayi_ayar("OTOMATIK_TESLIM_ONAYI_SAAT", 24)),
+    "TALEP_ACMA_SURESI_SAAT": int(sayi_ayar("TALEP_ACMA_SURESI_SAAT", 24)),
 }

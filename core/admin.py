@@ -19,7 +19,7 @@ from django.utils import timezone
 from .admin_araclar import MagazaKisitliAdmin, tum_magazalari_gorur
 from .models import (
     HaftalikTeslimGunu, HizmetMahallesi, Il, Ilce, IlgiKaydi,
-    Magaza, Mahalle, TeslimTakvimi,
+    Magaza, Mahalle, SatisAyarlari, TeslimTakvimi,
 )
 
 admin.site.site_header = "Bostanhane Yönetimi"
@@ -95,6 +95,18 @@ class HizmetMahallesiSatiri(admin.TabularInline):
     verbose_name_plural = "hizmet verilen mahalleler"
 
 
+class SatisAyarlariSatiri(admin.StackedInline):
+    model = SatisAyarlari
+    can_delete = False
+    verbose_name = "satış ayarları"
+    verbose_name_plural = "satış ayarları"
+    fields = (
+        ("min_sepet_tutari", "teslimat_ucreti", "ucretsiz_teslimat_esigi"),
+        "provizyon_tampon_orani",
+        ("otomatik_teslim_onayi_saat", "talep_acma_suresi_saat"),
+    )
+
+
 @admin.register(Magaza)
 class MagazaAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     magaza_yolu = "pk"
@@ -104,7 +116,7 @@ class MagazaAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     search_fields = ("ad", "il__ad", "ilce__ad")
     prepopulated_fields = {"slug": ("ad",)}
     autocomplete_fields = ("il", "ilce")
-    inlines = [HizmetMahallesiSatiri]
+    inlines = [SatisAyarlariSatiri, HizmetMahallesiSatiri]
     fieldsets = (
         ("Mağaza", {"fields": ("ad", "slug", "aktif")}),
         ("Konum", {"fields": (("il", "ilce"), "adres", ("enlem", "boylam"))}),
@@ -226,3 +238,54 @@ class IlgiKaydiAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return tum_magazalari_gorur(request)
+
+
+@admin.register(SatisAyarlari)
+class SatisAyarlariAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
+    """
+    Ticari eşikler burada düzenlenir. Listede doğrudan değiştirilebiliyor:
+    üç sayıyı yazıp Kaydet demek yeterli.
+    """
+    magaza_yolu = "magaza"
+
+    list_display = ("magaza", "min_sepet_tutari", "teslimat_ucreti",
+                    "ucretsiz_teslimat_esigi", "tampon_yuzde", "ozet")
+    list_editable = ("min_sepet_tutari", "teslimat_ucreti", "ucretsiz_teslimat_esigi")
+    list_select_related = ("magaza",)
+    fieldsets = (
+        (None, {"fields": ("magaza",)}),
+        ("Sepet ve teslimat", {
+            "description": "Müşteri sepetinde bu üç sayı görünür: eksik tutar, "
+                           "teslimat ücreti ve ücretsiz teslimata kalan.",
+            "fields": ("min_sepet_tutari", "teslimat_ucreti", "ucretsiz_teslimat_esigi"),
+        }),
+        ("Tartılı ürün", {
+            "description": "Tartılı üründe sipariş anında kesin tutar bilinmez; "
+                           "karttan tahmini tutar + tampon kadarı bloke edilir.",
+            "fields": ("provizyon_tampon_orani",),
+        }),
+        ("Teslim sonrası", {
+            "fields": ("otomatik_teslim_onayi_saat", "talep_acma_suresi_saat"),
+        }),
+    )
+
+    @admin.display(description="tampon")
+    def tampon_yuzde(self, nesne):
+        return f"%{nesne.provizyon_tampon_orani * 100:.0f}"
+
+    @admin.display(description="örnek")
+    def ozet(self, nesne):
+        """Ayarın müşteriye nasıl yansıdığını tek satırda gösterir."""
+        esik = nesne.ucretsiz_teslimat_esigi
+        if esik is None:
+            return f"Her siparişe {nesne.teslimat_ucreti:.0f} ₺ teslimat"
+        return (f"{nesne.min_sepet_tutari:.0f} ₺ altı kapalı · "
+                f"{esik:.0f} ₺ üstü ücretsiz")
+
+    # Ayar kaydı mağaza açılınca kendiliğinden oluşuyor; elle eklenmesine
+    # gerek yok ve iki kayıt açılmasını engellemek daha temiz.
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

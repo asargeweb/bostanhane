@@ -1,0 +1,239 @@
+"""
+Bostanhane — ürün listesini Excel'den içeri alır
+
+Dosya yolu: katalog/management/commands/urun_yukle.py
+Çalıştırma:  python manage.py urun_yukle
+             python manage.py urun_yukle --dosya "C:\\yol\\urunler.xlsx"
+
+Varsayılan dosya: proje klasörünün bir üstündeki `icerik\\urunler.xlsx`
+
+Beklenen sütunlar (4. satır başlık, 5. satır örnek, veri 6. satırdan başlar):
+    Kategori · Ürün adı · Birim · Tartılı mı · Satış adımı ·
+    Tahmini fiyat (₺ / birim) · Yerel · Kargo · Kurumsal · Raf ömrü · Mevsim · Not
+
+Tekrar çalıştırılabilir. Var olan ürünü **günceller**, panelden girdiğiniz fiyatı
+silmez: fiyat yalnızca Excel'de bir değer varsa yazılır. Böylece fiyatları panelden
+girip Excel'den ürün eklemeye devam edebilirsiniz.
+
+"ÖRNEK" ile başlayan satırlar atlanır.
+"""
+
+import re
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+
+from django.conf import settings
+from django.core.management.base import BaseCommand
+from django.db import transaction
+
+from core.araclar import turkce_slug
+from core.models import Magaza
+from katalog.models import Birim, Kategori, MagazaUrun, Urun
+
+BASLIK_SATIRI = 4
+VERI_BASLANGICI = 6
+
+# Excel'deki birim yazımı → model değeri
+BIRIM_ESLEME = {
+    "kilogram": Birim.KILOGRAM, "kg": Birim.KILOGRAM,
+    "adet": Birim.ADET,
+    "demet": Birim.DEMET,
+    "paket": Birim.PAKET,
+    "kavanoz": Birim.KAVANOZ,
+    "şişe": Birim.SISE, "sise": Birim.SISE,
+    "kutu": Birim.KUTU,
+}
+
+EVET = {"evet", "e", "yes", "true", "1", "var"}
+
+
+def evet_mi(deger):
+    return str(deger or "").strip().lower() in EVET
+
+
+def sayi(deger):
+    """'64,90' ve '64.90' ikisini de okur. Boşsa None."""
+    if deger in (None, ""):
+        return None
+    if isinstance(deger, (int, float, Decimal)):
+        return Decimal(str(deger))
+    metin = str(deger).strip().replace("₺", "").replace(" ", "").replace(",", ".")
+    try:
+        return Decimal(metin)
+    except InvalidOperation:
+        return None
+
+
+def satis_adimi_coz(metin, birim):
+    """
+    '500 g' → 0.500   ·   '1 kg' → 1   ·   '1 adet' → 1   ·   '250 g' → 0.250
+
+    Kilogramla satılan üründe adım kilogram cinsine çevrilir; gram yazılması
+    kullanıcı için daha doğal olduğu için Excel'de gram kabul ediyoruz.
+    """
+    if not metin:
+        return Decimal("1")
+    m = str(metin).strip().lower().replace(",", ".")
+    rakam = re.search(r"[\d.]+", m)
+    if not rakam:
+        return Decimal("1")
+    try:
+        deger = Decimal(rakam.group())
+    except InvalidOperation:
+        return Decimal("1")
+    if birim == Birim.KILOGRAM and re.search(r"\bg\b|gr\b|gram", m) and "kg" not in m:
+        return (deger / Decimal("1000")).quantize(Decimal("0.001"))
+    return deger
+
+
+def raf_omru_coz(metin):
+    """'5 gün' → 5 · '24 saat' → 1 · '12 ay' → 360 · '2 yıl' → 720. Boşsa None."""
+    if not metin:
+        return None
+    m = str(metin).strip().lower()
+    rakam = re.search(r"\d+", m)
+    if not rakam:
+        return None
+    deger = int(rakam.group())
+    if "saat" in m:
+        return max(1, deger // 24)
+    if "ay" in m:
+        return deger * 30
+    if "yıl" in m or "yil" in m:
+        return deger * 360
+    if "hafta" in m:
+        return deger * 7
+    return deger
+
+
+class Command(BaseCommand):
+    help = "icerik/urunler.xlsx dosyasındaki ürün listesini katalog'a aktarır."
+
+    def add_arguments(self, ayristirici):
+        ayristirici.add_argument("--dosya", default=None, help="Excel dosyasının yolu.")
+        ayristirici.add_argument(
+            "--magaza", default="beysehir",
+            help="Fiyatların yazılacağı mağazanın kısa adı. Varsayılan: beysehir")
+        ayristirici.add_argument(
+            "--kuru_prova", action="store_true",
+            help="Hiçbir şey kaydetmeden ne olacağını yazar.")
+
+    def handle(self, *args, **secenekler):
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            self.stdout.write(self.style.ERROR(
+                "openpyxl kurulu değil. Şunu çalıştırın: pip install openpyxl"))
+            return
+
+        yol = Path(secenekler["dosya"]) if secenekler["dosya"] else \
+            Path(settings.BASE_DIR).parent / "icerik" / "urunler.xlsx"
+        if not yol.exists():
+            self.stdout.write(self.style.ERROR(f"Dosya bulunamadı: {yol}"))
+            self.stdout.write("--dosya ile yolu verebilirsiniz.")
+            return
+
+        magaza = Magaza.objects.filter(slug=secenekler["magaza"]).first()
+        if magaza is None:
+            self.stdout.write(self.style.ERROR(
+                f"'{secenekler['magaza']}' mağazası yok. Önce: python manage.py ornek_veri"))
+            return
+
+        self.kuru = secenekler["kuru_prova"]
+        if self.kuru:
+            self.stdout.write(self.style.WARNING("KURU PROVA — hiçbir şey kaydedilmeyecek.\n"))
+
+        self.stdout.write(f"Dosya: {yol}")
+        self.stdout.write(f"Mağaza: {magaza.ad}\n")
+
+        kitap = load_workbook(yol, data_only=True)
+        sayfa = kitap["Ürünler"] if "Ürünler" in kitap.sheetnames else kitap.active
+
+        sayac = {"kategori": 0, "urun_yeni": 0, "urun_guncel": 0,
+                 "fiyat": 0, "atlanan": 0, "hata": 0}
+
+        with transaction.atomic():
+            for satir in sayfa.iter_rows(min_row=VERI_BASLANGICI, values_only=True):
+                if not satir or not satir[1]:
+                    continue
+                urun_adi = str(satir[1]).strip()
+                if urun_adi.upper().startswith("ÖRNEK"):
+                    sayac["atlanan"] += 1
+                    continue
+                try:
+                    self.satir_isle(satir, magaza, sayac)
+                except Exception as hata:          # noqa: BLE001
+                    sayac["hata"] += 1
+                    self.stdout.write(self.style.ERROR(f"  ! {urun_adi}: {hata}"))
+
+            if self.kuru:
+                transaction.set_rollback(True)
+
+        self.stdout.write("")
+        self.stdout.write(self.style.SUCCESS(
+            f"{sayac['urun_yeni']} yeni ürün, {sayac['urun_guncel']} güncellenen, "
+            f"{sayac['kategori']} yeni kategori, {sayac['fiyat']} fiyat yazıldı."))
+        if sayac["atlanan"]:
+            self.stdout.write(f"{sayac['atlanan']} örnek satır atlandı.")
+        if sayac["hata"]:
+            self.stdout.write(self.style.ERROR(f"{sayac['hata']} satır hata verdi (yukarıda)."))
+
+        fiyatsiz = MagazaUrun.objects.filter(magaza=magaza, fiyat__isnull=True).count()
+        if fiyatsiz:
+            self.stdout.write(self.style.WARNING(
+                f"\n{fiyatsiz} ürünün fiyatı yok, bu yüzden satışa açılmadı.\n"
+                f"Fiyatları panelden girebilirsiniz: /yonetim/katalog/magazaurun/\n"
+                f"Fiyat sütununu doldurup satışta kutucuğunu işaretleyin, bir kez kaydedin."))
+
+    # ----------------------------------------------------------------------
+    def satir_isle(self, satir, magaza, sayac):
+        (kategori_adi, urun_adi, birim_metni, tartili, adim_metni, fiyat_degeri,
+         yerel, kargo, kurumsal, raf_metni, mevsim, notu) = (list(satir) + [None] * 12)[:12]
+
+        kategori_adi = str(kategori_adi or "Diğer").strip()
+        urun_adi = str(urun_adi).strip()
+        birim = BIRIM_ESLEME.get(str(birim_metni or "").strip().lower(), Birim.ADET)
+        tartili_mi = evet_mi(tartili)
+
+        kategori, yeni_kat = Kategori.objects.get_or_create(
+            slug=turkce_slug(kategori_adi),
+            defaults={"ad": kategori_adi, "sira": sayac["kategori"] + 1},
+        )
+        sayac["kategori"] += 1 if yeni_kat else 0
+
+        alanlar = {
+            "kategori": kategori,
+            "ad": urun_adi,
+            "birim": birim,
+            "tartili_mi": tartili_mi,
+            "satis_adimi": satis_adimi_coz(adim_metni, birim),
+            "yerel_satis": evet_mi(yerel),
+            "kargo_satis": evet_mi(kargo),
+            "kurumsal_satis": evet_mi(kurumsal),
+            "raf_omru_gun": raf_omru_coz(raf_metni),
+            "mevsim": str(mevsim or "").strip()[:60],
+            "aciklama": str(notu or "").strip(),
+            "sira": sayac["urun_yeni"] + sayac["urun_guncel"] + 1,
+        }
+
+        urun, yeni = Urun.objects.update_or_create(
+            slug=turkce_slug(urun_adi), defaults=alanlar)
+        # İş kuralları (kargo şartları) burada da denetlenir; Excel'deki yanlış
+        # bir "evet" sessizce geçmesin.
+        urun.full_clean(exclude=["slug", "gorsel"])
+        urun.save()
+        sayac["urun_yeni" if yeni else "urun_guncel"] += 1
+
+        magaza_urun, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
+        fiyat = sayi(fiyat_degeri)
+        if fiyat is not None and fiyat > 0:
+            magaza_urun.fiyat = fiyat
+            magaza_urun.aktif = True
+            magaza_urun.save()
+            sayac["fiyat"] += 1
+
+        isaret = "+" if yeni else "·"
+        kanal = urun.kanallar_metni
+        fiyat_metni = f"{fiyat} ₺" if fiyat else "fiyat yok"
+        self.stdout.write(f"{isaret} {urun_adi} ({kategori.ad}) — "
+                          f"{urun.satis_adimi_metni} · {kanal} · {fiyat_metni}")

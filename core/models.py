@@ -26,8 +26,14 @@ değiştirilebilir; haftalık kural bozulmaz. **Siparişler TeslimTakvimi'ne ba�
 """
 
 from datetime import datetime, timedelta, time
+from decimal import Decimal
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.utils import timezone
 
 
@@ -350,3 +356,130 @@ class IlgiKaydi(ZamanDamgali):
 
     def __str__(self):
         return self.eposta
+
+
+# ==========================================================================
+# SATIŞ AYARLARI — panelden düzenlenir
+# ==========================================================================
+class SatisAyarlari(ZamanDamgali):
+    """
+    Mağazanın ticari eşikleri: minimum sepet, teslimat ücreti, ücretsiz
+    teslimat eşiği, provizyon tamponu.
+
+    **Neden veritabanında, ayar dosyasında değil?** Bunlar iş kararı ve sık
+    değişir. Teslimat ücretini 45 ₺ yapmak için kod düzeltip yeniden yayın
+    yapmak saçma; mağaza yöneticisi panelden değiştirmeli.
+
+    **Neden mağaza başına?** Karaman'ın teslimat ücreti Beyşehir'den farklı
+    olabilir; mahalle yoğunluğu ve mesafe farklı.
+
+    `.env` değerleri artık yalnızca **ilk kurulum varsayılanı**: yeni bir
+    mağaza açıldığında bu kayıt o değerlerle oluşturulur, sonrası panelde.
+    """
+
+    magaza = models.OneToOneField(Magaza, on_delete=models.CASCADE,
+                                  related_name="satis_ayarlari", verbose_name="mağaza")
+
+    min_sepet_tutari = models.DecimalField(
+        "minimum sepet tutarı (₺)", max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Bu tutarın altındaki sepetle sipariş verilemez. 0 yazarsanız sınır kalkar.")
+    teslimat_ucreti = models.DecimalField(
+        "teslimat ücreti (₺)", max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Her siparişe eklenir. 0 yazarsanız teslimat her zaman ücretsiz olur.")
+    ucretsiz_teslimat_esigi = models.DecimalField(
+        "ücretsiz teslimat eşiği (₺)", max_digits=10, decimal_places=2,
+        null=True, blank=True, validators=[MinValueValidator(Decimal("0"))],
+        help_text="Bu tutarın üstündeki siparişte teslimat ücreti alınmaz. "
+                  "Boş bırakırsanız ücretsiz teslimat hiç olmaz.")
+    provizyon_tampon_orani = models.DecimalField(
+        "provizyon tamponu", max_digits=4, decimal_places=3,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Tartılı üründe karttan bloke edilecek fazlalık. "
+                  "0,150 = %15. Tartı tahminden fazla çıkarsa bu pay işe yarar.")
+
+    otomatik_teslim_onayi_saat = models.PositiveSmallIntegerField(
+        "otomatik teslim onayı (saat)", default=24,
+        help_text="Üye \"eksiksiz teslim aldım\" demezse kaç saat sonra onaylanmış sayılır.")
+    talep_acma_suresi_saat = models.PositiveSmallIntegerField(
+        "talep açma süresi (saat)", default=24,
+        help_text="Teslimden sonra kaç saat içinde iade veya şikâyet açılabilir.")
+
+    class Meta:
+        verbose_name = "satış ayarları"
+        verbose_name_plural = "satış ayarları"
+        ordering = ["magaza__ad"]
+
+    def __str__(self):
+        return f"{self.magaza.ad} — satış ayarları"
+
+    # -- kurulum -----------------------------------------------------------
+    @staticmethod
+    def varsayilanlar():
+        """İlk kurulum değerleri `settings.BOSTANHANE`'den (yani .env'den) gelir."""
+        kaynak = settings.BOSTANHANE
+        return {
+            "min_sepet_tutari": Decimal(str(kaynak["MIN_SEPET_TUTARI"])),
+            "teslimat_ucreti": Decimal(str(kaynak["TESLIMAT_UCRETI"])),
+            "ucretsiz_teslimat_esigi": Decimal(str(kaynak["UCRETSIZ_TESLIMAT_ESIGI"])),
+            "provizyon_tampon_orani": Decimal(str(kaynak["PROVIZYON_TAMPON_ORANI"])),
+            "otomatik_teslim_onayi_saat": int(kaynak["OTOMATIK_TESLIM_ONAYI_SAAT"]),
+            "talep_acma_suresi_saat": int(kaynak["TALEP_ACMA_SURESI_SAAT"]),
+        }
+
+    @classmethod
+    def getir(cls, magaza):
+        """
+        Mağazanın ayarlarını döner; yoksa varsayılanlarla oluşturur.
+        Kodun her yerinden güvenle çağrılabilir — ayar kaydı yok diye hata vermez.
+        """
+        ayar, _ = cls.objects.get_or_create(magaza=magaza, defaults=cls.varsayilanlar())
+        return ayar
+
+    # -- hesaplar ----------------------------------------------------------
+    def teslimat_ucreti_hesapla(self, ara_toplam):
+        """Sepet ara toplamına göre teslimat ücreti. Eşik geçildiyse sıfır."""
+        ara_toplam = Decimal(str(ara_toplam))
+        if self.ucretsiz_teslimat_esigi is not None and ara_toplam >= self.ucretsiz_teslimat_esigi:
+            return Decimal("0.00")
+        return self.teslimat_ucreti
+
+    def ucretsize_kalan(self, ara_toplam):
+        """Ücretsiz teslimata ne kadar kaldı? Eşik yoksa veya geçildiyse None."""
+        if self.ucretsiz_teslimat_esigi is None:
+            return None
+        kalan = self.ucretsiz_teslimat_esigi - Decimal(str(ara_toplam))
+        return kalan if kalan > 0 else None
+
+    def sepet_eksigi(self, ara_toplam):
+        """Minimum sepete ne kadar eksik? Yeterliyse None."""
+        eksik = self.min_sepet_tutari - Decimal(str(ara_toplam))
+        return eksik if eksik > 0 else None
+
+    def sepet_uygun_mu(self, ara_toplam):
+        return self.sepet_eksigi(ara_toplam) is None
+
+    def provizyon_tutari(self, tutar):
+        """Tartılı sepet için karttan bloke edilecek tutar."""
+        tutar = Decimal(str(tutar))
+        return (tutar * (Decimal("1") + self.provizyon_tampon_orani)).quantize(Decimal("0.01"))
+
+    def clean(self):
+        super().clean()
+        if (self.ucretsiz_teslimat_esigi is not None
+                and self.min_sepet_tutari is not None
+                and self.ucretsiz_teslimat_esigi < self.min_sepet_tutari):
+            raise ValidationError({
+                "ucretsiz_teslimat_esigi":
+                    "Ücretsiz teslimat eşiği, minimum sepet tutarından küçük. "
+                    "Bu haliyle her sipariş ücretsiz teslimat alır — istediğiniz bu değilse "
+                    "eşiği yükseltin, gerçekten buysa teslimat ücretini 0 yapmak daha anlaşılır."
+            })
+
+
+@receiver(post_save, sender=Magaza)
+def magaza_satis_ayarlarini_ac(sender, instance, created, **kwargs):
+    """Yeni mağaza açıldığında satış ayarları kaydı kendiliğinden oluşsun."""
+    if created:
+        SatisAyarlari.getir(instance)

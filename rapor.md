@@ -81,6 +81,8 @@ Veritabanı sorgusu: **13 aktif, 57 pasif** hizmet mahallesi (panel listesi ayn�
 - Canlıda kaç mağaza / hizmet mahallesi olduğu doğrudan sayılamadı; sayfaya göre 1 mağaza, 3 aktif mahalle.
 
 **İş 3:**
+- Push sonrası Railway dağıtımı: **SUCCESS** (1 Ekim 07:31 UTC). Canlı sayfa beklendiği gibi
+  hâlâ eski 3 mahalleyi gösteriyor (veri değişmedi).
 - `/yonetim/` → 302 (giriş sayfasına yönlendiriyor, çalışıyor). Giriş denemesi Ersin'e kaldı.
 - `https://bostanhane.com` ve `http://bostanhane.com` → **301 → `https://www.bostanhane.com`**
   (Squarespace). HTTPS sertifikası geçerli. Apex yönlendirmesi **tamam**.
@@ -111,3 +113,14 @@ Veritabanı sorgusu: **13 aktif, 57 pasif** hizmet mahallesi (panel listesi ayn�
   `--rotalari_esitle` gibi bir seçenek olarak (Cowork yazar), ya da Claude Code yerelde
   ve canlıda bir kez elle yapar. Bu karar verilince canlıda `ornek_veri` çalıştırılacak.
 - Railway log/değişken okuması için izin (veya Ersin panelden bakıp yazsın).
+
+### Ersin'in kararı (1 Ekim)
+**Temizliği Cowork `ornek_veri`'ye eklesin.** Claude Code'un önerisi:
+- Merkez mahallelerinde `ROTA_GUNLERI` dışında kalan `HaftalikTeslimGunu` kayıtlarını silen
+  bir seçenek (ör. `--rotalari_esitle`). Varsayılan davranış "var olana dokunma" olarak kalsın;
+  panelden yapılan elle değişiklikler yanlışlıkla silinmesin.
+- Silinen kuraldan üretilmiş, **bugünden sonraki** ve siparişi olmayan `TeslimTakvimi` günleri
+  de silinsin (sipariş modeli henüz yok, ama koşul şimdiden yazılırsa ileride güvenli kalır).
+- Komut sildiği her kuralı ekrana yazsın ("− Müftü: Salı kaldırıldı").
+- Dosya `hazir/ornek_veri.py` olarak gelince Claude Code yerelde ve canlıda bir kez
+  `python manage.py ornek_veri --rotalari_esitle` çalıştırıp sonucu raporlayacak.

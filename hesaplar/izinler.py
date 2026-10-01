@@ -30,15 +30,22 @@ MAGAZA_YONETICISI = {
     "core.il": SADECE_GOR,                    # coğrafya resmî veri, değiştirilmez
     "core.ilce": SADECE_GOR,
     "core.mahalle": SADECE_GOR,
+    "core.satisayarlari": ["view", "change"],  # eşikleri panelden kendi ayarlar
     "core.hizmetmahallesi": TUMU,             # hangi mahalleye gidileceğine o karar verir
     "core.haftalikteslimgunu": TUMU,
     "core.teslimtakvimi": GOR_EKLE_DEGISTIR,
-    # core.ilgikaydi yok: ilgi kayıtları mağazaya bağlı değil, yalnızca süper admin görür
+    "core.ilgikaydi": ["view", "change"],
+    "katalog.kategori": GOR_EKLE_DEGISTIR,
+    "katalog.urun": GOR_EKLE_DEGISTIR,        # ürün tanımı; silme süper adminde
+    "katalog.magazaurun": TUMU,               # fiyat ve stok onun işi
     "hesaplar.kullanici": GOR_EKLE_DEGISTIR,  # personel ve üye ekler, silmez
     "hesaplar.adres": TUMU,
 }
 
 PAKETLEME = {
+    "core.satisayarlari": SADECE_GOR,
+    "katalog.urun": SADECE_GOR,
+    "katalog.magazaurun": SADECE_GOR,
     "core.mahalle": SADECE_GOR,
     "core.hizmetmahallesi": SADECE_GOR,
     "core.teslimtakvimi": SADECE_GOR,
@@ -46,6 +53,7 @@ PAKETLEME = {
 }
 
 KURYE = {
+    "katalog.urun": SADECE_GOR,
     "core.mahalle": SADECE_GOR,
     "core.hizmetmahallesi": SADECE_GOR,
     "core.teslimtakvimi": SADECE_GOR,

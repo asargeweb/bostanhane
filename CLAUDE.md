@@ -92,6 +92,12 @@ adim-*.md              ← adım adım kurulum ve geliştirme notları
 | `ilk_veri` | Coğrafyayı kontrol eder; veritabanı boşsa Beyşehir mağazasını da kurar |
 | `ornek_veri` | Mağaza, pilot hizmet mahalleleri, teslim günleri, 8 haftalık takvim |
 | `ornek_hesaplar` | Örnek personel ve üye (şifresiz — giriş yapamazlar) |
+| `urun_yukle` | `..\icerik\urunler.xlsx`'ten kategori ve ürünleri aktarır; `--kuru_prova` kaydetmeden gösterir. Panelden girilen fiyatı silmez |
+
+`ornek_veri --rotalari_esitle`: merkez mahallelerinde rotada olmayan teslim günlerini
+ve onların gelecekteki takvim kayıtlarını siler. Rotalar (`ROTA_GUNLERI`,
+`MERKEZ_ROTALARI`) değiştiğinde yerelde ve canlıda bir kez elle çalıştırılır.
+Procfile'a konmaz: panelden elle eklenen teslim günlerini silerdi.
 
 Canlı ortamda bu komutlar `Procfile` içinde her dağıtımda kendiliğinden çalışır.
 **Dikkat:** Railway'de web servisinin *Start Command* ayarı boş kalmalı; doluysa `Procfile`'ı
