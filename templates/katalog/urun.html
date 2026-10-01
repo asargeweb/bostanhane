@@ -1,0 +1,57 @@
+{% extends "taban.html" %}
+{% load bostan %}
+{% block baslik %}{{ urun.ad }}{% endblock %}
+{% block kesim %}{% include "parcalar/kesim.html" %}{% endblock %}
+{% block icerik %}
+<p style="margin:0 0 12px;font-size:14px"><a href="{% url 'vitrin_kategori' urun.kategori.slug %}">‹ {{ urun.kategori.ad }}</a></p>
+<div class="urun-sayfa">
+  <div class="urun-gorsel">{% if urun.gorsel %}<img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}">{% else %}{{ simge }}{% endif %}</div>
+  <div class="urun-bilgi" data-fiyat="{{ kayit.fiyat|stringformat:'s' }}" data-tampon="{% if urun.tartili_mi %}{{ tampon|stringformat:'s' }}{% else %}0{% endif %}" data-birim="{{ urun.birim.kisaltma }}">
+    <div class="kategori">{{ urun.kategori.ad }}</div>
+    <h1>{{ urun.ad }}</h1>
+    <div class="buyuk-fiyat">{% if kayit.indirimli_mi %}<s style="color:#8A968A;font-size:17px;font-weight:500">{{ kayit.eski_fiyat|para }}</s> {% endif %}{{ kayit.fiyat|para }} <small>/ {{ urun.birim.ad|lower }}</small></div>
+
+    <div class="ozellik">
+      {% if urun.tartili_mi %}<span class="pill">Tartılı ürün</span>{% endif %}
+      <span class="pill">{{ urun.satis_adimi_metni }}</span>
+      {% if urun.raf_omru_gun %}<span class="pill">Raf ömrü {{ urun.raf_omru_gun }} gün</span>{% endif %}
+      {% if urun.mevsim %}<span class="pill">{{ urun.mevsim }}</span>{% endif %}
+      {% if urun.kargo_satis %}<span class="pill">Kargoyla gönderilir</span>{% endif %}
+    </div>
+
+    {% if urun.aciklama %}<p style="font-size:14.5px;color:#5B675A;margin:0">{{ urun.aciklama|linebreaksbr }}</p>{% endif %}
+    {% if urun.uyari_metni %}<p style="font-size:13.5px;color:#8A5A12;margin:8px 0 0">{{ urun.uyari_metni }}</p>{% endif %}
+
+    {% if satista %}
+      <form method="post" action="{% url 'sepete_ekle' kayit.pk %}" class="secim">
+        {% csrf_token %}
+        {% include "parcalar/miktar_secici.html" with deger=baslangic %}
+        <button class="btn" type="submit">Sepete ekle</button>
+        <span class="tahmin">{% if urun.tartili_mi %}Tahmini{% else %}Tutar{% endif %} <b data-tahmini>{{ tahmini|para }}</b></span>
+      </form>
+
+      {% if urun.tartili_mi %}
+        {# İşin en çok soru doğuracak kısmı: tahmin, bloke, gerçek — üç satırda. #}
+        <div class="provizyon">
+          <b>Tartılı üründe ödeme nasıl olur?</b><br>
+          Sipariş verirken kartınızdan para <b>çekilmez</b>, tahmini tutarın biraz üstü bloke edilir.
+          Teslim sabahı ürün tartılır ve yalnızca <b>gerçek tutar</b> çekilir; kalan blokaj serbest bırakılır.
+          <div class="satir"><span>Tahmini tutar (<span data-miktar-yazi>{{ baslangic|miktar:urun.birim.kisaltma }}</span>)</span><span data-tahmini>{{ tahmini|para }}</span></div>
+          <div class="satir"><span>Bloke edilecek (+{{ tampon|yuzde }} tampon)</span><b data-bloke>{{ bloke|para }}</b></div>
+          <div class="satir"><span>Tartı <span data-ornek-miktar>{{ ornek_tarti|miktar:urun.birim.kisaltma }}</span> çıkarsa çekilecek</span><span data-ornek-tutar>{{ ornek_tutar|para }}</span></div>
+        </div>
+      {% endif %}
+
+      {% if site_kesim %}
+        <div class="uyari" style="margin-top:12px"><span>⏳</span>
+          <span><b>{{ site_kesim.hizmet_mahallesi.mahalle.ad }} · {{ site_kesim.tarih|date:"j F l" }}</b> teslimatı için sipariş
+            <b>{{ site_kesim.kesim_zamani|date:"j F H.i" }}</b>'e kadar açık.</span></div>
+      {% elif user.is_authenticated %}
+        <div class="uyari" style="margin-top:12px"><span>📍</span><span>Teslim gününüzü görmek için <a href="{% url 'adres_ekle' %}?next={{ request.path|urlencode }}">adresinizi ekleyin</a>.</span></div>
+      {% endif %}
+    {% else %}
+      <div class="uyari" style="margin-top:14px"><span>⏸</span><span><b>{{ etiket }}.</b> {{ not_metni }}</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

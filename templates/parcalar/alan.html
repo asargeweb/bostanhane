@@ -1,0 +1,6 @@
+<div class="alan">
+  <label for="{{ alan.id_for_label }}">{{ alan.label }}{% if not alan.field.required and alan.field.widget.input_type != "checkbox" %} <span style="font-weight:400;color:#8A968A">— isteğe bağlı</span>{% endif %}</label>
+  {{ alan }}
+  {% if alan.help_text %}<div class="ipucu">{{ alan.help_text }}</div>{% endif %}
+  {% for hata in alan.errors %}<div class="hata">{{ hata }}</div>{% endfor %}
+</div>

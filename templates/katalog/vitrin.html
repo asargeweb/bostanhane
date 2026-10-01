@@ -1,0 +1,62 @@
+{% extends "taban.html" %}
+{% load bostan %}
+{% block baslik %}{% if secili %}{{ secili.ad }}{% else %}Ürünler{% endif %}{% endblock %}
+{% block kesim %}{% include "parcalar/kesim.html" %}{% endblock %}
+{% block icerik %}
+<div class="vitrin">
+  <nav class="ray" aria-label="Kategoriler">
+    <div class="ray-bas">Kategoriler</div>
+    <a href="{% url 'vitrin' %}" {% if not secili and not kargo %}class="on"{% endif %}>Tümü · {{ toplam }}</a>
+    {% for kategori, adet in kategoriler %}
+      <a href="{% url 'vitrin_kategori' kategori.slug %}" {% if secili == kategori and not kargo %}class="on"{% endif %}>{{ kategori.ad }} · {{ adet }}</a>
+    {% endfor %}
+    {% if kargo_sayisi %}
+      <div class="ray-bas">Kargo</div>
+      <a href="{% url 'vitrin' %}?kanal=kargo" {% if kargo %}class="on"{% endif %}>Tüm Türkiye'ye · {{ kargo_sayisi }}</a>
+    {% endif %}
+  </nav>
+
+  <div class="vitrin-ic">
+    <div class="vitrin-ust">
+      <h1>{% if kargo %}Kargoyla gönderilenler{% elif secili %}{{ secili.ad }}{% else %}Bu haftanın ürünleri{% endif %}</h1>
+      <span>{% if secili.aciklama %}{{ secili.aciklama }}{% else %}Siparişe göre alınır, teslim sabahı tartılır{% endif %}</span>
+    </div>
+
+    <div class="kartlar">
+      {% for kart in kartlar %}
+        {% with urun=kart.urun kayit=kart.kayit %}
+        <div class="kart {% if not kart.satista %}kapali{% endif %}">
+          <a class="gorsel" href="{% url 'urun' urun.slug %}">{% if urun.gorsel %}<img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}" loading="lazy">{% else %}{{ kart.simge }}{% endif %}</a>
+          {% if kart.etiket %}<span class="etiket gri">{{ kart.etiket }}</span>
+          {% elif kayit.indirimli_mi %}<span class="etiket harman">%{{ kayit.indirim_orani }}</span>
+          {% elif urun.kargo_satis %}<span class="etiket harman">Kargo</span>{% endif %}
+          <div class="alt">
+            <a class="ad" href="{% url 'urun' urun.slug %}">{{ urun.ad }}</a>
+            <div class="birim">{{ urun.satis_adimi_metni }}</div>
+            <div class="fiyat">{% if kayit.indirimli_mi %}<s style="color:#8A968A;font-weight:500;font-size:12px">{{ kayit.eski_fiyat|para }}</s> {% endif %}{{ kayit.fiyat|para }} <small>/ {{ urun.birim.kisaltma }}</small></div>
+            {% if not kart.satista %}
+              <div class="tarti-not sabit">{{ kart.not_metni }}</div>
+            {% elif urun.tartili_mi %}
+              {# Provizyonu ödeme ekranında anlatmak geç olur; beklenti kartta kurulur. #}
+              <div class="tarti-not">Tartıya göre kesinleşir</div>
+            {% else %}
+              <div class="tarti-not sabit">Sabit fiyat</div>
+            {% endif %}
+            {% if urun.uyari_metni %}<div class="uyari-metni">{{ urun.uyari_metni }}</div>{% endif %}
+            {% if kart.satista %}
+              <form method="post" action="{% url 'sepete_ekle' kayit.pk %}">
+                {% csrf_token %}
+                {% include "parcalar/miktar_secici.html" with deger=kart.baslangic %}
+                <button class="btn kucuk blok" type="submit">Sepete ekle</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endwith %}
+      {% empty %}
+        <div class="bos" style="grid-column:1/-1">Bu başlıkta şu an satışta ürün yok.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

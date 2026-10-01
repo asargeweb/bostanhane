@@ -1,0 +1,49 @@
+{% extends "taban.html" %}
+{% block baslik %}Üye olun{% endblock %}
+{% block icerik %}
+<div class="form-sarma">
+  <div class="form-kol">
+    <h1 class="baslik">Üye olun</h1>
+    <p class="alt-baslik">Bir dakika sürer. Siparişiniz teslim gününde kapınızda.</p>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      {% for hata in form.non_field_errors %}<div class="hata-k">{{ hata }}</div>{% endfor %}
+      {% include "parcalar/alan.html" with alan=form.telefon %}
+      {% include "parcalar/alan.html" with alan=form.ad_soyad %}
+      <div class="ikili">
+        {% include "parcalar/alan.html" with alan=form.sifre1 %}
+        {% include "parcalar/alan.html" with alan=form.sifre2 %}
+      </div>
+      {% include "parcalar/alan.html" with alan=form.eposta %}
+
+      {# İki onay ayrı, ikincisi işaretsiz gelir: kampanya izni açık rıza ister. #}
+      <label class="onay" style="margin-top:14px">{{ form.kvkk }}
+        <span><b>Aydınlatma metnini</b> okudum, kişisel verilerimin işlenmesini kabul ediyorum.
+          <span style="color:#8A968A">(Metin hazırlanıyor.)</span></span></label>
+      {% for hata in form.kvkk.errors %}<div class="hata" style="margin:-4px 0 10px">{{ hata }}</div>{% endfor %}
+      <label class="onay">{{ form.duyuru_izni }}
+        <span>Kampanya ve indirim bildirimleri almak istiyorum.
+          <span style="color:#8A968A">Sipariş bildirimleri bundan bağımsızdır.</span></span></label>
+
+      <button class="btn blok" type="submit" style="margin-top:8px">Üye ol</button>
+    </form>
+    <div class="ayirac">zaten üye misiniz?</div>
+    <a class="btn ghost blok" href="{% url 'giris' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Giriş yap</a>
+  </div>
+
+  <aside class="form-yan">
+    <h3>Neden telefon?</h3>
+    <ul>
+      <li>Kurye sizi ararken aynı numarayı kullanır</li>
+      <li>Sipariş bildirimleri SMS ile gelir</li>
+    </ul>
+    <h3>Kart bilgisi</h3>
+    <ul>
+      <li>Kart bilgileriniz Bostanhane'de <b>saklanmaz</b></li>
+      <li>Ödeme, bankanın sanal POS sisteminden geçer</li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}

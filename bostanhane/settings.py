@@ -98,6 +98,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.baglam.site_baglami",
             ],
         },
     },
@@ -152,8 +153,8 @@ else:
 # --------------------------------------------------------------------------
 AUTH_USER_MODEL = "hesaplar.Kullanici"
 
-# Giriş sayfası henüz yazılmadı; şimdilik yönetim panelinin girişi kullanılıyor.
-LOGIN_URL = "/yonetim/login/"
+# Site üyeleri /giris/ ekranından girer; yönetim paneli kendi girişini kullanır.
+LOGIN_URL = "giris"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 

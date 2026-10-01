@@ -1,0 +1,34 @@
+{% extends "taban.html" %}
+{% block baslik %}Adreslerim{% endblock %}
+{% block icerik %}
+<h1 class="baslik">Adreslerim</h1>
+<p class="alt-baslik">Teslim günü adresin mahallesinden gelir.</p>
+
+<div class="adres-liste">
+  {% for adres in adresler %}
+    <div class="adres-k {% if adres.varsayilan %}varsayilan{% endif %}">
+      <div class="ust-s"><b>{{ adres.baslik }}</b>
+        {% if adres.varsayilan %}<span class="pill" style="padding:1px 9px;font-size:11px;border-color:#1F5132;color:#1F5132">Varsayılan</span>{% endif %}</div>
+      <p>{{ adres.acik_adres }}{% if adres.bina_no %} No: {{ adres.bina_no }}{% endif %}{% if adres.kat %}, Kat: {{ adres.kat }}{% endif %}{% if adres.daire %}, Daire: {{ adres.daire }}{% endif %}<br>
+        {{ adres.mahalle.ad }} Mahallesi, {{ adres.mahalle.ilce.ad }}/{{ adres.mahalle.ilce.il.ad }}</p>
+      {% with hizmet=adres.hizmet_mahallesi %}
+        {% if hizmet %}
+          <div class="gun">🌿 {{ hizmet.teslim_gunleri_metni }} teslimatı</div>
+        {% else %}
+          <div class="gun kargo">📦 Kurye gitmiyor — kargo ile gönderilir</div>
+        {% endif %}
+      {% endwith %}
+      <div class="islem">
+        <a href="{% url 'adres_duzenle' adres.pk %}">Düzenle</a>
+        {% if not adres.varsayilan %}
+          <form method="post" action="{% url 'adres_varsayilan' adres.pk %}">{% csrf_token %}
+            <button class="baglanti" type="submit">Varsayılan yap</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'adres_sil' adres.pk %}" onsubmit="return confirm('Bu adres silinsin mi?')">{% csrf_token %}
+          <button class="baglanti" type="submit">Sil</button></form>
+      </div>
+    </div>
+  {% endfor %}
+  <a class="ekle-k" href="{% url 'adres_ekle' %}">+ Yeni adres ekle</a>
+</div>
+{% endblock %}

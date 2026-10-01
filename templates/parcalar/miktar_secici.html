@@ -1,0 +1,7 @@
+{% load bostan %}{# Miktar seçici: satış adımı kadar artar. Betik yoksa varsayılan miktar gönderilir. #}
+<input type="hidden" name="miktar" value="{{ deger|stringformat:'s' }}">
+<div class="adet" data-adim="{{ urun.satis_adimi|stringformat:'s' }}" data-birim="{{ urun.birim.kisaltma }}">
+  <button type="button" data-azalt aria-label="Azalt">−</button>
+  <span>{{ deger|miktar:urun.birim.kisaltma }}</span>
+  <button type="button" data-arttir aria-label="Arttır">+</button>
+</div>

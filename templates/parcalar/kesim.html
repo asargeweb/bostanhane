@@ -1,0 +1,14 @@
+{% comment %}
+  Kesim şeridi: vitrin, ürün ve sepet sayfalarında. İşin can alıcı kuralı bu —
+  müşteri her an ne kadar vakti olduğunu görmeli. Mahalle bilinmiyorsa adres çağrısı.
+{% endcomment %}
+<div class="kesim">
+  {% if site_kesim %}
+    <div class="sol"><b>{{ site_kesim.hizmet_mahallesi.mahalle.ad }}</b> · teslimat <b>{{ site_kesim.tarih|date:"j F l" }}</b></div>
+    <span class="sayac-k">Kesime <b data-kesim="{{ site_kesim.kesim_zamani|date:'c' }}">{{ site_kesim.kesim_zamani|timeuntil }}</b></span>
+  {% elif user.is_authenticated %}
+    <div class="sol">Teslim gününüzü görmek için <a href="{% url 'adres_ekle' %}?next={{ request.path|urlencode }}">adresinizi ekleyin</a>.</div>
+  {% else %}
+    <div class="sol">Siparişler teslimattan bir gün önce 18.00'de kapanır.</div>
+  {% endif %}
+</div>

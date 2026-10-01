@@ -1,0 +1,80 @@
+{% load static bostan %}<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{# Site tamamlanana kadar arama motorlarına kapalı. Açılışta bu satır silinecek. #}
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1F5132">
+<title>{% block baslik %}Bostanhane{% endblock %} · Bostanhane</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="{% static 'css/site.css' %}">
+</head>
+<body>
+{% with yol=request.path %}
+
+{% if test_modu %}
+  <div class="test-serit">⚠ Deneme modundasınız — siparişler gerçek değildir, ödeme alınmaz.</div>
+{% endif %}
+
+<header class="ust">
+  <div class="ust-ic">
+    <a class="marka" href="{% if vitrin_gorunur %}{% url 'vitrin' %}{% else %}{% url 'ana_sayfa' %}{% endif %}">
+      <svg viewBox="0 0 96 96" width="32" height="32" aria-hidden="true">
+        <path d="M10 42 L48 12 L86 42" fill="none" stroke="#1F5132" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        <g stroke="#1F5132" stroke-width="5" stroke-linecap="round" fill="none"><path d="M31 76 V66"/><path d="M48 76 V58"/><path d="M65 76 V66"/></g>
+        <circle cx="31" cy="62" r="6" fill="#79A548"/><circle cx="48" cy="53" r="7" fill="#1F5132"/><circle cx="65" cy="62" r="6" fill="#D98A2B"/>
+        <path d="M18 76 H78" stroke="#1F5132" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      bostanhane
+    </a>
+    <nav class="ust-nav">
+      {% if vitrin_gorunur %}<a href="{% url 'vitrin' %}" {% if '/urun' in yol %}class="on"{% endif %}>Ürünler</a>{% endif %}
+      <a href="{% url 'ana_sayfa' %}">Nasıl çalışır</a>
+    </nav>
+    <div class="ust-sag">
+      {% if vitrin_gorunur %}
+        <a class="pill" href="{% url 'sepet' %}">🛒 Sepet · <b>{{ sepet_adet }}</b>{% if sepet_tutar %} · <span class="sayi">{{ sepet_tutar|para }}</span>{% endif %}</a>
+      {% endif %}
+      {% if user.is_authenticated %}
+        <a class="pill" href="{% url 'hesabim' %}">{{ user.get_short_name }}</a>
+      {% else %}
+        <a class="pill" href="{% url 'giris' %}?next={{ yol|urlencode }}">Giriş yap</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+{% block kesim %}{% endblock %}
+
+{% if messages %}
+  <div class="mesajlar">
+    {% for mesaj in messages %}<div class="mesaj {{ mesaj.tags }}">{{ mesaj }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+<main class="sayfa {% block sayfa_sinifi %}{% endblock %}">
+  {% block icerik %}{% endblock %}
+</main>
+
+<footer class="alt-bilgi">
+  <span>bostanhane.com</span>
+  {% if site_magaza %}<span>{{ site_magaza.konum }}</span>{% endif %}
+  {% if site_ayarlar %}
+    <span>Minimum sepet {{ site_ayarlar.min_sepet_tutari|para }}{% if site_ayarlar.ucretsiz_teslimat_esigi %} · {{ site_ayarlar.ucretsiz_teslimat_esigi|para }} üzeri teslimat ücretsiz{% endif %}</span>
+  {% endif %}
+</footer>
+
+<nav class="alt-nav" aria-label="Alt menü">
+  <a href="{% url 'ana_sayfa' %}"><span class="ikon">🏠</span>Ana sayfa</a>
+  {% if vitrin_gorunur %}
+    <a href="{% url 'vitrin' %}" {% if '/urun' in yol %}class="on"{% endif %}><span class="ikon">🥬</span>Ürünler</a>
+    <a href="{% url 'sepet' %}" {% if yol == '/sepet/' %}class="on"{% endif %}><span class="ikon">🛒</span>Sepet{% if sepet_adet %}<span class="rozet">{{ sepet_adet }}</span>{% endif %}</a>
+  {% endif %}
+  <a href="{% if user.is_authenticated %}{% url 'hesabim' %}{% else %}{% url 'giris' %}{% endif %}" {% if '/hesabim' in yol or yol == '/giris/' or yol == '/kayit/' %}class="on"{% endif %}><span class="ikon">👤</span>Hesabım</a>
+</nav>
+{% endwith %}
+<script src="{% static 'js/site.js' %}" defer></script>
+</body>
+</html>

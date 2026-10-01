@@ -8,7 +8,7 @@ internetteki otomatik saldırı araçları en çok /admin/ adresini dener.
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -17,6 +17,9 @@ from core import views as core_views
 urlpatterns = [
     path("", core_views.ana_sayfa, name="ana_sayfa"),
     path("yonetim/", admin.site.urls),
+    path("", include("hesaplar.urls")),
+    path("", include("katalog.urls")),
+    path("", include("siparis.urls")),
 ]
 
 # Geliştirme sırasında ürün görsellerinin görünmesi için

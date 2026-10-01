@@ -54,6 +54,7 @@
   footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--line);
          color:var(--ink2);font-size:13.5px;display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
   a{color:var(--yesil)}
+  .ust-baglanti{margin-left:auto;display:flex;gap:14px;font-size:14.5px;font-weight:700}
 </style>
 </head>
 <body>
@@ -69,7 +70,17 @@
       <path d="M18 76 H78" stroke="#1F5132" stroke-width="6" stroke-linecap="round"/>
     </svg>
     <span class="marka">bostanhane</span>
+    {# Deneme modunda vitrin yalnızca üyelere açık; girişin yolu buradan. #}
+    <nav class="ust-baglanti">
+      {% if vitrin_gorunur %}<a href="{% url 'vitrin' %}">Ürünler</a>{% endif %}
+      {% if user.is_authenticated %}<a href="{% url 'hesabim' %}">Hesabım</a>
+      {% elif test_modu or vitrin_gorunur %}<a href="{% url 'giris' %}">Giriş</a><a href="{% url 'kayit' %}">Üye ol</a>{% endif %}
+    </nav>
   </header>
+
+  {% if messages %}
+    {% for mesaj in messages %}<div class="mesaj">{{ mesaj }}</div>{% endfor %}
+  {% endif %}
 
   <h1>Mahallenizin manavı, teslim gününde kapınızda</h1>
   <p class="lede">
@@ -109,10 +120,6 @@
   <div class="kart">
     <h2>Açıldığımızda ilk siz haberdar olun</h2>
     <p class="alt">Mahallenizi yazın; sıraya aldığımızda size haber verelim.</p>
-
-    {% if messages %}
-      {% for mesaj in messages %}<div class="mesaj">{{ mesaj }}</div>{% endfor %}
-    {% endif %}
 
     <form method="post" novalidate>
       {% csrf_token %}

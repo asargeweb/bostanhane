@@ -1,0 +1,20 @@
+{% extends "taban.html" %}
+{% block baslik %}Giriş{% endblock %}
+{% block sayfa_sinifi %}dar{% endblock %}
+{% block icerik %}
+<h1 class="baslik">Hoş geldiniz</h1>
+<p class="alt-baslik">Telefon numaranızla girin.</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  {% for hata in form.non_field_errors %}<div class="hata-k">{{ hata }}</div>{% endfor %}
+  {% include "parcalar/alan.html" with alan=form.telefon %}
+  {% include "parcalar/alan.html" with alan=form.sifre %}
+  <button class="btn blok" type="submit" style="margin-top:6px">Giriş yap</button>
+</form>
+<p style="text-align:center;font-size:13px;color:#5B675A;margin:12px 0 0">
+  Şifrenizi mi unuttunuz? Şimdilik mağazayı arayın — SMS ile sıfırlama yakında.</p>
+<div class="ayirac">üye değil misiniz?</div>
+<a class="btn ghost blok" href="{% url 'kayit' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Üye ol</a>
+{% endblock %}

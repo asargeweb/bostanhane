@@ -1,0 +1,112 @@
+{% extends "taban.html" %}
+{% load bostan %}
+{% block baslik %}Sepet{% endblock %}
+{% block kesim %}{% include "parcalar/kesim.html" %}{% endblock %}
+{% block icerik %}
+<h1 class="baslik">Sepetiniz</h1>
+<p class="alt-baslik">Fiyatlar canlıdır; sipariş anındaki fiyat geçerlidir.</p>
+
+{% if not kalemler %}
+  <div class="blok bos">Sepetiniz boş.<br><br><a class="btn" href="{% url 'vitrin' %}">Ürünlere göz atın</a></div>
+{% else %}
+<div class="sepet-duzen">
+  <div>
+    <div class="blok">
+      {% for kalem in kalemler %}
+        {% with urun=kalem.magaza_urun.urun %}
+        <div class="kalem">
+          <div><a class="ad" href="{% url 'urun' urun.slug %}" style="color:inherit;text-decoration:none">{{ urun.ad }}</a>
+            <div class="birim-f">{{ kalem.magaza_urun.fiyat|para }} / {{ urun.birim.kisaltma }}{% if urun.tartili_mi %} · tartıya göre kesinleşir{% endif %}</div></div>
+          <div class="tutar">{{ kalem.tutar|para }}</div>
+          <div class="duzen">
+            <form method="post" action="{% url 'kalem_guncelle' kalem.pk %}" data-otomatik style="display:flex;gap:10px;align-items:center">
+              {% csrf_token %}
+              {% include "parcalar/miktar_secici.html" with deger=kalem.miktar %}
+              <noscript><button class="btn kucuk ghost" type="submit">Güncelle</button></noscript>
+            </form>
+            <form method="post" action="{% url 'kalem_guncelle' kalem.pk %}">
+              {% csrf_token %}
+              <button class="baglanti" type="submit" name="sil" value="1">Çıkar</button>
+            </form>
+          </div>
+          {% with uygun=kalem.uygun_mu %}{% if not uygun.0 %}<div class="hata" style="grid-column:1/-1">{{ uygun.1 }}</div>{% endif %}{% endwith %}
+        </div>
+        {% endwith %}
+      {% endfor %}
+    </div>
+
+    {% if sepet.tartili_var_mi %}
+      {# Provizyon mantığı sepette anlatılır, ödeme ekranında değil (CLAUDE.md). #}
+      <div class="provizyon" style="margin-bottom:16px">
+        <b>Tartılı ürünlerde ödeme nasıl olur?</b><br>
+        Sipariş verirken kartınızdan para <b>çekilmez</b>; tartılı ürünlerin tahmini tutarının
+        {{ ayarlar.provizyon_tampon_orani|yuzde }} fazlası bloke edilir. Teslim sabahı ürünler tartılır,
+        yalnızca <b>gerçek tutar</b> çekilir ve kalan blokaj serbest bırakılır.
+        <div class="satir"><span>Tahmini toplam</span><span>{{ sepet.toplam|para }}</span></div>
+        <div class="satir"><span>Kartta bloke edilecek</span><b>{{ sepet.provizyon_toplami|para }}</b></div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="blok">
+      <h2>Teslimat</h2>
+      {% if not user.is_authenticated %}
+        <p style="margin:0 0 12px;font-size:14px">Teslim gününü seçmek için giriş yapın; sepetiniz korunur.</p>
+        <a class="btn blok" href="{% url 'giris' %}?next={% url 'sepet' %}">Giriş yap</a>
+      {% elif not adresler %}
+        <p style="margin:0 0 12px;font-size:14px">Teslim günü adresinizin mahallesinden gelir.</p>
+        <a class="btn blok" href="{% url 'adres_ekle' %}?next={% url 'sepet' %}">Adres ekle</a>
+      {% else %}
+        <form method="post" action="{% url 'teslimat_sec' %}" data-secim>
+          {% csrf_token %}
+          <div class="alan"><label>Adres</label></div>
+          {% for adres in adresler %}
+            <label class="secenek"><input type="radio" name="adres" value="{{ adres.pk }}" {% if adres.pk == sepet.adres_id %}checked{% endif %}>
+              <span><b>{{ adres.baslik }}</b> · {{ adres.mahalle.ad }}
+                <small>{% with h=adres.hizmet_mahallesi %}{% if h %}{{ h.teslim_gunleri_metni }} teslimatı{% else %}Kurye gitmiyor — kargo açılınca{% endif %}{% endwith %}</small></span></label>
+          {% endfor %}
+
+          {% if sepet.adres_id %}
+            <div class="alan" style="margin-top:12px"><label>Teslim günü</label></div>
+            {% for gun in gunler %}
+              <label class="secenek"><input type="radio" name="gun" value="{{ gun.pk }}" {% if gun.pk == sepet.teslim_takvimi_id %}checked{% endif %}>
+                <span><b>{{ gun.tarih|date:"j F l" }}</b>
+                  <small>Sipariş {{ gun.kesim_zamani|date:"j F H.i" }}'e kadar</small></span></label>
+            {% empty %}
+              <div class="uyari"><span>📦</span><span>Bu adrese şu an yerel teslimat yok.</span></div>
+            {% endfor %}
+          {% endif %}
+          <noscript><button class="btn kucuk ghost" type="submit">Seçimi kaydet</button></noscript>
+        </form>
+        <p style="margin:6px 0 0;font-size:13px"><a href="{% url 'adres_ekle' %}?next={% url 'sepet' %}">+ Yeni adres</a></p>
+      {% endif %}
+    </div>
+
+    <div class="blok">
+      <h2>Özet</h2>
+      <div class="toplam-satir"><span>Ürünler</span><span>{{ sepet.ara_toplam|para }}</span></div>
+      <div class="toplam-satir"><span>Teslimat</span><span>{% if sepet.teslimat_ucreti %}{{ sepet.teslimat_ucreti|para }}{% else %}Ücretsiz{% endif %}</span></div>
+      <div class="toplam-satir buyuk"><span>Toplam{% if sepet.tartili_var_mi %} (tahmini){% endif %}</span><span>{{ sepet.toplam|para }}</span></div>
+
+      {% if sepet.eksik_tutar %}
+        <div class="uyari" style="margin-top:10px"><span>🧺</span><span>Minimum sepet {{ ayarlar.min_sepet_tutari|para }}. <b>{{ sepet.eksik_tutar|para }}</b> daha ekleyin.</span></div>
+      {% elif sepet.ucretsize_kalan %}
+        <div class="bilgi" style="margin-top:10px"><span>🚚</span><span><b>{{ sepet.ucretsize_kalan|para }}</b> daha eklerseniz teslimat ücretsiz.</span></div>
+      {% endif %}
+
+      {% if test_modu %}
+        <form method="post" action="{% url 'siparis_ver' %}" style="margin-top:14px">
+          {% csrf_token %}
+          <button class="btn blok harman" type="submit" {% if not hazir %}disabled{% endif %}>Deneme siparişi ver</button>
+        </form>
+        <p style="font-size:12.5px;color:#5B675A;margin:8px 0 0">
+          {% if hazir %}Deneme modu: sipariş kaydedilir ama gerçek değildir, ödeme alınmaz.{% else %}{{ sebep }}{% endif %}</p>
+      {% else %}
+        <button class="btn blok" type="button" disabled style="margin-top:14px">Ödeme yakında</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

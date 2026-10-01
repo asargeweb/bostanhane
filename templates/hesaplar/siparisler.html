@@ -1,0 +1,26 @@
+{% extends "taban.html" %}
+{% load bostan %}
+{% block baslik %}Siparişlerim{% endblock %}
+{% block sayfa_sinifi %}dar{% endblock %}
+{% block icerik %}
+<h1 class="baslik">Siparişlerim</h1>
+<p class="alt-baslik">Kesim saatine kadar siparişinizi iptal edebilirsiniz.</p>
+
+{% for siparis in siparisler %}
+  <a class="sip-k" href="{% url 'siparis_detay' siparis.numara %}">
+    <div class="ust-s">
+      <span class="no">{{ siparis.numara }}{% if siparis.teslim_takvimi %} · {{ siparis.teslim_takvimi.tarih|date:"j F l" }}{% endif %}</span>
+      <span class="durum {{ siparis.durum }}">{{ siparis.get_durum_display }}</span>
+    </div>
+    <div class="ozet">{{ siparis.kalemler.all|length }} ürün · {{ siparis.teslim_mahalle }} Mahallesi
+      {% if siparis.test_siparisi %}<span class="deneme">DENEME</span>{% endif %}</div>
+    <div class="tut">{{ siparis.toplam|para }}</div>
+    {# Tükenen ürünün müşteriye görünen yüzü: iptal yok, eksik teslim ve o kalemin parası çekilmez. #}
+    {% for kalem in siparis.kalemler.all %}{% if kalem.bulunamadi_mi %}
+      <div class="eksik">{{ kalem.urun_adi }} bulunamadı, {{ kalem.fark_tutari|mutlak|para }} düşüldü</div>
+    {% endif %}{% endfor %}
+  </a>
+{% empty %}
+  <div class="bos">Henüz siparişiniz yok.{% if vitrin_gorunur %}<br><br><a class="btn" href="{% url 'vitrin' %}">Ürünlere göz atın</a>{% endif %}</div>
+{% endfor %}
+{% endblock %}

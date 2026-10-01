@@ -1,0 +1,56 @@
+{% extends "taban.html" %}
+{% load bostan %}
+{% block baslik %}{{ siparis.numara }}{% endblock %}
+{% block sayfa_sinifi %}dar{% endblock %}
+{% block icerik %}
+<p style="margin:0 0 6px"><a href="{% url 'siparislerim' %}">‹ Siparişlerim</a></p>
+<h1 class="baslik">{{ siparis.numara }}{% if siparis.test_siparisi %}<span class="deneme">DENEME</span>{% endif %}</h1>
+<p class="alt-baslik"><span class="durum {{ siparis.durum }}">{{ siparis.get_durum_display }}</span>
+  · {{ siparis.olusturuldu|date:"j F Y, H.i" }}</p>
+
+{% if siparis.test_siparisi %}
+  <div class="uyari" style="margin-bottom:14px"><span>⚠</span><span>Bu bir deneme siparişidir. Gerçek değildir, ödeme alınmadı.</span></div>
+{% endif %}
+
+<div class="blok">
+  <h2>Teslimat</h2>
+  <p style="margin:0;font-size:14.5px">
+    {% if siparis.teslim_takvimi %}<b>{{ siparis.teslim_takvimi.tarih|date:"j F l" }}</b><br>{% endif %}
+    {{ siparis.teslim_ad_soyad }} · {{ siparis.teslim_acik_adres }}<br>
+    {{ siparis.teslim_mahalle }} Mahallesi, {{ siparis.teslim_ilce }}/{{ siparis.teslim_il }}</p>
+</div>
+
+<div class="blok">
+  <h2>Ürünler</h2>
+  {% for kalem in siparis.kalemler.all %}
+    <div class="kalem">
+      <div><div class="ad">{{ kalem.urun_adi }}</div>
+        <div class="birim-f">{{ kalem.siparis_miktari|miktar:kalem.birim_adi }} × {{ kalem.birim_fiyat|para }} / {{ kalem.birim_adi }}</div>
+        {% if kalem.bulunamadi_mi %}
+          <div class="birim-f" style="color:#8A5A12">Bulunamadı, {{ kalem.fark_tutari|mutlak|para }} düşüldü</div>
+        {% elif kalem.teslim_miktari is not None and kalem.tartili_mi %}
+          <div class="birim-f">Tartıda {{ kalem.teslim_miktari|miktar:kalem.birim_adi }} çıktı</div>
+        {% endif %}
+      </div>
+      <div class="tutar">{{ kalem.tutar|para }}</div>
+    </div>
+  {% endfor %}
+  <div style="margin-top:10px">
+    <div class="toplam-satir"><span>Ara toplam</span><span>{{ siparis.ara_toplam|para }}</span></div>
+    <div class="toplam-satir"><span>Teslimat</span><span>{% if siparis.teslimat_ucreti %}{{ siparis.teslimat_ucreti|para }}{% else %}Ücretsiz{% endif %}</span></div>
+    <div class="toplam-satir buyuk"><span>Toplam</span><span>{{ siparis.toplam|para }}</span></div>
+    {% if siparis.provizyon_tutari != siparis.toplam %}
+      <div class="toplam-satir" style="font-size:13px;color:#5B675A"><span>Kartta bloke (tartı payıyla)</span><span>{{ siparis.provizyon_tutari|para }}</span></div>
+    {% endif %}
+  </div>
+</div>
+
+{% if siparis.degistirilebilir_mi %}
+  <form method="post" action="{% url 'siparis_iptal' siparis.numara %}" onsubmit="return confirm('Sipariş iptal edilsin mi?')">
+    {% csrf_token %}
+    <button class="btn ghost" type="submit">Siparişi iptal et</button>
+    {% if siparis.teslim_takvimi %}<span style="font-size:13px;color:#5B675A;margin-left:8px">
+      Kesim: {{ siparis.teslim_takvimi.kesim_zamani|date:"j F H.i" }}</span>{% endif %}
+  </form>
+{% endif %}
+{% endblock %}

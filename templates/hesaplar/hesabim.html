@@ -1,0 +1,51 @@
+{% extends "taban.html" %}
+{% block baslik %}Hesabım{% endblock %}
+{% block sayfa_sinifi %}dar{% endblock %}
+{% block icerik %}
+<div class="kimlik">
+  <div class="avatar">{{ user.ad_soyad|slice:":1"|upper }}</div>
+  <div><b>{{ user.ad_soyad }}</b><div style="font-size:13px;color:#5B675A">{{ user.telefon_okunur }}</div></div>
+</div>
+
+{# Müşterinin en çok merak ettiği şey: "benim günüm hangisi?" — bu yüzden en üstte. #}
+{% if hizmet %}
+  <div class="bilgi" style="margin-bottom:14px"><span>🌿</span>
+    <span><b>{{ adres.mahalle.ad }} Mahallesi</b> · {{ hizmet.teslim_gunleri_metni }} teslimatı</span></div>
+{% elif adres %}
+  <div class="uyari" style="margin-bottom:14px"><span>📦</span>
+    <span><b>{{ adres.mahalle.ad }}</b> — kurye gitmiyor, kargo ile gönderilir.</span></div>
+{% else %}
+  <div class="uyari" style="margin-bottom:14px"><span>📍</span>
+    <span>Teslim gününüzü görmek için <a href="{% url 'adres_ekle' %}">bir adres ekleyin</a>.</span></div>
+{% endif %}
+
+<a class="menu-k" href="{% url 'adresler' %}"><span><b>Adreslerim</b><small>{{ adres_sayisi }} adres kayıtlı</small></span><span>›</span></a>
+<a class="menu-k" href="{% url 'siparislerim' %}"><span><b>Siparişlerim</b>
+  <small>{% if son_siparis %}Son sipariş {{ son_siparis.olusturuldu|date:"j F" }}{% else %}Henüz sipariş yok{% endif %}</small></span><span>›</span></a>
+
+<details class="blok" {% if form.errors %}open{% endif %} style="margin-top:16px">
+  <summary>Bilgilerim ve bildirim izni</summary>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% include "parcalar/alan.html" with alan=form.ad_soyad %}
+    {% include "parcalar/alan.html" with alan=form.eposta %}
+    <label class="onay">{{ form.duyuru_izni }}<span>{{ form.duyuru_izni.label }}
+      <span style="color:#8A968A">Sipariş bildirimleri bundan bağımsızdır.</span></span></label>
+    <button class="btn" type="submit" name="bilgiler" value="1">Kaydet</button>
+  </form>
+</details>
+
+<details class="blok" {% if sifre_formu.errors %}open{% endif %}>
+  <summary>Şifre değiştir</summary>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% for alan in sifre_formu %}{% include "parcalar/alan.html" %}{% endfor %}
+    <button class="btn" type="submit" name="sifre" value="1">Şifreyi değiştir</button>
+  </form>
+</details>
+
+<form method="post" action="{% url 'cikis' %}" style="text-align:center;margin-top:18px">
+  {% csrf_token %}
+  <button class="baglanti" type="submit">Çıkış yap</button>
+</form>
+{% endblock %}

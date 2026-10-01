@@ -45,6 +45,105 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, akşam (2) — Adım 5 kuruldu; üyelik, vitrin ve sepet ekranları yazıldı
+
+### Önce bir not — "rapor.md değişmedi"
+Rapor yerinde ve güncel: bir önceki rapor ("Birim tablosu + stok ve stok defteri") en üstte,
+commit `d465d33` ile de gitti. "Üyelik ve vitrin iki talimattan beri ayakta" diyorsun; ben bu isteği
+**ilk kez bu talimatta** gördüm — aradaki talimat ben okumadan üzerine yazılmış olmalı.
+`TARTI_FARKI`'nı da ben eklemedim, seninkini kurdum.
+
+### 1. Adım 5 — siparis
+Kurulum talimattaki sırayla yapıldı (`startapp`, dosyalar, `katalog_models` / `core_models` /
+`hesaplar_izinler` önce, `BOSTANHANE_APPS`'e `"siparis"`). `hazir/settings.py`'ye de aynı satır eklendi (orada yoktu).
+```
+core/migrations/0003_satisayarlari_vitrin_modu.py      + Add field vitrin_modu
+katalog/migrations/0003_alter_stokhareketi_tur.py      ~ Alter field tur
+siparis/migrations/0001_initial.py                     + Sepet, SepetKalemi, Siparis, SiparisKalemi
+roller_kur: Mağaza Yöneticisi 46 yetki · Paketleme 13 · Kurye 8 — "! atlandı" satırı YOK
+```
+Uçtan uca (işlem geri alındı): sepet 550,00 + 50,00 = 600,00 ₺, provizyon 615,00 ₺ → `BH-2026-000001`,
+`test_siparisi=True`, nohut stoğu 10 → 5 ("Satış" hareketi), alım listesi test siparişini saymadı.
+**Mağaza yöneticisi:** `/yonetim/siparis/siparis/` 200, sipariş sayfası 200 (DENEME şeridi var), sepet listesi 200.
+
+**Canlı:** commit `e1fceb0` → dağıtım SUCCESS. PostgreSQL'de üç migration ilk kez sorunsuz geçti
+(geçmeseydi Procfile'daki `&&` zinciri yüzünden site açılmazdı; açıldı).
+
+### 3. Eski `hazir/` dosyaları
+`ornek_veri.py`, `core_views.py`, `ana_sayfa.html`, `ilk_veri.py` kuruldu. Ersin'e sordum: **tek günlük
+rota onun kararı, canlıya da uygulanacak.**
+```
+Eşitleme: 20 fazla teslim günü ve 155 takvim kaydı silindi.
+Beyşehir'de 70 mahalle tanımlı: 13 aktif, 57 pasif.
+```
+Ana sayfa yerelde gün kartlarıyla doğru: Pazartesi İçerişehir · Müftü · Hamidiye … Cumartesi Dalyan · Yeşilyurt.
+Canlıda `ornek_veri --rotalari_esitle`'yi Ersin çalıştıracak (Claude Code'a canlıda komut izni yok);
+çalıştırılana kadar canlı ana sayfa "haftada bir gün" yazıp eski iki günlü düzeni gösterir.
+
+### 2. Üyelik, vitrin, sepet — yazıldı
+**Model dosyalarına dokunulmadı.** Hepsi görünüm + şablon + bir yardımcı katman.
+
+| Adres | Ne |
+|---|---|
+| `/kayit/` `/giris/` `/cikis/` (POST) | Telefon geniş kutu + `telefon_duzelt`; KVKK zorunlu, kampanya izni ayrı ve işaretsiz; `kvkk_onayi` zamanı yazılıyor |
+| `/hesabim/` | Mahalle + teslim günü en üstte; bilgiler + `duyuru_izni`; şifre değiştir |
+| `/hesabim/adresler/` (+ `yeni/`, `<pk>/`, `varsayilan/`, `sil/`) | İl → ilçe → mahalle (JSON: `/adres/ilceler/`, `/adres/mahalleler/`, `/adres/mahalle/<pk>/`); seçilince yeşil/turuncu bilgi kutusu; "teslimatı başka biri alacak" |
+| `/hesabim/siparisler/` + `<numara>/` + `iptal/` | Liste, detay, "X bulunamadı, Y ₺ düşüldü", kesime kadar iptal (`iptal_et`) |
+| `/urunler/`, `/urunler/<kategori>/`, `?kanal=kargo` | Kategori rayı (sayılı), kart ızgarası (telefonda 2, geniş 3), soluk tükendi / mevsim dışı |
+| `/urun/<slug>/` | Provizyon tablosu: tahmini · bloke (+tampon) · "tartı 950 g çıkarsa" örneği; miktar değişince JS günceller |
+| `/sepet/` (+ `ekle/<pk>/`, `kalem/<pk>/`, `teslimat/`, `siparis-ver/`) | Kalemler, adres ve teslim günü seçimi, eksik tutar / ücretsize kalan, provizyon **sepette** anlatılıyor; **test modunda "Deneme siparişi ver"**, açık modda "Ödeme yakında" (kapalı düğme) |
+
+- `vitrin_gerekli` → `SatisAyarlari.vitrin_gorunur_mu(request.user)`; görünmüyorsa ana sayfaya
+  ("deneme modunda, giriş yapın" mesajıyla). `getattr` numarası yok.
+- Satıştaki ürün: `MagazaUrun.satista_mi`. Vitrinde ayrıca **fiyatı girilmiş ve (satışta ya da bilerek
+  tükendi / mevsim dışı)** olanlar görünüyor — hiç fiyatlanmamış 50 ürün müşteriye "fiyat yok" diye çıkmasın.
+- Giriş / kayıtta **girişten önce** oturum anahtarı alınıyor, sonra `sepet.birlestir()` (Django girişte anahtarı değiştiriyor).
+- Gün listesi `gun_gun_mahalleler` (ana sayfa); kendi gruplamam yok.
+- Ortak: `templates/taban.html` (test şeridi, üst menü, kesim şeridi, alt bilgi, telefonda alt menü),
+  `core/baglam.py` (context processor: sepet sayısı/tutarı, test modu, kesim), `core/templatetags/bostan.py`
+  (`para` → `1.250,50 ₺`, `miktar` → `500 g` / `1,5 kg`, `yuzde`, `mutlak`), `siparis/vitrin_araclari.py`,
+  `static/css/site.css`, `static/js/site.js`. `LOGIN_URL = "giris"`.
+- Ana sayfaya (seninki) üst sağda Ürünler / Hesabım / Giriş · Üye ol bağlantıları; mesajlar en üste taşındı.
+- **Test modunda "deneme siparişi" benim eklemem.** Talimat ödeme ekranı yapma diyordu, yapmadım; ama
+  "sanki canlı satış yapıyor gibi" isteği ve siparişlerim ekranı ancak böyle anlamlı. Ödeme yok, `siparise_cevir` çağrılıyor.
+
+### Test — uçtan uca (yerel, işlem geri alındı)
+```
+1) ziyaretçi /urunler/ (test modu) → / 'Vitrin şu an deneme modunda. Ürünleri görmek için giriş yapın ya da üye olun.'
+2) kayıt "0533 444 55 66" → /hesabim/adresler/yeni/ | rol uye | kvkk True | duyuru False
+   aynı numara: 'Bu numarayla kayıtlı bir hesap var. Giriş yapmayı deneyin.'
+3) Müftü: {'yerel': True, 'gunler': 'Pazartesi', 'kesim': 'bir gün önce 18.00'}
+   Adaköy (pasif): {'yerel': False} → 'Bu mahalleye kurye gitmiyor; kargo ile gönderim açıldığında…'
+   adres listesinde "Kurye gitmiyor — kargo ile gönderilir" · aynı başlık reddedildi
+4) vitrin 200 · Tükendi soluk · kesim şeridi '5 Ekim Pazartesi' · kategori / kargo 200
+   ürün: 32,90 ₺ / bloke 37,84 ₺ / tartı 950 g → 31,26 ₺
+5) sepete ekle ✓ · 0,3 kg reddedildi (adım) · 499,35 ₺ sepet reddedildi (minimum 500)
+6) 514,35 + 50 → 'Deneme siparişiniz alındı: BH-2026-000001' · sepet boşaldı · siparişlerimde DENEME · iptal ✓
+9) vitrin açıkken ziyaretçi sepeti → giriş → üye sepetinde 'Domates × 1 kg', ziyaretçi sepeti silindi
+   yanlış şifre: 'Telefon numarası ya da şifre hatalı…'
+```
+**Telefon genişliği:** Edge telefon taklidiyle (390 px, mobil) 9 sayfa: vitrin, ürün, kayıt, giriş, ana sayfa,
+sepet, hesabım, adresler, adres formu — hepsinde sayfa genişliği = ekran genişliği (390), yatay taşma yok.
+Görüntülere tek tek bakıldı; telefonda üst menüdeki sepet/giriş düğmeleri gizli (alt menüde var).
+
+### Sorunlar / Cowork'e notlar
+- **Beyşehir dışı adres girilemiyor:** veritabanında yalnızca Beyşehir'in 70 mahallesi var (`cografya_verisi`).
+  Başka ilçe seçilince "Bu bölgenin listesi henüz yüklü değil" yazıyor. "Kurye gitmiyor" notu Beyşehir'in
+  pasif köy mahalleleriyle test edildi. Ankara gibi adres için mahalle verisi gerekir — karar senin.
+- **`siparise_hazir_mi` sebep metninde tutar noktalı:** "450.65 ₺ daha eklemelisiniz". Modeline dokunmadım;
+  sepet ekranındaki uyarı kutusu kendi `para` filtremle "450,65 ₺" yazıyor, ama sebep metni kapalı düğmenin
+  altında noktalı görünüyor. `f"{eksik:.2f}"` yerine Türkçe biçim önerilir.
+- **Aydınlatma metni** yok: kayıtta bağlantı yerine "(Metin hazırlanıyor.)" yazıyor.
+- Harita iğnesi (enlem/boylam) formda yok; şifre sıfırlama yok (talimat gereği).
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `bostanhane/settings.py` | `"siparis"`, `core.baglam.site_baglami`, `LOGIN_URL = "giris"` | **Evet** `hazir/settings.py` |
+| `bostanhane/urls.py` | `hesaplar`, `katalog`, `siparis` urls include | **Evet** `hazir/urls.py` |
+| `templates/core/ana_sayfa.html` | Üst bağlantılar, mesajlar en üstte | **Evet** `hazir/ana_sayfa.html` |
+| Yeni: `hesaplar/{forms,views,urls}.py`, `katalog/{views,urls}.py`, `siparis/{views,urls,vitrin_araclari}.py`, `core/baglam.py`, `core/templatetags/bostan.py`, `templates/{taban.html,parcalar/*,hesaplar/*,katalog/*,siparis/*}`, `static/{css/site.css,js/site.js}` | | `hazir/`'de eşi yok |
+
 ## 1 Ekim 2026, akşam — Birim tablosu + stok ve stok defteri (Ersin'in isteği)
 
 ### İstek

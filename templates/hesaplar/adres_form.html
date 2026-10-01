@@ -1,0 +1,41 @@
+{% extends "taban.html" %}
+{% block baslik %}{% if adres %}Adresi düzenle{% else %}Yeni adres{% endif %}{% endblock %}
+{% block sayfa_sinifi %}dar{% endblock %}
+{% block icerik %}
+<h1 class="baslik">{% if adres %}Adresi düzenle{% else %}Yeni adres{% endif %}</h1>
+<p class="alt-baslik">Mahalleyi seçince teslim gününüz aşağıda görünür.</p>
+
+<form method="post" novalidate data-adres
+      data-ilceler="{% url 'adres_ilceler' %}" data-mahalleler="{% url 'adres_mahalleler' %}"
+      data-bilgi="{% url 'adres_mahalle_bilgi' 0 %}">
+  {% csrf_token %}
+  {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
+  {% for hata in form.non_field_errors %}<div class="hata-k">{{ hata }}</div>{% endfor %}
+  {% include "parcalar/alan.html" with alan=form.baslik %}
+  <div class="ikili">
+    {% include "parcalar/alan.html" with alan=form.il %}
+    {% include "parcalar/alan.html" with alan=form.ilce %}
+  </div>
+  {% include "parcalar/alan.html" with alan=form.mahalle %}
+  <div data-mahalle-bilgi hidden style="margin:-2px 0 13px"></div>
+
+  {% include "parcalar/alan.html" with alan=form.acik_adres %}
+  <div class="uclu">
+    {% include "parcalar/alan.html" with alan=form.bina_no %}
+    {% include "parcalar/alan.html" with alan=form.kat %}
+    {% include "parcalar/alan.html" with alan=form.daire %}
+  </div>
+  {% include "parcalar/alan.html" with alan=form.tarif %}
+
+  <label class="onay">{{ form.baskasi_alacak }}<span>Teslimatı başka biri alacak</span></label>
+  <div data-baskasi>
+    <div class="ikili">
+      {% include "parcalar/alan.html" with alan=form.teslim_alacak %}
+      {% include "parcalar/alan.html" with alan=form.teslim_telefonu %}
+    </div>
+  </div>
+
+  <button class="btn" type="submit" style="margin-top:6px">Adresi kaydet</button>
+  <a href="{% url 'adresler' %}" style="margin-left:12px;font-size:14px">Vazgeç</a>
+</form>
+{% endblock %}
