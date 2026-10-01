@@ -45,6 +45,83 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, akşam — Birim tablosu + stok ve stok defteri (Ersin'in isteği)
+
+### İstek
+Ersin (Ürünler ekran görüntüsü üzerinden): "satış" sütunu yerine **birim** (kg, adet, paket,
+demet, kavanoz) yazsın ve birimler **eklenebilir** olsun; fiyatın yanında **stok** girilsin,
+satış oldukça düşsün; mal gelince (10 kg, 5 paket) stok yanında **ekle / çıkar** olsun.
+
+Plan Ersin'e anlatıldı, iki karar alındı:
+- **Boş stok = sınırsız (takip yok).** "Önce talep, sonra alım" ilkesi yüzünden taze ürün
+  stok tutmaz; stok yalnızca depoda bekleyen ürün (bal, bakliyat, yumurta) için. 0 olunca satılmaz.
+- Uygula ve canlıya gönder.
+
+### Yapıldı
+**Birim artık tablo** (`katalog.Birim`: ad, kısaltma, kesirli, sıra, aktif). Panelde
+KATALOG → Birimler; yönetici ekleyebilir, silmeyi yalnızca süper admin yapar (ürünü olan
+birim zaten PROTECT). `Urun.birim` → yabancı anahtar. İlk 7 birim migration'la açılıyor
+(boş veritabanında da). "Tartılı ürün kilogramla satılır" kuralı "kesirli birimle satılır"
+oldu; kesirli olmayan birimde satış adımı tam sayı olmalı (yeni denetim).
+
+**Stok:** `MagazaUrun.stok` (boş = takip yok) + **`StokHareketi`** defteri (tür: mal kabul,
+fire, sayım düzeltmesi, satış, iade, takip kapatıldı; miktar ±, önceki/sonraki, kim).
+- `stok_degistir()` satırı kilitler (`select_for_update`), eksiye düşürmez, deftere yazar.
+- **`stok_dus(miktar)` Adım 5 için hazır:** sipariş kesinleşince çağrılacak; takipsiz üründe
+  hiçbir şey yapmaz. `satista_mi` artık stok yetmiyorsa False.
+- `stok_takibini_kapat()` + Mağaza ürünleri'nde "Stok takibini kapat" işlemi.
+- Stok panelde elle yazılamaz (readonly); her değişim defterden geçsin diye.
+
+**Ürünler listesi:** sütunlar → ürün · kategori · **birim** · fiyat·satışta · **stok** · …
+Stok hücresi: `8,5 kg [ekle / çıkar]` → tür seçimi (Mal kabul (+) / Fire (−) / Sayım
+düzeltmesi (±)) + miktar. Mal kabul hep ekler, fire hep çıkarır (işaret unutulsa da);
+sayım yazıldığı gibi. Kesirli olmayan birime 1,5 girilemez. Düzenle hücresi ortak
+(`duzenle_hucresi`), JS genelleştirildi (`.duzenle-*`; vazgeç bütün alanları ilk değere döndürür).
+
+**Stok hareketleri** listesi (yalnızca okunur, mağaza kısıtlı) ve Mağaza ürünü sayfasında
+hareket satırları.
+
+**Migration elle yazıldı** (`katalog/0002_birim_tablosu_stok.py`): önce tablo, eski metin
+değerleri taşınıyor, eski sütun sonra kalkıyor — Django'nun kendi ürettiği sürüm birimleri
+silerdi. `makemigrations --check` → No changes detected.
+
+**Cowork'ün bekleyen sürümleri kuruldu:** `hazir/katalog_models.py` (yeni ürüne otomatik
+MagazaUrun sinyali) ve `hazir/urun_yukle.py` (`veri/` öncelikli yol, `--fiyatlari_guncelle`)
+önce kuruldu, benim değişikliklerim onların üstüne yapıldı — ikisi de korunuyor.
+`urun_yukle` birimi artık tablodan bulur; tanımsız birim satırı hata verir ("Birimler'den ekleyin").
+
+### Test (yerel, işlem geri alındı)
+```
+Migration: kg 26 · paket 8 · demet 6 · adet 4 · kavanoz 4 · kutu 2 (=50) — denetimden geçmeyen ürün: yok
+2) açılmadan Kaydet: [] → hareket 0
+3) mal kabul: ['2 ürünün stoğu güncellendi (Bostanhane Beyşehir).'] → 10 kg, 5 paket
+4) fire 2,5 kg → 7,5
+5) fazla fire: 'Kaydedilmedi — Nohut, yerli (1 kg): Stok yetmiyor: 5 var, 6 çıkarılmak istendi.'
+6) kesirli demet: 'Kaydedilmedi — Maydanoz: demet kesirli girilemez, tam sayı yazın'
+8) fiyat+satışta+stok tek Kaydet: '1 ürünün fiyatı kaydedildi, 1 ürün satışa açıldı, 1 ürünün stoğu güncellendi'
+9) stok_dus(4) → 0, satista_mi False · 11) takipsiz üründe stok_dus → dokunmadı
+Sayfalar 200: birim, birim/add, stokhareketi, magazaurun change, urun change. Yönetici: 200, ekle/çıkar görünüyor.
+Önceki fiyat testleri (1–4) aynen geçiyor; urun_yukle --kuru_prova çalışıyor.
+```
+Roller: Mağaza Yöneticisi 40 yetki (birim: gör/ekle/değiştir, stokhareketi: gör), Paketleme 9.
+Düğmelerin tıklanması gerçek tarayıcıda denenmedi.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `katalog/models.py` | Birim modeli, Urun.birim FK, stok + stok yöntemleri, StokHareketi | **Evet** `hazir/katalog_models.py` |
+| `katalog/admin.py` | BirimAdmin, birim/stok sütunları, stok kaydı, StokHareketiAdmin | **Evet** `hazir/katalog_admin.py` |
+| `katalog/static/katalog/fiyat_duzenle.js` | Genel düzenle hücresi | **Evet** `hazir/katalog_fiyat_duzenle.js` |
+| `katalog/management/commands/urun_yukle.py` | `birim_bul()` tablodan | **Evet** `hazir/urun_yukle.py` |
+| `hesaplar/izinler.py` | katalog.birim, katalog.stokhareketi | **Evet** `hazir/hesaplar_izinler.py` |
+| `katalog/migrations/0002_birim_tablosu_stok.py` | Yeni, elle yazıldı | Kopya: `hazir/katalog_migrations_0002_birim_tablosu_stok.py` |
+
+### Adım 5 için not
+Sipariş kesinleşince (kesim saati) her satır için `magaza_urun.stok_dus(miktar, kullanici)`
+çağrılmalı; sepete eklerken `stok_yeterli_mi(miktar)` sorulmalı. Tartılı üründe düşülecek
+miktar tahmini mi kesin mi (tartım sonrası) — karar gerekiyor.
+
+
 ## 1 Ekim 2026, akşamüstü — Satışta kutucuğu + görsel depolama (Aşama B)
 
 ### İş 1 — Fiyat ekranı
@@ -91,7 +168,9 @@ ve fiyat yazınca `aktif=True` yapan satırlar; `ilk_veri` mağaza kontrolü.) K
 talimata yazın.
 
 ### İş 3 — canlı
-Bu raporla birlikte push ediliyor; sonuç aşağıya eklenecek.
+Push `09f265c`, dağıtım **SUCCESS**. Canlı: panel 200, ana sayfada 13 mahalle, yeni betik yüklü.
+Satış ayarları ve Ürünler ekranının gözle kontrolü Ersin'de. `hazir/ana_sayfa.html`, `hazir/core_views.py`,
+`hazir/ornek_veri.py` da değişmiş görünüyor — talimatta olmadığı için kurulmadı.
 Talimattaki "50 ürünü aktarayım mı" sorusu önceden çözüldü: Ersin onayladı, canlıda 50 ürün var.
 
 ### İş 4 — Railway değişkenleri

@@ -1,26 +1,34 @@
-// Ürünler listesindeki fiyat sütunu: "düzenle" fiyat kutusunu ve satışta
-// kutucuğunu açar, "vazgeç" ikisini eski değere döndürüp kapatır. Kapalı
-// alanlar forma gönderilmediği için yalnızca bilerek açılan satırlar kaydedilir.
+// Ürünler listesindeki fiyat ve stok hücreleri: "düzenle" / "ekle / çıkar"
+// alanları açar, "vazgeç" hepsini sayfanın ilk açıldığı değere döndürüp kapatır.
+// Kapalı alanlar forma gönderilmediği için yalnızca bilerek açılan satırlar kaydedilir.
 document.addEventListener("click", function (olay) {
-  var dugme = olay.target.closest(".fiyat-duzenle, .fiyat-vazgec");
+  var dugme = olay.target.closest(".duzenle-ac, .duzenle-vazgec");
   if (!dugme) return;
-  var hucre = dugme.closest(".fiyat-hucre");
-  var metin = hucre.querySelector(".fiyat-metin");
-  var alan = hucre.querySelector(".fiyat-alan");
-  var kutu = alan.querySelector('input[name^="fiyat_"]');
-  var satista = alan.querySelector('input[name^="satista_"]');
-  var ac = dugme.classList.contains("fiyat-duzenle");
+  var hucre = dugme.closest(".duzenle-hucre");
+  var metin = hucre.querySelector(".duzenle-metin");
+  var alan = hucre.querySelector(".duzenle-alan");
+  var ac = dugme.classList.contains("duzenle-ac");
+  var alanlar = alan.querySelectorAll("input:not([type=hidden]), select");
 
-  if (!ac) {
-    kutu.value = hucre.querySelector('input[name^="fiyat_ilk_"]').value;
-    satista.checked = hucre.querySelector('input[name^="satista_ilk_"]').value === "1";
-  }
+  alanlar.forEach(function (girdi) {
+    if (!ac) {
+      if (girdi.type === "checkbox") {
+        girdi.checked = girdi.defaultChecked;
+      } else if (girdi.tagName === "SELECT") {
+        girdi.selectedIndex = 0;
+      } else {
+        girdi.value = girdi.defaultValue;
+      }
+    }
+    girdi.disabled = !ac;
+  });
   metin.hidden = ac;
   alan.hidden = !ac;
-  kutu.disabled = !ac;
-  satista.disabled = !ac;
   if (ac) {
-    kutu.focus();
-    kutu.select();
+    var ilk = alan.querySelector("input[type=text]");
+    if (ilk) {
+      ilk.focus();
+      ilk.select();
+    }
   }
 });

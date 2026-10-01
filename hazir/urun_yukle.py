@@ -38,16 +38,21 @@ from katalog.models import Birim, Kategori, MagazaUrun, Urun
 BASLIK_SATIRI = 4
 VERI_BASLANGICI = 6
 
-# Excel'deki birim yazımı → model değeri
-BIRIM_ESLEME = {
-    "kilogram": Birim.KILOGRAM, "kg": Birim.KILOGRAM,
-    "adet": Birim.ADET,
-    "demet": Birim.DEMET,
-    "paket": Birim.PAKET,
-    "kavanoz": Birim.KAVANOZ,
-    "şişe": Birim.SISE, "sise": Birim.SISE,
-    "kutu": Birim.KUTU,
-}
+# Excel'de birimin farklı yazılışları → panelde tanımlı kısa yazılış
+BIRIM_ESLEME = {"kilogram": "kg", "kilo": "kg", "sise": "şişe"}
+
+
+def birim_bul(metin):
+    """
+    Birimi paneldeki Birimler tablosundan bulur (ada ya da kısa yazılışa göre).
+    Tabloda olmayan birim sessizce "adet" sayılmasın diye None döner; satır hata verir.
+    """
+    metin = str(metin or "").strip().lower()
+    metin = BIRIM_ESLEME.get(metin, metin) or "adet"
+    for birim in Birim.objects.all():
+        if metin in (birim.kisaltma.lower(), birim.ad.lower()):
+            return birim
+    return None
 
 EVET = {"evet", "e", "yes", "true", "1", "var"}
 
@@ -86,7 +91,7 @@ def satis_adimi_coz(metin, birim):
         deger = Decimal(rakam.group())
     except InvalidOperation:
         return Decimal("1")
-    if birim == Birim.KILOGRAM and re.search(r"\bg\b|gr\b|gram", m) and "kg" not in m:
+    if birim.kilogram_mi and re.search(r"\bg\b|gr\b|gram", m) and "kg" not in m:
         return (deger / Decimal("1000")).quantize(Decimal("0.001"))
     return deger
 
@@ -218,7 +223,10 @@ class Command(BaseCommand):
 
         kategori_adi = str(kategori_adi or "Diğer").strip()
         urun_adi = str(urun_adi).strip()
-        birim = BIRIM_ESLEME.get(str(birim_metni or "").strip().lower(), Birim.ADET)
+        birim = birim_bul(birim_metni)
+        if birim is None:
+            raise ValueError(f"“{birim_metni}” birimi tanımlı değil. Panelde "
+                             f"KATALOG → Birimler'den ekleyin.")
         tartili_mi = evet_mi(tartili)
 
         kategori, yeni_kat = Kategori.objects.get_or_create(

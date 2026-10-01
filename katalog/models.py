@@ -23,21 +23,50 @@ girebiliyoruz.
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from core.models import ZamanDamgali
 
 
-class Birim(models.TextChoices):
-    KILOGRAM = "kg", "Kilogram"
-    ADET = "adet", "Adet"
-    DEMET = "demet", "Demet"
-    PAKET = "paket", "Paket"
-    KAVANOZ = "kavanoz", "Kavanoz"
-    SISE = "sise", "Şişe"
-    KUTU = "kutu", "Kutu"
+class Birim(ZamanDamgali):
+    """
+    Satış birimi: kilogram, adet, demet, kavanoz…
+
+    Sabit liste değil tablo: "tepsi" ya da "kasa" gerektiğinde panelden eklensin,
+    kod değişmesin. İlk yedi birimi migration açar.
+    """
+
+    # Gram gösterimi ve tartılı ürün kuralı kilogramı kısa yazılışından tanır.
+    KILOGRAM = "kg"
+
+    ad = models.CharField("birim adı", max_length=40, unique=True,
+                          help_text="Örnek: Kilogram, Demet, Kavanoz.")
+    kisaltma = models.CharField("kısa yazılış", max_length=12, unique=True,
+                                help_text="Listede ve fiyatın yanında görünür. Örnek: kg, demet.")
+    kesirli = models.BooleanField(
+        "kesirli satılır", default=False,
+        help_text="İşaretliyse 0,5 gibi kesirli miktarla satılır (kilogram gibi). "
+                  "Tartılı ürün yalnızca kesirli birimle satılabilir.")
+    sira = models.PositiveIntegerField("sıra", default=0)
+    aktif = models.BooleanField("aktif", default=True,
+                                help_text="Kapalıysa yeni üründe seçilemez; eski ürünler etkilenmez.")
+
+    class Meta:
+        verbose_name = "birim"
+        verbose_name_plural = "birimler"
+        ordering = ["sira", "ad"]
+
+    def __str__(self):
+        return self.ad
+
+    @property
+    def kilogram_mi(self):
+        return self.kisaltma == self.KILOGRAM
 
 
 # Kargoya uygunluk eşiği: oda sıcaklığında en az bu kadar gün dayanmalı.
@@ -84,7 +113,8 @@ class Urun(ZamanDamgali):
     gorsel = models.ImageField("görsel", upload_to="urun/", blank=True)
 
     # -- satış biçimi ------------------------------------------------------
-    birim = models.CharField("birim", max_length=10, choices=Birim.choices, default=Birim.KILOGRAM)
+    birim = models.ForeignKey(Birim, on_delete=models.PROTECT, related_name="urunler",
+                              verbose_name="birim", limit_choices_to={"aktif": True})
     tartili_mi = models.BooleanField(
         "tartılı ürün", default=True,
         help_text="İşaretliyse sepette provizyon alınır, kesin tutar tartımdan sonra çekilir.")
@@ -136,12 +166,12 @@ class Urun(ZamanDamgali):
     # -- görünüm yardımcıları ---------------------------------------------
     @property
     def birim_metni(self):
-        return self.get_birim_display()
+        return self.birim.ad
 
     @property
     def satis_adimi_metni(self):
         """'kilogram · 500 g'dan itibaren' gibi okunur metin."""
-        if self.birim == Birim.KILOGRAM:
+        if self.birim.kilogram_mi:
             adim = self.satis_adimi
             if adim < 1:
                 gram = int(adim * 1000)
@@ -194,10 +224,14 @@ class Urun(ZamanDamgali):
                     f"Kargo için raf ömrü en az {KARGO_ASGARI_RAF_OMRU} gün olmalı; "
                     f"bu ürün {self.raf_omru_gun} gün.")
 
-        if self.tartili_mi and self.birim != Birim.KILOGRAM:
-            hatalar["tartili_mi"] = (
-                "Tartılı ürün kilogramla satılır. Birimi kilogram yapın ya da "
-                "tartılı işaretini kaldırın.")
+        if self.birim_id:
+            if self.tartili_mi and not self.birim.kesirli:
+                hatalar["tartili_mi"] = (
+                    "Tartılı ürün kesirli bir birimle (kilogram gibi) satılır. Birimi "
+                    "değiştirin ya da tartılı işaretini kaldırın.")
+            if not self.birim.kesirli and self.satis_adimi % 1:
+                hatalar["satis_adimi"] = (
+                    f"{self.birim.ad} kesirli satılmaz; satış adımı tam sayı olmalı.")
 
         if hatalar:
             raise ValidationError(hatalar)
@@ -226,6 +260,12 @@ class MagazaUrun(ZamanDamgali):
     gunluk_limit = models.PositiveIntegerField(
         "günlük satış limiti", null=True, blank=True,
         help_text="Bir teslim gününde en fazla kaç birim satılsın. Boşsa sınırsız.")
+    # Taze üründe stok boş kalır: önce talep toplanır, sonra alınır (iş modelinin
+    # temeli). Stok yalnızca depoda bekleyen ürün (bal, bakliyat, yumurta) için tutulur.
+    stok = models.DecimalField(
+        "stok", max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text="Boşsa stok takip edilmez (sınırsız). Yalnızca stok hareketiyle değişir: "
+                  "Ürünler listesindeki “ekle / çıkar” ile.")
     sira = models.PositiveIntegerField("sıra", default=0)
     aktif = models.BooleanField("satışta", default=False,
                                help_text="Fiyat girilmeden açılamaz.")
@@ -243,7 +283,64 @@ class MagazaUrun(ZamanDamgali):
     @property
     def satista_mi(self):
         return (self.aktif and self.fiyat is not None
-                and self.durum == self.Durum.SATISTA and self.urun.aktif)
+                and self.durum == self.Durum.SATISTA and self.urun.aktif
+                and self.stok_yeterli_mi(self.urun.satis_adimi))
+
+    # -- stok ----------------------------------------------------------------
+    def stok_yeterli_mi(self, miktar):
+        """Takip edilmeyen (boş) stok sınırsız sayılır."""
+        return self.stok is None or self.stok >= Decimal(str(miktar))
+
+    def stok_degistir(self, miktar, tur, kullanici=None, aciklama="", takipsizse_atla=False):
+        """
+        Stoğu `miktar` kadar değiştirir (giriş artı, çıkış eksi) ve deftere yazar.
+
+        Stok rakamını doğrudan değiştirmek yerine her değişimi bir hareket olarak
+        tutuyoruz: "bu 10 kg nereden geldi, 2 kg nereye gitti" sorusunun cevabı
+        defterde kalsın. Satır kilitlenir; aynı anda iki satış stoğu eksiye düşüremez.
+
+        Takip edilmeyen üründe mal kabul takibi başlatır (0'dan sayar).
+        `takipsizse_atla` satış içindir: takipsiz üründe satış stoğa dokunmaz.
+        """
+        miktar = Decimal(str(miktar))
+        with transaction.atomic():
+            kayit = MagazaUrun.objects.select_for_update().get(pk=self.pk)
+            onceki = kayit.stok
+            if onceki is None and takipsizse_atla:
+                return None
+            sonraki = (onceki or Decimal("0")) + miktar
+            if sonraki < 0:
+                def yaz(sayi):
+                    return f"{Decimal(sayi).normalize():f}".replace(".", ",")
+                raise ValidationError(
+                    f"Stok yetmiyor: {yaz(onceki or 0)} var, {yaz(abs(miktar))} çıkarılmak istendi.")
+            kayit.stok = sonraki
+            kayit.save(update_fields=["stok", "guncellendi"])
+            hareket = StokHareketi.objects.create(
+                magaza_urun=kayit, tur=tur, miktar=miktar, onceki_stok=onceki,
+                sonraki_stok=sonraki, aciklama=aciklama, kullanici=kullanici)
+        self.stok = sonraki
+        return hareket
+
+    def stok_dus(self, miktar, kullanici=None, aciklama=""):
+        """Satışta çağrılır (Adım 5 — sipariş). Takipsiz üründe hiçbir şey yapmaz."""
+        return self.stok_degistir(-Decimal(str(miktar)), StokHareketi.Tur.SATIS,
+                                  kullanici=kullanici, aciklama=aciklama, takipsizse_atla=True)
+
+    def stok_takibini_kapat(self, kullanici=None):
+        """Stoğu boşaltır (sınırsız yapar); kapanış da deftere yazılır."""
+        with transaction.atomic():
+            kayit = MagazaUrun.objects.select_for_update().get(pk=self.pk)
+            if kayit.stok is None:
+                return None
+            onceki = kayit.stok
+            kayit.stok = None
+            kayit.save(update_fields=["stok", "guncellendi"])
+            hareket = StokHareketi.objects.create(
+                magaza_urun=kayit, tur=StokHareketi.Tur.TAKIP_KAPATILDI,
+                miktar=-onceki, onceki_stok=onceki, sonraki_stok=None, kullanici=kullanici)
+        self.stok = None
+        return hareket
 
     @property
     def indirimli_mi(self):
@@ -291,3 +388,62 @@ class MagazaUrun(ZamanDamgali):
                 "eski_fiyat": "Eski fiyat, yeni fiyattan büyük olmalı. "
                               "İndirim yoksa bu alanı boş bırakın."
             })
+
+
+
+class StokHareketi(ZamanDamgali):
+    """
+    Stoğun her değişimi bir satır: mal kabul, fire, sayım, satış, iade.
+
+    Kayıtlar düzeltilmez, silinmez: yanlış giriş ters bir hareketle (sayım
+    düzeltmesi) dengelenir. Böylece defter her zaman stoğun açıklaması olur.
+    """
+
+    class Tur(models.TextChoices):
+        MAL_KABUL = "mal_kabul", "Mal kabul"
+        FIRE = "fire", "Fire"
+        SAYIM = "sayim", "Sayım düzeltmesi"
+        SATIS = "satis", "Satış"
+        IADE = "iade", "İade"
+        TAKIP_KAPATILDI = "takip_kapatildi", "Takip kapatıldı"
+
+    magaza_urun = models.ForeignKey(MagazaUrun, on_delete=models.CASCADE,
+                                    related_name="stok_hareketleri", verbose_name="mağaza ürünü")
+    tur = models.CharField("tür", max_length=16, choices=Tur.choices)
+    miktar = models.DecimalField("miktar", max_digits=10, decimal_places=3,
+                                 help_text="Giriş artı, çıkış eksi.")
+    onceki_stok = models.DecimalField("önceki stok", max_digits=10, decimal_places=3,
+                                      null=True, blank=True)
+    sonraki_stok = models.DecimalField("sonraki stok", max_digits=10, decimal_places=3,
+                                       null=True, blank=True)
+    aciklama = models.CharField("açıklama", max_length=200, blank=True)
+    kullanici = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                  null=True, blank=True, related_name="+", verbose_name="kim")
+
+    class Meta:
+        verbose_name = "stok hareketi"
+        verbose_name_plural = "stok hareketleri"
+        ordering = ["-olusturuldu", "-pk"]
+
+    def __str__(self):
+        return f"{self.magaza_urun.urun.ad}: {self.miktar:+} ({self.get_tur_display()})"
+
+
+@receiver(post_save, sender=Urun)
+def urunu_magazalara_ac(sender, instance, created, **kwargs):
+    """
+    Yeni ürün tanımlanınca her aktif mağazaya **fiyatsız ve kapalı** bir kayıt açar.
+
+    Neden: panelde ürün ekleyen biri, ürünün ayrıca "Mağaza ürünleri" listesine de
+    eklenmesi gerektiğini bilmek zorunda kalmasın. Ürünü ekle, fiyatını yaz, aç —
+    o kadar. Kayıt kapalı açılıyor, yani fiyat girilmeden kimseye görünmüyor.
+
+    Mağaza sonradan açılırsa (Karaman) var olan ürünler için "Seçili ürünleri bütün
+    mağazalara ekle" işlemi kullanılır.
+    """
+    if not created:
+        return
+    from core.models import Magaza
+
+    for magaza in Magaza.objects.filter(aktif=True):
+        MagazaUrun.objects.get_or_create(magaza=magaza, urun=instance)

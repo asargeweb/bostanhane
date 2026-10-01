@@ -8,9 +8,9 @@ Bu dosya `katalog/admin.py` yerine geçer.
 **Ürünler** — ürünün tanımı. Birim, tartılı mı, kanallar, raf ömrü. Nadiren değişir.
 **Mağaza ürünleri** — fiyat ve stok durumu. Her gün değişir, listeden toplu düzenlenir.
 
-Fiyat girişi listede yapılır: `list_editable` sayesinde fiyat, durum ve satışta
-kutucuğu tek ekranda doldurulup bir kerede kaydedilir. 50 ürünün fiyatını tek tek
-sayfa açarak girmek saçma olurdu.
+Günlük iş Ürünler listesinde de yapılabilir: her satırda fiyat, satışta ve stok
+"düzenle" / "ekle / çıkar" düğmesiyle açılır, bir kerede kaydedilir. Stok yalnızca
+stok hareketiyle değişir; her hareket "Stok hareketleri" defterinde kalır.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -19,12 +19,12 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db.models import BooleanField, DecimalField, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 
 from core.admin_araclar import MagazaKisitliAdmin
 
-from .models import Birim, Kategori, MagazaUrun, Urun
+from .models import Birim, Kategori, MagazaUrun, StokHareketi, Urun
 
 
 @admin.register(Kategori)
@@ -39,11 +39,28 @@ class KategoriAdmin(admin.ModelAdmin):
         return nesne.urun_sayisi
 
 
+@admin.register(Birim)
+class BirimAdmin(admin.ModelAdmin):
+    list_display = ("ad", "kisaltma", "kesirli", "urun_adedi", "sira", "aktif")
+    list_editable = ("kisaltma", "kesirli", "sira", "aktif")
+    search_fields = ("ad", "kisaltma")
+
+    @admin.display(description="ürün sayısı")
+    def urun_adedi(self, nesne):
+        return nesne.urunler.count()
+
+    def has_delete_permission(self, request, nesne=None):
+        # Ürünü olan birim zaten silinemez (PROTECT); kullanılmayanı da yalnızca
+        # süper admin siler — yanlışlıkla silinen birim Excel aktarımını bozar.
+        return request.user.is_superuser
+
+
 class MagazaUrunSatiri(admin.TabularInline):
     """Ürün sayfasından mağaza fiyatlarını görmek ve girmek için."""
     model = MagazaUrun
     extra = 0
-    fields = ("magaza", "fiyat", "eski_fiyat", "durum", "aktif")
+    fields = ("magaza", "fiyat", "eski_fiyat", "durum", "aktif", "stok")
+    readonly_fields = ("stok",)
     verbose_name = "mağaza fiyatı"
     verbose_name_plural = "mağaza fiyatları"
 
@@ -53,9 +70,14 @@ def fiyat_yaz(tutar):
     return f"{tutar:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
 
 
-def fiyat_oku(metin):
+def miktar_yaz(miktar):
+    """Decimal → '10' · '2,5' · '0,25' — gereksiz sıfırlar olmadan."""
+    return f"{miktar.normalize():f}".replace(".", ",")
+
+
+def sayi_oku(metin, basamak):
     """
-    Listeye elle yazılan fiyatı çözer. Hem '32,90' hem '32.90' hem '1.250,50'
+    Listeye elle yazılan sayıyı çözer. Hem '32,90' hem '32.90' hem '1.250,50'
     yazılabilir; ₺ işareti ve boşluk yok sayılır. Boşsa None, okunamazsa ValueError.
     """
     metin = metin.replace("₺", "").replace(" ", "").strip()
@@ -64,21 +86,25 @@ def fiyat_oku(metin):
     if "," in metin:
         metin = metin.replace(".", "").replace(",", ".")
     try:
-        tutar = Decimal(metin).quantize(Decimal("0.01"))
+        return Decimal(metin).quantize(Decimal(1).scaleb(-basamak))
     except InvalidOperation:
         raise ValueError
-    if tutar <= 0:
+
+
+def fiyat_oku(metin):
+    tutar = sayi_oku(metin, 2)
+    if tutar is not None and tutar <= 0:
         raise ValueError
     return tutar
 
 
 class FiyatMagazasiSuzgeci(admin.SimpleListFilter):
     """
-    Ürünler listesindeki fiyat sütunu hangi mağazanın fiyatını göstersin.
+    Ürünler listesindeki fiyat ve stok sütunları hangi mağazayı göstersin.
 
-    Ürünü süzmez, yalnızca mağaza seçer: fiyat mağaza başına tutulur
+    Ürünü süzmez, yalnızca mağaza seçer: fiyat ve stok mağaza başına tutulur
     (Karaman'da domates Beyşehir'den farklı olabilir). Yalnızca süper admin
-    görür; mağaza personeli her zaman kendi mağazasının fiyatını görür.
+    görür; mağaza personeli her zaman kendi mağazasını görür.
     """
     title = "fiyat mağazası"
     parameter_name = "fiyat_magaza"
@@ -91,14 +117,39 @@ class FiyatMagazasiSuzgeci(admin.SimpleListFilter):
         return queryset
 
 
+# Ürünler listesindeki "ekle / çıkar" türleri ve miktarın yönü.
+# Mal kabul her zaman ekler, fire her zaman çıkarır: işaret yazmayı unutmak
+# stoğu ters yöne götürmesin. Sayım düzeltmesi yazıldığı gibi (+ ya da −) uygulanır.
+STOK_TURLERI = [
+    (StokHareketi.Tur.MAL_KABUL, "Mal kabul (+)", 1),
+    (StokHareketi.Tur.FIRE, "Fire (−)", -1),
+    (StokHareketi.Tur.SAYIM, "Sayım düzeltmesi (±)", None),
+]
+
+
+def duzenle_hucresi(metin, dugme, alan):
+    """
+    Satır içi düzenleme hücresi: önce düz yazı + düğme, düğmeye basınca alanlar.
+    Alanlar `disabled` başlar; kapalı alan forma gönderilmez, yani açılmamış
+    satır Kaydet'le değişmez — yanlışlıkla giriş olmasın diye.
+    """
+    return format_html(
+        '<span class="duzenle-hucre">'
+        '<span class="duzenle-metin">{} '
+        '<button type="button" class="button duzenle-ac">{}</button></span>'
+        '<span class="duzenle-alan" hidden>{} '
+        '<button type="button" class="button duzenle-vazgec">vazgeç</button></span>'
+        '</span>', metin, dugme, alan)
+
+
 @admin.register(Urun)
 class UrunAdmin(admin.ModelAdmin):
-    list_display = ("ad", "kategori", "satis_bilgisi", "fiyat_kutusu", "tartili_isareti",
-                    "kanallar_metni", "raf_omru_gun", "aktif")
-    list_filter = ("kategori", "aktif", "tartili_mi", "yerel_satis",
+    list_display = ("ad", "kategori", "birim_kisa", "fiyat_kutusu", "stok_kutusu",
+                    "tartili_isareti", "kanallar_metni", "raf_omru_gun", "aktif")
+    list_filter = ("kategori", "birim", "aktif", "tartili_mi", "yerel_satis",
                    "kargo_satis", "kurumsal_satis", "soguk_zincir", "abonelige_uygun")
     search_fields = ("ad", "aciklama", "mevsim")
-    list_select_related = ("kategori",)
+    list_select_related = ("kategori", "birim")
     prepopulated_fields = {"slug": ("ad",)}
     list_editable = ("aktif",)
     inlines = [MagazaUrunSatiri]
@@ -106,7 +157,8 @@ class UrunAdmin(admin.ModelAdmin):
         ("Ürün", {"fields": ("kategori", "ad", "slug", "aciklama", "gorsel", "sira", "aktif")}),
         ("Satış biçimi", {
             "description": "Tartılı üründe sepette provizyon alınır, kesin tutar tartımdan "
-                           "sonra çekilir. Tartılı ürün kilogramla satılır.",
+                           "sonra çekilir. Tartılı ürün kesirli birimle (kilogram) satılır. "
+                           "Listede olmayan birimi KATALOG → Birimler'den ekleyin.",
             "fields": (("birim", "tartili_mi"), ("satis_adimi", "ambalaj_bilgisi")),
         }),
         ("Satış kanalları", {
@@ -121,11 +173,14 @@ class UrunAdmin(admin.ModelAdmin):
     )
     actions = ["magazalara_ekle"]
 
-    # -- fiyat sütunu --------------------------------------------------------
-    # Fiyat MagazaUrun'da durur, Urun'da değil; list_editable yalnızca modelin
-    # kendi alanlarını kabul ettiği için kutuyu elle çiziyor, kaydı
-    # changelist_view'da kendimiz yapıyoruz. Amaç: ürünü ve fiyatını tek
-    # ekranda görüp girmek.
+    class Media:
+        js = ["katalog/fiyat_duzenle.js"]
+
+    # -- fiyat ve stok sütunları -------------------------------------------
+    # Fiyat ve stok MagazaUrun'da durur, Urun'da değil; list_editable yalnızca
+    # modelin kendi alanlarını kabul ettiği için kutuları elle çiziyor, kaydı
+    # changelist_view'da kendimiz yapıyoruz. Amaç: ürünü, fiyatını ve stoğunu
+    # tek ekranda görüp girmek.
 
     def fiyat_magazasi(self, request):
         from core.models import Magaza
@@ -143,25 +198,31 @@ class UrunAdmin(admin.ModelAdmin):
         return self.list_filter
 
     def get_queryset(self, request):
-        # Satır başına ayrı sorgu olmasın diye fiyatı listeye tek sorguda ekliyoruz.
+        # Satır başına ayrı sorgu olmasın diye mağaza bilgisini tek sorguda ekliyoruz.
         qs = super().get_queryset(request)
         magaza = self.fiyat_magazasi(request)
-        qs = qs.annotate(_fiyat_duzenlenebilir=Value(
+        qs = qs.annotate(_duzenlenebilir=Value(
             request.user.has_perm("katalog.change_magazaurun"), output_field=BooleanField()))
         if magaza is None:
             return qs.annotate(_fiyat=Value(None, output_field=DecimalField()),
                                _satista=Value(False, output_field=BooleanField()),
+                               _stok=Value(None, output_field=DecimalField()),
                                _fiyat_magazasi=Value(None, output_field=IntegerField()))
         kayit = MagazaUrun.objects.filter(magaza=magaza, urun=OuterRef("pk"))
         return qs.annotate(_fiyat=Subquery(kayit.values("fiyat")[:1]),
                            _satista=Coalesce(Subquery(kayit.values("aktif")[:1]), False),
+                           _stok=Subquery(kayit.values("stok")[:1]),
                            _fiyat_magazasi=Value(magaza.pk, output_field=IntegerField()))
+
+    @admin.display(description="birim", ordering="birim__sira")
+    def birim_kisa(self, nesne):
+        return nesne.birim.kisaltma
 
     @admin.display(description="fiyat · satışta")
     def fiyat_kutusu(self, nesne):
         if getattr(nesne, "_fiyat_magazasi", None) is None:
             return "—"
-        birim = "kg" if nesne.birim == Birim.KILOGRAM else nesne.birim_metni.lower()
+        birim = nesne.birim.kisaltma
         deger = fiyat_yaz(nesne._fiyat) if nesne._fiyat is not None else ""
         if deger:
             metin = format_html('<b>{} ₺</b> / {}', deger, birim)
@@ -171,97 +232,144 @@ class UrunAdmin(admin.ModelAdmin):
             satista = format_html('<span style="color:#1F5132">{}</span>', "✓ satışta")
         else:
             satista = format_html('<span style="color:#8A8A8A">{}</span>', "satışta değil")
-        if not nesne._fiyat_duzenlenebilir:
+        if not nesne._duzenlenebilir:
             return format_html("{} · {}", metin, satista)
-        # Fiyat ve satışta önce düz yazı görünür; kutular "düzenle"ye basınca açılır.
-        # Kapalı (disabled) kutu forma gönderilmez, yani Kaydet'e basılsa bile
-        # açılmamış satır değişmez — yanlışlıkla giriş olmasın diye.
-        return format_html(
-            '<span class="fiyat-hucre">'
-            '<span class="fiyat-metin">{} · {} '
-            '<button type="button" class="button fiyat-duzenle">{}</button></span>'
-            '<span class="fiyat-alan" hidden>'
+        alan = format_html(
             '<input type="text" name="fiyat_{}" value="{}" size="7" inputmode="decimal"'
             ' disabled style="text-align:right"> ₺ / {} '
-            '<label><input type="checkbox" name="satista_{}" disabled{}> satışta</label> '
-            '<button type="button" class="button fiyat-vazgec">vazgeç</button></span>'
+            '<label><input type="checkbox" name="satista_{}" disabled{}> satışta</label>'
             '<input type="hidden" name="fiyat_ilk_{}" value="{}">'
-            '<input type="hidden" name="satista_ilk_{}" value="{}">'
-            '</span>',
-            metin, satista, "düzenle" if deger else "fiyat gir",
+            '<input type="hidden" name="satista_ilk_{}" value="{}">',
             nesne.pk, deger, birim,
             nesne.pk, mark_safe(" checked") if nesne._satista else "",
             nesne.pk, deger, nesne.pk, "1" if nesne._satista else "")
+        return duzenle_hucresi(format_html("{} · {}", metin, satista),
+                               "düzenle" if deger else "fiyat gir", alan)
 
-    class Media:
-        js = ["katalog/fiyat_duzenle.js"]
+    @admin.display(description="stok")
+    def stok_kutusu(self, nesne):
+        if getattr(nesne, "_fiyat_magazasi", None) is None:
+            return "—"
+        birim = nesne.birim.kisaltma
+        if nesne._stok is None:
+            metin = format_html('<span style="color:#8A8A8A" title="{}">{}</span>',
+                                "Stok takip edilmiyor; sınırsız satılır.", "takip yok")
+        elif nesne._stok <= 0:
+            metin = format_html('<b style="color:#B23A24">0 {}</b>', birim)
+        else:
+            metin = format_html("<b>{} {}</b>", miktar_yaz(nesne._stok), birim)
+        if not nesne._duzenlenebilir:
+            return metin
+        secenekler = format_html_join(
+            "", '<option value="{}">{}</option>', ((t, ad) for t, ad, _ in STOK_TURLERI))
+        alan = format_html(
+            '<select name="stok_tur_{}" disabled>{}</select> '
+            '<input type="text" name="stok_{}" size="5" inputmode="decimal" placeholder="miktar"'
+            ' disabled style="text-align:right"> {}',
+            nesne.pk, secenekler, nesne.pk, birim)
+        return duzenle_hucresi(metin, "ekle / çıkar", alan)
 
     def changelist_view(self, request, extra_context=None):
         if (request.method == "POST" and "_save" in request.POST
                 and request.user.has_perm("katalog.change_magazaurun")):
-            self.fiyatlari_kaydet(request)
+            self.satirlari_kaydet(request)
         return super().changelist_view(request, extra_context)
 
-    def fiyatlari_kaydet(self, request):
+    def satirlari_kaydet(self, request):
         magaza = self.fiyat_magazasi(request)
         if magaza is None:
             return
-        fiyat_sayisi, acilan, kapanan, hatalar = 0, 0, 0, []
+        sayac = {"fiyat": 0, "acilan": 0, "kapanan": 0, "stok": 0}
+        hatalar = []
         for anahtar, metin in request.POST.items():
-            # Açılan her satırın fiyat kutusu gelir; işaretsiz onay kutusu
-            # gelmediği için satırı fiyat kutusundan tanıyoruz.
-            if not anahtar.startswith("fiyat_") or anahtar.startswith("fiyat_ilk_"):
+            if anahtar.startswith("fiyat_") and not anahtar.startswith("fiyat_ilk_"):
+                hata = self.fiyat_satiri(request, magaza, anahtar.removeprefix("fiyat_"),
+                                         metin, sayac)
+            elif anahtar.startswith("stok_") and not anahtar.startswith("stok_tur_"):
+                hata = self.stok_satiri(request, magaza, anahtar.removeprefix("stok_"),
+                                        metin, sayac)
+            else:
                 continue
-            pk = anahtar.removeprefix("fiyat_")
-            if not pk.isdigit():
-                continue
-            # Yalnızca değiştirilen alanlar yazılır; başka biri aynı anda
-            # "Mağaza ürünleri"nden değiştirdiyse üzerine basmayalım.
-            fiyat_degisti = metin.strip() != request.POST.get(f"fiyat_ilk_{pk}", "").strip()
-            satista = f"satista_{pk}" in request.POST
-            satista_degisti = satista != bool(request.POST.get(f"satista_ilk_{pk}"))
-            if not (fiyat_degisti or satista_degisti):
-                continue
-            urun = Urun.objects.filter(pk=pk).first()
-            if urun is None:
-                continue
-            kayit, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
-            # Önce fiyat, sonra satışta, sonra tek denetim: aynı kaydetmede
-            # fiyat girip ürünü satışa açmak çalışsın.
-            if fiyat_degisti:
-                try:
-                    kayit.fiyat = fiyat_oku(metin)
-                except ValueError:
-                    hatalar.append(f"{urun.ad}: “{metin}” fiyat olarak okunamadı")
-                    continue
-            if satista_degisti:
-                kayit.aktif = satista
-            try:
-                kayit.full_clean()
-            except ValidationError as hata:
-                hatalar.append(f"{urun.ad}: " + " ".join(
-                    m for mesajlar in hata.message_dict.values() for m in mesajlar))
-                continue
-            kayit.save()
-            fiyat_sayisi += 1 if fiyat_degisti else 0
-            if satista_degisti:
-                acilan += 1 if satista else 0
-                kapanan += 0 if satista else 1
+            if hata:
+                hatalar.append(hata)
         parcalar = []
-        if fiyat_sayisi:
-            parcalar.append(f"{fiyat_sayisi} ürünün fiyatı kaydedildi")
-        if acilan:
-            parcalar.append(f"{acilan} ürün satışa açıldı")
-        if kapanan:
-            parcalar.append(f"{kapanan} ürün satıştan çekildi")
+        if sayac["fiyat"]:
+            parcalar.append(f"{sayac['fiyat']} ürünün fiyatı kaydedildi")
+        if sayac["acilan"]:
+            parcalar.append(f"{sayac['acilan']} ürün satışa açıldı")
+        if sayac["kapanan"]:
+            parcalar.append(f"{sayac['kapanan']} ürün satıştan çekildi")
+        if sayac["stok"]:
+            parcalar.append(f"{sayac['stok']} ürünün stoğu güncellendi")
         if parcalar:
             self.message_user(request, ", ".join(parcalar) + f" ({magaza.ad}).")
         for hata in hatalar:
             self.message_user(request, f"Kaydedilmedi — {hata}", level=messages.ERROR)
 
-    @admin.display(description="satış")
-    def satis_bilgisi(self, nesne):
-        return nesne.satis_adimi_metni
+    def fiyat_satiri(self, request, magaza, pk, metin, sayac):
+        """Açılan fiyat satırını yazar. Hata varsa mesajı döner."""
+        if not pk.isdigit():
+            return None
+        # Yalnızca değiştirilen alanlar yazılır; başka biri aynı anda
+        # "Mağaza ürünleri"nden değiştirdiyse üzerine basmayalım.
+        fiyat_degisti = metin.strip() != request.POST.get(f"fiyat_ilk_{pk}", "").strip()
+        # İşaretsiz onay kutusu forma gelmez; satırı fiyat kutusundan tanıyoruz.
+        satista = f"satista_{pk}" in request.POST
+        satista_degisti = satista != bool(request.POST.get(f"satista_ilk_{pk}"))
+        if not (fiyat_degisti or satista_degisti):
+            return None
+        urun = Urun.objects.filter(pk=pk).first()
+        if urun is None:
+            return None
+        kayit, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
+        # Önce fiyat, sonra satışta, sonra tek denetim: aynı kaydetmede
+        # fiyat girip ürünü satışa açmak çalışsın.
+        if fiyat_degisti:
+            try:
+                kayit.fiyat = fiyat_oku(metin)
+            except ValueError:
+                return f"{urun.ad}: “{metin}” fiyat olarak okunamadı"
+        if satista_degisti:
+            kayit.aktif = satista
+        try:
+            kayit.full_clean()
+        except ValidationError as hata:
+            return f"{urun.ad}: " + " ".join(
+                m for mesajlar in hata.message_dict.values() for m in mesajlar)
+        kayit.save()
+        sayac["fiyat"] += 1 if fiyat_degisti else 0
+        if satista_degisti:
+            sayac["acilan" if satista else "kapanan"] += 1
+        return None
+
+    def stok_satiri(self, request, magaza, pk, metin, sayac):
+        """Açılan stok satırını deftere işler. Hata varsa mesajı döner."""
+        if not pk.isdigit() or not metin.strip():
+            return None
+        urun = Urun.objects.filter(pk=pk).select_related("birim").first()
+        if urun is None:
+            return None
+        try:
+            miktar = sayi_oku(metin, 3)
+        except ValueError:
+            return f"{urun.ad}: “{metin}” miktar olarak okunamadı"
+        if not miktar:
+            return None
+        if not urun.birim.kesirli and miktar % 1:
+            return f"{urun.ad}: {urun.birim.ad.lower()} kesirli girilemez, tam sayı yazın"
+        tur = request.POST.get(f"stok_tur_{pk}")
+        yon = {t: y for t, _, y in STOK_TURLERI}
+        if tur not in yon:
+            return f"{urun.ad}: stok hareketinin türü seçilmedi"
+        if yon[tur] is not None:
+            miktar = abs(miktar) * yon[tur]
+        kayit, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
+        try:
+            kayit.stok_degistir(miktar, tur, kullanici=request.user)
+        except ValidationError as hata:
+            return f"{urun.ad}: " + " ".join(hata.messages)
+        sayac["stok"] += 1
+        return None
 
     @admin.display(description="tartılı", boolean=True, ordering="tartili_mi")
     def tartili_isareti(self, nesne):
@@ -291,24 +399,42 @@ class UrunAdmin(admin.ModelAdmin):
             else "Yeni kayıt eklenmedi; hepsi zaten vardı.")
 
 
+class StokHareketiSatiri(admin.TabularInline):
+    """Mağaza ürünü sayfasında son stok hareketleri — yalnızca okunur."""
+    model = StokHareketi
+    extra = 0
+    fields = ("olusturuldu", "tur", "miktar", "onceki_stok", "sonraki_stok", "kullanici", "aciklama")
+    readonly_fields = fields
+    can_delete = False
+    verbose_name_plural = "stok hareketleri"
+
+    def has_add_permission(self, request, nesne=None):
+        return False
+
+
 @admin.register(MagazaUrun)
 class MagazaUrunAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     magaza_yolu = "magaza"
 
     list_display = ("urun_adi", "kategori_adi", "birim_adi", "fiyat",
-                    "fiyat_gosterim", "durum", "aktif", "magaza")
+                    "fiyat_gosterim", "stok_gosterim", "durum", "aktif", "magaza")
     list_editable = ("fiyat", "durum", "aktif")
     list_filter = ("magaza", "aktif", "durum", "urun__kategori", "urun__tartili_mi")
     search_fields = ("urun__ad", "urun__kategori__ad")
-    list_select_related = ("urun", "urun__kategori", "magaza")
+    list_select_related = ("urun", "urun__kategori", "urun__birim", "magaza")
     autocomplete_fields = ("urun",)
     list_per_page = 60
+    # Stok elle yazılmaz: her değişim deftere girsin diye yalnızca
+    # Ürünler listesindeki "ekle / çıkar" ile değişir.
+    readonly_fields = ("stok",)
+    inlines = [StokHareketiSatiri]
     fieldsets = (
         (None, {"fields": ("magaza", "urun")}),
         ("Fiyat", {"fields": (("fiyat", "eski_fiyat"),)}),
         ("Satış", {"fields": ("durum", "aktif", "gunluk_limit", "sira")}),
+        ("Stok", {"fields": ("stok",)}),
     )
-    actions = ["satisa_ac", "satisi_kapat", "tukendi_isaretle"]
+    actions = ["satisa_ac", "satisi_kapat", "tukendi_isaretle", "stok_takibini_kapat"]
 
     @admin.display(description="ürün", ordering="urun__ad")
     def urun_adi(self, nesne):
@@ -328,14 +454,19 @@ class MagazaUrunAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
         if nesne.fiyat is None:
             # format_html argümansız çağrılamaz (Django 5+); metni parametre veriyoruz.
             return format_html('<span style="color:#B23A24">{}</span>', "fiyat girilmedi")
-        metin = f"{nesne.fiyat:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
+        metin = fiyat_yaz(nesne.fiyat)
         if nesne.indirimli_mi:
-            eski = f"{nesne.eski_fiyat:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
             return format_html(
                 '<s style="color:#8A8A8A">{} ₺</s> <b style="color:#1F5132">{} ₺</b>'
                 ' <span style="color:#D98A2B">%{}</span>',
-                eski, metin, nesne.indirim_orani)
+                fiyat_yaz(nesne.eski_fiyat), metin, nesne.indirim_orani)
         return format_html("<b>{} ₺</b>", metin)
+
+    @admin.display(description="stok", ordering="stok")
+    def stok_gosterim(self, nesne):
+        if nesne.stok is None:
+            return "takip yok"
+        return f"{miktar_yaz(nesne.stok)} {nesne.urun.birim.kisaltma}"
 
     # -- işlemler ----------------------------------------------------------
     @admin.action(description="Satışa aç (fiyatı olanlar)")
@@ -357,3 +488,64 @@ class MagazaUrunAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     def tukendi_isaretle(self, request, queryset):
         adet = queryset.update(durum=MagazaUrun.Durum.TUKENDI)
         self.message_user(request, f"{adet} ürün tükendi olarak işaretlendi.")
+
+    @admin.action(description="Stok takibini kapat (sınırsız sat)")
+    def stok_takibini_kapat(self, request, queryset):
+        adet = sum(1 for kayit in queryset if kayit.stok_takibini_kapat(request.user))
+        self.message_user(request, f"{adet} ürünün stok takibi kapatıldı; artık sınırsız satılır.")
+
+
+@admin.register(StokHareketi)
+class StokHareketiAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
+    """
+    Stok defteri. Yalnızca okunur: hareketler düzeltilmez, silinmez; yanlış giriş
+    Ürünler listesinden ters bir sayım düzeltmesiyle dengelenir.
+    """
+    magaza_yolu = "magaza_urun__magaza"
+
+    list_display = ("olusturuldu", "urun_adi", "tur", "miktar_gosterim",
+                    "onceki_gosterim", "sonraki_gosterim", "kullanici", "magaza_adi")
+    list_filter = ("tur", "magaza_urun__magaza", "magaza_urun__urun__kategori")
+    search_fields = ("magaza_urun__urun__ad", "aciklama")
+    list_select_related = ("magaza_urun__urun__birim", "magaza_urun__magaza", "kullanici")
+    date_hierarchy = "olusturuldu"
+    list_per_page = 100
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, nesne=None):
+        return False
+
+    def has_delete_permission(self, request, nesne=None):
+        return False
+
+    def _birim(self, nesne):
+        return nesne.magaza_urun.urun.birim.kisaltma
+
+    @admin.display(description="ürün", ordering="magaza_urun__urun__ad")
+    def urun_adi(self, nesne):
+        return nesne.magaza_urun.urun.ad
+
+    @admin.display(description="mağaza")
+    def magaza_adi(self, nesne):
+        return nesne.magaza_urun.magaza.ad
+
+    @admin.display(description="miktar", ordering="miktar")
+    def miktar_gosterim(self, nesne):
+        renk = "#1F5132" if nesne.miktar > 0 else "#B23A24"
+        isaret = "+" if nesne.miktar > 0 else ""
+        return format_html('<b style="color:{}">{}{} {}</b>', renk, isaret,
+                           miktar_yaz(nesne.miktar), self._birim(nesne))
+
+    @admin.display(description="önceki")
+    def onceki_gosterim(self, nesne):
+        if nesne.onceki_stok is None:
+            return "takip yok"
+        return f"{miktar_yaz(nesne.onceki_stok)} {self._birim(nesne)}"
+
+    @admin.display(description="sonraki")
+    def sonraki_gosterim(self, nesne):
+        if nesne.sonraki_stok is None:
+            return "takip yok"
+        return f"{miktar_yaz(nesne.sonraki_stok)} {self._birim(nesne)}"

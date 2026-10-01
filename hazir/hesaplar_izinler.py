@@ -38,6 +38,8 @@ MAGAZA_YONETICISI = {
     "katalog.kategori": GOR_EKLE_DEGISTIR,
     "katalog.urun": GOR_EKLE_DEGISTIR,        # ürün tanımı; silme süper adminde
     "katalog.magazaurun": TUMU,               # fiyat ve stok onun işi
+    "katalog.birim": GOR_EKLE_DEGISTIR,       # "tepsi", "kasa" gibi birimi kendi ekler
+    "katalog.stokhareketi": SADECE_GOR,       # defter; hareket Ürünler listesinden girilir
     "hesaplar.kullanici": GOR_EKLE_DEGISTIR,  # personel ve üye ekler, silmez
     "hesaplar.adres": TUMU,
 }
@@ -46,6 +48,8 @@ PAKETLEME = {
     "core.satisayarlari": SADECE_GOR,
     "katalog.urun": SADECE_GOR,
     "katalog.magazaurun": SADECE_GOR,
+    "katalog.birim": SADECE_GOR,
+    "katalog.stokhareketi": SADECE_GOR,
     "core.mahalle": SADECE_GOR,
     "core.hizmetmahallesi": SADECE_GOR,
     "core.teslimtakvimi": SADECE_GOR,
