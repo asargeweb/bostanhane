@@ -45,6 +45,34 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, öğleden sonra (2) — Fiyat kutusu "düzenle" düğmesiyle açılıyor
+
+### İstek
+Ersin: fiyat bu kadar kolay değişmesin, yanında "düzenle" olsun, yanlışlıkla giriş olmasın.
+
+### Yapıldı
+- Fiyat artık düz yazı: **32,90 ₺** / kg  `[düzenle]`. Fiyatsız üründe kırmızı "fiyat yok" `[fiyat gir]`.
+- "düzenle" kutuyu açar, "vazgeç" eski değere döndürüp kapatır.
+- Kutu `disabled` başlıyor; kapalı kutu forma gönderilmediği için düzenle'ye basılmamış
+  satırın fiyatı Kaydet'le değişemez. Sunucu tarafı aynı (yalnızca gelen ve değişen kutu yazılır).
+- Betik: `katalog/static/katalog/fiyat_duzenle.js` (`UrunAdmin.Media`), satır içi JS yok.
+
+### Test (yerel, geri alındı)
+```
+betik sayfada: True | "fiyat gir" düğmesi: True
+kapalı kutu forma gidiyor mu: False
+Düzenle'siz Kaydet: [] → fiyat None
+Düzenle + Kaydet: ['1 ürünün fiyatı kaydedildi (Bostanhane Beyşehir).'] → fiyat 32.90
+```
+Düğmelerin tıklanması gerçek tarayıcıda denenmedi (sunucu tarafı test edildi); Ersin canlıda görecek.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `katalog/admin.py` | `fiyat_kutusu` düz yazı + düzenle/vazgeç; `class Media` | Ersin'in isteği | **Evet** — `hazir/katalog_admin.py` |
+| `katalog/static/katalog/fiyat_duzenle.js` | Yeni | Düğme davranışı | **Evet** — `hazir/katalog_fiyat_duzenle.js` (yeni) |
+
+
 ## 1 Ekim 2026, öğleden sonra — Ürünler listesine birimli fiyat kutusu (Ersin'in isteği)
 
 ### İstek

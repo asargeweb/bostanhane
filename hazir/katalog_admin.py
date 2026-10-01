@@ -161,11 +161,28 @@ class UrunAdmin(admin.ModelAdmin):
         deger = fiyat_yaz(nesne._fiyat) if nesne._fiyat is not None else ""
         if not nesne._fiyat_duzenlenebilir:
             return f"{deger} ₺ / {birim}" if deger else "—"
+        # Fiyat önce düz yazı görünür; kutu "düzenle"ye basınca açılır.
+        # Kapalı (disabled) kutu forma gönderilmez, yani Kaydet'e basılsa bile
+        # açılmamış satırın fiyatı değişmez — yanlışlıkla giriş olmasın diye.
+        if deger:
+            metin = format_html('<b>{} ₺</b> / {}', deger, birim)
+        else:
+            metin = format_html('<span style="color:#B23A24">{}</span>', "fiyat yok")
         return format_html(
+            '<span class="fiyat-hucre">'
+            '<span class="fiyat-metin">{} '
+            '<button type="button" class="button fiyat-duzenle">{}</button></span>'
+            '<span class="fiyat-alan" hidden>'
             '<input type="text" name="fiyat_{}" value="{}" size="7" inputmode="decimal"'
-            ' placeholder="fiyat" style="text-align:right"> ₺ / {}'
-            '<input type="hidden" name="fiyat_ilk_{}" value="{}">',
+            ' disabled style="text-align:right"> ₺ / {} '
+            '<button type="button" class="button fiyat-vazgec">vazgeç</button></span>'
+            '<input type="hidden" name="fiyat_ilk_{}" value="{}">'
+            '</span>',
+            metin, "düzenle" if deger else "fiyat gir",
             nesne.pk, deger, birim, nesne.pk, deger)
+
+    class Media:
+        js = ["katalog/fiyat_duzenle.js"]
 
     def changelist_view(self, request, extra_context=None):
         if (request.method == "POST" and "_save" in request.POST
