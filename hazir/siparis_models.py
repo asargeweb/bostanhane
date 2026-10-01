@@ -31,6 +31,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 
+from core.araclar import para_yaz
 from core.models import Magaza, SatisAyarlari, TeslimTakvimi, ZamanDamgali
 from katalog.models import MagazaUrun, StokHareketi
 
@@ -152,8 +153,9 @@ class Sepet(ZamanDamgali):
             return False, "Sepetiniz boş."
         eksik = self.eksik_tutar
         if eksik:
-            return False, f"Minimum sepet tutarı {self.ayarlar.min_sepet_tutari:.0f} ₺. " \
-                          f"{eksik:.2f} ₺ daha eklemelisiniz."
+            return False, (f"Minimum sepet tutarı "
+                           f"{para_yaz(self.ayarlar.min_sepet_tutari, kurusu_gizle=True)}. "
+                           f"{para_yaz(eksik)} daha eklemelisiniz.")
         if self.teslim_takvimi is None:
             return False, "Teslim günü seçilmedi."
         if not self.teslim_takvimi.siparis_alinabilir:

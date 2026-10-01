@@ -1,0 +1,26 @@
+{% load static %}<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1F5132">
+<title>{% block baslik %}Depo{% endblock %} · Bostanhane depo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Karla:wght@400;700&display=swap">
+<link rel="stylesheet" href="{% static 'css/depo.css' %}">
+</head>
+<body>
+<header class="ust">
+  <a class="marka" href="{% url 'depo' %}">bostanhane</a>
+  <span class="bolum">Depo · {{ request.magaza.ad }}</span>
+  <div class="sag">
+    <span>{{ user.get_short_name }}</span>
+    <form method="post" action="{% url 'cikis' %}">{% csrf_token %}<button type="submit">Çıkış</button></form>
+  </div>
+</header>
+<main class="sayfa">
+  {% for mesaj in messages %}<div class="mesaj {{ mesaj.tags }}">{{ mesaj }}</div>{% endfor %}
+  {% block icerik %}{% endblock %}
+</main>
+</body>
+</html>

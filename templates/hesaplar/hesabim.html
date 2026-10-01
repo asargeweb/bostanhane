@@ -19,6 +19,9 @@
     <span>Teslim gününüzü görmek için <a href="{% url 'adres_ekle' %}">bir adres ekleyin</a>.</span></div>
 {% endif %}
 
+{% if user.super_admin_mi or user.rol == "paketleme" or user.rol == "magaza_yoneticisi" %}
+  <a class="menu-k" href="{% url 'depo' %}" style="border-color:#1F5132"><span><b>Depo ekranı</b><small>Teslim günleri, toplama ve tartım</small></span><span>›</span></a>
+{% endif %}
 <a class="menu-k" href="{% url 'adresler' %}"><span><b>Adreslerim</b><small>{{ adres_sayisi }} adres kayıtlı</small></span><span>›</span></a>
 <a class="menu-k" href="{% url 'siparislerim' %}"><span><b>Siparişlerim</b>
   <small>{% if son_siparis %}Son sipariş {{ son_siparis.olusturuldu|date:"j F" }}{% else %}Henüz sipariş yok{% endif %}</small></span><span>›</span></a>

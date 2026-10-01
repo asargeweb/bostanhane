@@ -1,0 +1,33 @@
+{% extends "depo/taban.html" %}
+{% block baslik %}{{ takvim.hizmet_mahallesi.mahalle.ad }}{% endblock %}
+{% block icerik %}
+<a class="geri" href="{% url 'depo' %}">‹ Günler</a>
+<h1>{{ takvim.hizmet_mahallesi.mahalle.ad }} · {{ takvim.tarih|date:"j F l" }}</h1>
+<p style="color:#5B675A;margin:4px 0 16px">
+  {% if kesildi %}Kesildi — siparişler toplamaya açık.
+  {% else %}Sipariş alınıyor. Kesim: <b>{{ takvim.kesim_zamani|date:"j F H.i" }}</b>.{% endif %}</p>
+
+{% if kesebilir %}
+  <form method="post" action="{% url 'depo_gunu_kes' takvim.pk %}" style="margin-bottom:16px"
+        onsubmit="return confirm('{% if kesim_gecti %}Gün kesilsin mi? Kesimden sonra müşteriler siparişi değiştiremez.{% else %}Kesim saati gelmedi. Erken kesilsin mi? Müşteriler artık sipariş veremez.{% endif %}')">
+    {% csrf_token %}
+    <button class="btn {% if not kesim_gecti %}ikincil{% endif %} blok" type="submit">
+      {% if kesim_gecti %}Günü kes ve toplamaya başla{% else %}Erken kes (yönetici){% endif %}</button>
+  </form>
+{% endif %}
+
+<div class="liste">
+  {% for siparis in siparisler %}
+    {% if kesildi %}<a class="satir" href="{% url 'depo_toplama' siparis.numara %}">{% else %}<div class="satir">{% endif %}
+      <div class="ana">
+        <b>{{ siparis.teslim_ad_soyad }}</b>
+        <div>{{ siparis.numara }} · {{ siparis.kalem_adet }} ürün{% if siparis.test_siparisi %} · <span class="etiket deneme" style="margin:0">DENEME</span>{% endif %}</div>
+      </div>
+      <span class="ilerleme">{{ siparis.tartilan }}/{{ siparis.kalem_adet }}</span>
+      <span class="durum {{ siparis.durum }}">{{ siparis.get_durum_display }}</span>
+    {% if kesildi %}</a>{% else %}</div>{% endif %}
+  {% empty %}
+    <div class="bos" style="border:none">Bu güne sipariş yok.</div>
+  {% endfor %}
+</div>
+{% endblock %}

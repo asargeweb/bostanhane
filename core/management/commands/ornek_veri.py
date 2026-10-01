@@ -25,6 +25,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from core.araclar import para_yaz
 from core.models import (
     Gun, HaftalikTeslimGunu, HizmetMahallesi, Ilce, Magaza, Mahalle,
     SatisAyarlari, TeslimTakvimi,
@@ -113,9 +114,9 @@ class Command(BaseCommand):
         # (bu kayıt eklenmeden önce oluşmuş olanda) burada açılıyor.
         ayarlar = SatisAyarlari.getir(magaza)
         self.stdout.write(
-            f"  Satış ayarları: minimum {ayarlar.min_sepet_tutari:.0f} ₺ · "
-            f"teslimat {ayarlar.teslimat_ucreti:.0f} ₺ · "
-            f"ücretsiz eşiği {ayarlar.ucretsiz_teslimat_esigi:.0f} ₺ "
+            f"  Satış ayarları: minimum {para_yaz(ayarlar.min_sepet_tutari, kurusu_gizle=True)} · "
+            f"teslimat {para_yaz(ayarlar.teslimat_ucreti, kurusu_gizle=True)} · "
+            f"ücretsiz eşiği {para_yaz(ayarlar.ucretsiz_teslimat_esigi, kurusu_gizle=True)} "
             f"(panelden değiştirilir)")
 
         # -- merkez mahalleleri: aktif, teslim günleriyle -------------------

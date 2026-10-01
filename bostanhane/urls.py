@@ -20,6 +20,7 @@ urlpatterns = [
     path("", include("hesaplar.urls")),
     path("", include("katalog.urls")),
     path("", include("siparis.urls")),
+    path("", include("depo.urls")),
 ]
 
 # Geliştirme sırasında ürün görsellerinin görünmesi için

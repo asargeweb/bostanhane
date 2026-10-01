@@ -1,0 +1,76 @@
+/*
+  Depo (paketleme) ekranı — tablette parmakla kullanılır.
+  Kural: dokunulan her şey en az 48 px, yazı büyük, sayfa başına tek iş.
+*/
+:root{
+  --yesil:#1F5132; --yesil-700:#17402A; --filiz:#79A548; --harman:#D98A2B;
+  --krem:#F6F3EA; --ink:#16281C; --ink2:#5B675A; --ink3:#8A968A; --line:#E3DDCD; --hata:#B23A24;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--krem);color:var(--ink);font:18px/1.5 Karla,"Segoe UI",system-ui,sans-serif}
+a{color:var(--yesil)}
+h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
+.ust{background:var(--yesil);color:#fff;display:flex;align-items:center;gap:14px;padding:12px 18px;flex-wrap:wrap}
+.ust .marka{font-family:Fraunces,Georgia,serif;font-size:22px;color:#fff;text-decoration:none}
+.ust .bolum{background:rgba(255,255,255,.15);border-radius:999px;padding:3px 12px;font-size:15px;font-weight:700}
+.ust .sag{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:15px}
+.ust .sag a,.ust .sag button{color:#fff}
+.ust .sag button{background:none;border:none;font:inherit;text-decoration:underline;cursor:pointer;padding:0}
+.sayfa{max-width:900px;margin:0 auto;padding:18px 16px 60px}
+.geri{display:inline-block;font-size:16px;margin-bottom:10px}
+.mesaj{border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:17px;border:1px solid}
+.mesaj.success{background:#EEF4EC;border-color:var(--filiz);color:#2E6B2A}
+.mesaj.error{background:#FBEDEA;border-color:#E9C2B9;color:var(--hata)}
+.mesaj.info,.mesaj.warning{background:#FDF3E6;border-color:#F0D9B6;color:#8A5A12}
+
+.tarih-bas{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin:22px 0 10px}
+.kartlar{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.kart{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+      color:inherit;text-decoration:none;min-height:110px}
+.kart b{font-size:21px;display:block}
+.kart .alt{color:var(--ink2);font-size:16px;margin-top:4px}
+.etiket{display:inline-block;font-size:13px;font-weight:700;border-radius:999px;padding:2px 10px;margin-top:8px}
+.etiket.acik{background:#FDF3E6;color:#8A5A12}
+.etiket.kesildi{background:#F2F7EF;color:#2E5B2A}
+.etiket.deneme{background:var(--harman);color:#fff}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 24px;
+     border:none;border-radius:14px;background:var(--yesil);color:#fff;font:700 18px Karla,sans-serif;
+     cursor:pointer;text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn.ikincil{background:#fff;color:var(--yesil);border:2px solid var(--yesil)}
+.btn.uyari{background:#fff;color:var(--hata);border:2px solid #E9C2B9}
+.btn.harman{background:var(--harman)}
+.btn.blok{width:100%}
+.btn[disabled]{background:var(--ink3);cursor:not-allowed}
+
+.liste{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.satir{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);
+       color:inherit;text-decoration:none;min-height:64px}
+.satir:last-child{border-bottom:none}
+.satir .ana{flex:1;min-width:0}
+.satir .ana b{font-size:19px}
+.satir .ana div{color:var(--ink2);font-size:15px}
+.ilerleme{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.durum{font-size:13px;font-weight:700;border-radius:999px;padding:3px 10px;background:#EEF2EC;color:var(--ink2);white-space:nowrap}
+.durum.kesildi{background:#FDF3E6;color:#8A5A12}
+.durum.hazirlaniyor{background:#F2F7EF;color:#2E5B2A}
+
+.kalem{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:12px;scroll-margin-top:12px}
+.kalem.tamam{border-color:var(--filiz);background:#F8FBF6}
+.kalem.yok{border-color:#E9C2B9;background:#FDF7F5}
+.kalem .bas{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+.kalem .bas b{font-size:22px}
+.kalem .istenen{font-size:18px;color:var(--ink2)}
+.kalem .istenen strong{color:var(--ink);font-size:22px}
+.kalem .sonuc{font-size:16px;margin-top:6px;font-weight:700}
+.kalem form{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:stretch}
+.kalem input{flex:1 1 140px;min-height:56px;border:2px solid var(--line);border-radius:14px;padding:0 16px;
+             font:700 24px Karla,sans-serif;color:var(--ink);text-align:right;background:#fff;
+             font-variant-numeric:tabular-nums}
+.kalem input:focus{outline:3px solid var(--filiz);border-color:var(--filiz)}
+.kalem .birim{align-self:center;font-size:20px;font-weight:700;min-width:44px}
+.ozet{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:16px 0;font-size:17px}
+.ozet .s{display:flex;justify-content:space-between;padding:3px 0;font-variant-numeric:tabular-nums}
+.ozet .s.b{font-weight:700;font-size:21px;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+.bos{background:#fff;border:1px dashed var(--line);border-radius:16px;padding:28px;text-align:center;color:var(--ink2)}

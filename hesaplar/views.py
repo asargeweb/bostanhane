@@ -12,15 +12,16 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from core.models import Ilce, Mahalle
+from core.models import IlgiKaydi, Ilce, Mahalle
 from siparis.models import Siparis
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
 from .forms import AdresFormu, GirisFormu, HesapFormu, KayitFormu
-from .models import Adres
+from .models import Adres, Rol
 
 
 def _sonraki(request, varsayilan="hesabim"):
@@ -57,7 +58,9 @@ def giris(request):
         eski_anahtar = request.session.session_key
         login(request, form.kullanici)
         ziyaretci_sepetini_kat(request, eski_anahtar)
-        return redirect(_sonraki(request, "vitrin"))
+        # Paketleme elemanı ve mağaza yöneticisi işe depo ekranından başlar.
+        depocu = form.kullanici.rol in (Rol.PAKETLEME, Rol.MAGAZA_YONETICISI)
+        return redirect(_sonraki(request, "depo" if depocu else "vitrin"))
     return render(request, "hesaplar/giris.html", {"form": form, "next": _sonraki(request, "")})
 
 
@@ -107,7 +110,8 @@ def adresler(request):
 @login_required
 def adres_formu(request, pk=None):
     adres = get_object_or_404(Adres, pk=pk, uye=request.user, aktif=True) if pk else None
-    form = AdresFormu(request.POST or None, instance=adres, uye=request.user)
+    form = AdresFormu(request.POST or None, instance=adres, uye=request.user,
+                      initial={"ilce": request.GET.get("ilce")} if request.GET.get("ilce") else None)
     if request.method == "POST" and form.is_valid():
         kayit = form.save()
         if kayit.yerel_teslimat_var:
@@ -117,7 +121,39 @@ def adres_formu(request, pk=None):
             messages.warning(request, "Adres kaydedildi. Bu mahalleye kurye gitmiyor; "
                                       "kargo ile gönderim açıldığında bu adresi kullanabilirsiniz.")
         return redirect(_sonraki(request, "adresler"))
-    return render(request, "hesaplar/adres_form.html", {"form": form, "adres": adres})
+    # Seçili ilçenin mahalle listesi yüklü değilse (Beyşehir dışı) adres yerine davet gösterilir.
+    ilce = form.fields["ilce"].queryset.filter(pk=form["ilce"].value() or 0).first()
+    return render(request, "hesaplar/adres_form.html", {
+        "form": form, "adres": adres,
+        "ilce_bos": bool(ilce) and not ilce.mahalleler.exists(),
+    })
+
+
+@login_required
+@require_POST
+def adres_ilgi(request):
+    """
+    Mahallesi yüklü olmayan ilçeden gelen talep: adres açılmaz, ilgi kaydı açılır.
+
+    Mahallesiz adres kurye için anlamsız; ama müşteri çıkmaz sokakta da kalmasın.
+    "Nereye talep var" listesi kendiliğinden birikir; kargo ve yeni mağaza sırası
+    gelince hangi mahallelerin verisi gerektiği buradan okunur.
+    """
+    ilce = Ilce.objects.select_related("il").filter(pk=request.POST.get("ilce") or 0).first()
+    mahalle_adi = (request.POST.get("ilgi_mahalle") or "").strip()[:80]
+    if ilce is None or ilce.mahalleler.exists():
+        return redirect("adres_ekle")
+    if not mahalle_adi:
+        messages.error(request, "Mahallenizin adını yazın.")
+        return redirect(f"{reverse('adres_ekle')}?ilce={ilce.pk}")
+    # Model e-postayı ve kullanıcıyı ayrı tutmuyor; üyeyi telefonundan tanıyoruz.
+    IlgiKaydi.objects.get_or_create(
+        telefon=request.user.telefon,
+        mahalle_adi=f"{mahalle_adi}, {ilce.ad}/{ilce.il.ad}",
+        defaults={"eposta": request.user.eposta, "kaynak": "adres formu · kargo talebi"})
+    messages.success(request, "Teşekkürler, haber vereceğiz. Bölgenize gönderim açıldığında "
+                              "ilk sizi arayacağız.")
+    return redirect("adresler")
 
 
 @login_required

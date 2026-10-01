@@ -20,16 +20,9 @@ from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 
 from core.admin_araclar import MagazaKisitliAdmin
+from core.araclar import para_yaz as para   # 42,90 ₺ — tek biçimleyici, core/araclar.py'de
 
 from .models import Sepet, SepetKalemi, Siparis, SiparisKalemi
-
-
-def para(tutar):
-    """42,90 ₺ — para birimi tutardan sonra."""
-    if tutar is None:
-        return "—"
-    metin = f"{tutar:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
-    return f"{metin} ₺"
 
 
 # ==========================================================================

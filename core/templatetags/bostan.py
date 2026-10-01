@@ -9,6 +9,8 @@ from decimal import Decimal, InvalidOperation
 
 from django import template
 
+from core.araclar import para_yaz
+
 register = template.Library()
 
 
@@ -22,13 +24,12 @@ def _decimal(deger):
 
 
 @register.filter
-def para(deger):
-    """Decimal → '1.250,50 ₺'. Boşsa '—'."""
-    tutar = _decimal(deger)
-    if tutar is None:
-        return "—"
-    metin = f"{tutar:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
-    return f"{metin} ₺"
+def para(deger, secenek=""):
+    """
+    Decimal → '1.250,50 ₺'. Boşsa '—'. Biçim tek kaynaktan: core.araclar.para_yaz.
+    `{{ esik|para:"yuvarlak" }}` → tam tutarda kuruş yazılmaz: '1.000 ₺'.
+    """
+    return para_yaz(_decimal(deger), kurusu_gizle=secenek == "yuvarlak")
 
 
 @register.filter

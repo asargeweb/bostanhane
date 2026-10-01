@@ -62,7 +62,7 @@
   <span>bostanhane.com</span>
   {% if site_magaza %}<span>{{ site_magaza.konum }}</span>{% endif %}
   {% if site_ayarlar %}
-    <span>Minimum sepet {{ site_ayarlar.min_sepet_tutari|para }}{% if site_ayarlar.ucretsiz_teslimat_esigi %} · {{ site_ayarlar.ucretsiz_teslimat_esigi|para }} üzeri teslimat ücretsiz{% endif %}</span>
+    <span>Minimum sepet {{ site_ayarlar.min_sepet_tutari|para:"yuvarlak" }}{% if site_ayarlar.ucretsiz_teslimat_esigi %} · {{ site_ayarlar.ucretsiz_teslimat_esigi|para:"yuvarlak" }} üzeri teslimat ücretsiz{% endif %}</span>
   {% endif %}
 </footer>
 

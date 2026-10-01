@@ -84,6 +84,13 @@
     var ilce = adresFormu.querySelector("[name=ilce]");
     var mahalle = adresFormu.querySelector("[name=mahalle]");
     var bilgi = adresFormu.querySelector("[data-mahalle-bilgi]");
+    var ilgi = adresFormu.querySelector("[data-ilgi]");
+    var ayrinti = adresFormu.querySelector("[data-adres-ayrinti]");
+    // Mahalle listesi boş ilçe: adres alanları yerine "haber verelim" daveti.
+    function davetGoster(bos) {
+      ilgi.hidden = !bos;
+      ayrinti.hidden = bos;
+    }
 
     function doldur(secim, adres, bos) {
       secim.innerHTML = "<option value=''>" + bos + "</option>";
@@ -94,9 +101,7 @@
           o.value = s.pk; o.textContent = s.ad; secim.appendChild(o);
         });
         secim.disabled = false;
-        if (!veri.secenekler.length) {
-          secim.innerHTML = "<option value=''>Bu bölgenin listesi henüz yüklü değil</option>";
-        }
+        return veri.secenekler.length;
       });
     }
     function bilgiGoster() {
@@ -127,11 +132,20 @@
     il.addEventListener("change", function () {
       mahalle.innerHTML = "<option value=''>Mahalle seçin</option>";
       bilgi.hidden = true;
-      if (il.value) doldur(ilce, adresFormu.dataset.ilceler + "?il=" + il.value, "İlçe seçin");
+      davetGoster(false);
+      if (il.value) {
+        doldur(ilce, adresFormu.dataset.ilceler + "?il=" + il.value, "İlçe seçin").then(function (adet) {
+          // İlçeleri de yüklü olmayan il: doğrudan davet.
+          davetGoster(adet === 0);
+        });
+      }
     });
     ilce.addEventListener("change", function () {
       bilgi.hidden = true;
-      if (ilce.value) doldur(mahalle, adresFormu.dataset.mahalleler + "?ilce=" + ilce.value, "Mahalle seçin");
+      if (ilce.value) {
+        doldur(mahalle, adresFormu.dataset.mahalleler + "?ilce=" + ilce.value, "Mahalle seçin")
+          .then(function (adet) { davetGoster(adet === 0); });
+      }
     });
     mahalle.addEventListener("change", bilgiGoster);
     if (mahalle.value) bilgiGoster();

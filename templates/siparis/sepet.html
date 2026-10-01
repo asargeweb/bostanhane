@@ -90,7 +90,7 @@
       <div class="toplam-satir buyuk"><span>Toplam{% if sepet.tartili_var_mi %} (tahmini){% endif %}</span><span>{{ sepet.toplam|para }}</span></div>
 
       {% if sepet.eksik_tutar %}
-        <div class="uyari" style="margin-top:10px"><span>🧺</span><span>Minimum sepet {{ ayarlar.min_sepet_tutari|para }}. <b>{{ sepet.eksik_tutar|para }}</b> daha ekleyin.</span></div>
+        <div class="uyari" style="margin-top:10px"><span>🧺</span><span>Minimum sepet {{ ayarlar.min_sepet_tutari|para:"yuvarlak" }}. <b>{{ sepet.eksik_tutar|para }}</b> daha ekleyin.</span></div>
       {% elif sepet.ucretsize_kalan %}
         <div class="bilgi" style="margin-top:10px"><span>🚚</span><span><b>{{ sepet.ucretsize_kalan|para }}</b> daha eklerseniz teslimat ücretsiz.</span></div>
       {% endif %}

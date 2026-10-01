@@ -147,7 +147,8 @@ class AdresFormu(forms.ModelForm):
             self.initial["baskasi_alacak"] = bool(self.instance.teslim_alacak
                                                   or self.instance.teslim_telefonu)
         else:
-            ilce = Ilce.objects.filter(il__ad="Konya", slug="beysehir").first()
+            ilce = (self._sec(Ilce, self.initial.get("ilce"))
+                    or Ilce.objects.filter(il__ad="Konya", slug="beysehir").first())
             il = ilce.il if ilce else None
         if il:
             self.initial.setdefault("il", il.pk)

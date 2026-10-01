@@ -45,6 +45,83 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 2 Ekim 2026 — Para biçimi tek kaynakta, Beyşehir dışı ilgi kaydı, paketleme ekranı
+
+okuduğum talimat: 2 Ekim (1)
+
+### 1. Para biçimi
+`hazir/core_araclar.py`, `hazir/siparis_models.py`, `hazir/siparis_admin.py` kuruldu.
+- Sepet uyarısı artık: **"Minimum sepet tutarı 500 ₺. 450,65 ₺ daha eklemelisiniz."**
+- `bostan.para` filtresi `para_yaz`'ı çağırıyor; kendi biçimi kalmadı. `{{ x|para:"yuvarlak" }}` →
+  `kurusu_gizle=True` (alt bilgi ve sepetteki minimum / eşik: "500 ₺", "1.000 ₺").
+  `miktar`, `yuzde`, `mutlak`'a dokunulmadı.
+- `core/admin.py` satış ayarları özeti: `500 ₺ altı kapalı · 1.000 ₺ üstü ücretsiz` (`para_yaz`).
+- `katalog/admin.py`: `fiyat_yaz()` artık `para_yaz(...).removesuffix(" ₺")` (fiyat kutusunun içi ₺'siz);
+  "müşteriye görünen" sütunu ve stok defteri de bundan geçiyor.
+- Ek: `ornek_veri` çıktısındaki `:.0f`'ler de `para_yaz` oldu → `minimum 500 ₺ · teslimat 50 ₺ · ücretsiz eşiği 1.000 ₺`.
+  **Senin dosyan** — `hazir/ornek_veri.py`'ye de aynısını uyguladım; GUN_ROTALARI'nı güncellerken üzerine yazma.
+
+### 2. Beyşehir dışı adres → ilgi kaydı
+- Mahalle listesi boş ilçe seçilince (JS ya da `?ilce=` ile sunucuda) adres alanları gizleniyor, yerine:
+  *"Buraya henüz kargo göndermiyoruz. Açıldığında haber vermemiz için mahallenizi yazın."* + tek satır + **Haber verin**.
+- `POST /hesabim/adresler/haber-ver/` → `IlgiKaydi` (get_or_create, tekrar basılırsa çoğalmaz). **Adres açılmıyor.**
+  Mesaj: "Teşekkürler, haber vereceğiz…"
+- Model alanı eklemedim (senin dosyan). Kullanıcı ve ilçe için alan olmadığından:
+  `mahalle_adi = "Yenişehir, Meram/Konya"`, `telefon = üyenin telefonu`, `eposta = üyenin e-postası (boş olabilir)`,
+  `kaynak = "adres formu · kargo talebi"`. **Öneri:** `IlgiKaydi`'na `uye` (FK, boş olabilir) ve `ilce` (FK) eklersen
+  liste ilçeye göre süzülür; `eposta` alanı da `blank=True` olmalı — üyenin e-postası yoksa şu an boş kaydediliyor
+  (veritabanı kabul ediyor, panel formu etmez).
+- Mahallesi yüklü ilçe için bu adres çalışmaz (adres formuna geri döner).
+
+### 5. Paketleme ekranı (Adım 6a) — yeni `depo` uygulaması
+Modeli yok; `BOSTANHANE_APPS`'e `"depo"` eklendi (`hazir/settings.py` eşitlendi). Ayrı, sade şablon
+(`templates/depo/taban.html` + `static/css/depo.css`): 48 px+ dokunma alanı, 18–24 px yazı.
+
+| Adres | Ne |
+|---|---|
+| `/depo/` | Bugün ve yarın; mahalle kartı başına sipariş / hazır sayısı, "açık · kesim …" ya da "kesim saati geçti — kesilmeli" |
+| `/depo/gun/<takvim>/` | Günün siparişleri (tartılan/toplam, durum, DENEME); **Günü kes** düğmesi |
+| `POST /depo/gun/<takvim>/kes/` | `gunu_kes()` — kesim saati geçtiyse herkes; **erken kesim yalnızca yönetici / süper admin** |
+| `/depo/toplama/<numara>/` | Satır başına büyük kutu + **Kaydet** + **Bulunamadı**; tartılıda kutu boş ("tartı"), adetli üründe istenen miktar dolu; özet: ara toplam, teslimat, tahmini→kesin toplam, bloke |
+| `POST …/kalem/<pk>/` | `kalem.tartim_gir(miktar, kullanici=request.user)`; bulunamadı = `tartim_gir(0)`; kesirli olmayan birime 1,5 reddedilir |
+| `POST …/hazir/` | Hepsi tartıldıysa durum `HAZIRLANIYOR` + `hazirlandi_zamani` (paneldeki işlemle aynı iki alan) |
+| `/depo/alim/<takvim>/` | **Tanımlanmadı — senin.** |
+
+- Erişim: paketleme, mağaza yöneticisi, süper admin (`?magaza=` ile seçer, varsayılan ilk mağaza). Üye ve kurye ana sayfaya döner.
+  Sorgular `magaza=request.magaza` ile (personelde `user.magaza`).
+- **Kesilmemiş günde toplama açılmıyor** (sipariş `ALINDI` iken) — gün sayfasına mesajla döner; gün sayfasında
+  kesilmeden önce siparişler bağlantısız.
+- Zamanlanmış kesim yok; o yüzden kesim düğmesi depo ekranında. Kesim saati gelince paketleme elemanı da basabilir.
+- Paketleme / yönetici `/giris/`'ten girince `/depo/`'ya gidiyor; Hesabım'da "Depo ekranı" bağlantısı var.
+
+### Test (yerel, işlem geri alındı)
+```
+1) sepet sebebi: Minimum sepet tutarı 500 ₺. 450,65 ₺ daha eklemelisiniz.
+2) Meram seçili → davet görünür: True
+   ilgi kaydı: Yenişehir, Meram/Konya | adres formu · kargo talebi | adres açıldı mı: False
+4) paketleme /depo/ 200 · gün sayfası 200 · üye ve kurye → / 'Depo ekranı yalnızca mağaza personeli içindir.'
+5) kesilmeden toplama → /depo/gun/40/ 'Bu günün kesimi yapılmadı; sipariş hâlâ değişebilir…'
+   paketleme erken kesim: 'Kesim saati gelmedi…' · yönetici erken kesim: 'Gün kesildi: 1 sipariş toplamaya açıldı.'
+6) eksikken hazır: 'Tartılmamış ürün var…' · kavanoza 1,5: 'kavanoz kesirli olamaz.'
+7) Domates 1,5 kg istendi → 1,43 kg = 47,05 ₺ · Maydanoz bulunamadı = 0 · Bal 1 = 450,00
+   toplam 579,35 → 547,05 ₺ · bloke 586,75 ₺ (değişmedi)
+8) hazır: 'BH-2026-000001 hazır. Kesin tutar: 547,05 ₺' → hazirlaniyor, zaman yazıldı
+9) müşteri siparişlerim: 'Maydanoz bulunamadı, 30,00 ₺ düşüldü' · '547,05 ₺'
+```
+Tartı farkı defteri bu denemede boş: ürünler stok takipsiz (`takipsizse_atla`) — doğru davranış.
+Tablet genişliğinde (820 px, Edge telefon/tablet taklidi) gün ve toplama sayfalarının görüntüsüne bakıldı; taşma yok.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `core/admin.py` | özet satırı `para_yaz` | **Evet** `hazir/core_admin.py` |
+| `katalog/admin.py` | `fiyat_yaz` → `para_yaz` | **Evet** `hazir/katalog_admin.py` |
+| `core/management/commands/ornek_veri.py` | çıktı `para_yaz` | **Evet** `hazir/ornek_veri.py` |
+| `bostanhane/settings.py` | `"depo"` | **Evet** `hazir/settings.py` |
+| `bostanhane/urls.py` | `depo.urls` | **Evet** `hazir/urls.py` |
+| `core/templatetags/bostan.py`, `hesaplar/{forms,views,urls}.py`, `templates/…`, `static/js/site.js` | ilgi kaydı, depo yönlendirmesi | `hazir/`'de eşi yok |
+| Yeni: `depo/{apps,views,urls}.py`, `templates/depo/*`, `static/css/depo.css` | Paketleme ekranı | `hazir/`'de eşi yok |
+
 ## 1 Ekim 2026, akşam (2) — Adım 5 kuruldu; üyelik, vitrin ve sepet ekranları yazıldı
 
 ### Önce bir not — "rapor.md değişmedi"

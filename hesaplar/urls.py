@@ -10,6 +10,7 @@ urlpatterns = [
     path("hesabim/adresler/", views.adresler, name="adresler"),
     path("hesabim/adresler/yeni/", views.adres_formu, name="adres_ekle"),
     path("hesabim/adresler/<int:pk>/", views.adres_formu, name="adres_duzenle"),
+    path("hesabim/adresler/haber-ver/", views.adres_ilgi, name="adres_ilgi"),
     path("hesabim/adresler/<int:pk>/varsayilan/", views.adres_varsayilan, name="adres_varsayilan"),
     path("hesabim/adresler/<int:pk>/sil/", views.adres_sil, name="adres_sil"),
     path("hesabim/siparisler/", views.siparislerim, name="siparislerim"),

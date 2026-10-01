@@ -1,0 +1,54 @@
+{% extends "depo/taban.html" %}
+{% load bostan %}
+{% block baslik %}{{ siparis.numara }}{% endblock %}
+{% block icerik %}
+{% if siparis.teslim_takvimi %}<a class="geri" href="{% url 'depo_gun' siparis.teslim_takvimi_id %}">‹ {{ siparis.teslim_takvimi.hizmet_mahallesi.mahalle.ad }} siparişleri</a>{% endif %}
+<h1>{{ siparis.teslim_ad_soyad }}</h1>
+<p style="color:#5B675A;margin:4px 0 16px">{{ siparis.numara }} · {{ siparis.teslim_mahalle }}
+  {% if siparis.test_siparisi %}<span class="etiket deneme" style="margin:0 0 0 6px">DENEME</span>{% endif %}
+  · <b>{{ siparis.get_durum_display }}</b></p>
+
+{% for kalem in kalemler %}
+  {% with birim=kalem.birim_adi %}
+  <div class="kalem {% if kalem.bulunamadi_mi %}yok{% elif kalem.teslim_miktari is not None %}tamam{% endif %}" id="k{{ kalem.pk }}">
+    <div class="bas">
+      <b>{{ kalem.urun_adi }}</b>
+      <span class="istenen">İstenen <strong>{{ kalem.siparis_miktari|miktar:birim }}</strong></span>
+    </div>
+    {% if kalem.bulunamadi_mi %}
+      <div class="sonuc" style="color:#B23A24">Bulunamadı — müşteriden çekilmeyecek</div>
+    {% elif kalem.teslim_miktari is not None %}
+      <div class="sonuc" style="color:#2E5B2A">✓ {{ kalem.teslim_miktari|miktar:birim }} · {{ kalem.tutar|para }}</div>
+    {% endif %}
+    {% if duzenlenebilir %}
+      <form method="post" action="{% url 'depo_tartim' siparis.numara kalem.pk %}">
+        {% csrf_token %}
+        {# Tartılıda kutu boş gelir: tartının gösterdiği yazılsın, istenen değil. #}
+        <input type="text" name="miktar" inputmode="decimal" autocomplete="off"
+               value="{% if kalem.teslim_miktari is not None %}{{ kalem.teslim_miktari|sayi }}{% elif not kalem.tartili_mi %}{{ kalem.siparis_miktari|sayi }}{% endif %}"
+               placeholder="{% if kalem.tartili_mi %}tartı{% else %}adet{% endif %}" aria-label="{{ kalem.urun_adi }} miktarı">
+        <span class="birim">{{ birim }}</span>
+        <button class="btn" type="submit">Kaydet</button>
+        <button class="btn uyari" type="submit" name="bulunamadi" value="1"
+                onclick="return confirm('{{ kalem.urun_adi }} bulunamadı olarak işaretlensin mi?')">Bulunamadı</button>
+      </form>
+    {% endif %}
+  </div>
+  {% endwith %}
+{% endfor %}
+
+<div class="ozet">
+  <div class="s"><span>Ürünler</span><span>{{ siparis.ara_toplam|para }}</span></div>
+  <div class="s"><span>Teslimat</span><span>{% if siparis.teslimat_ucreti %}{{ siparis.teslimat_ucreti|para }}{% else %}Ücretsiz{% endif %}</span></div>
+  <div class="s b"><span>{% if kalan %}Tahmini toplam{% else %}Kesin toplam{% endif %}</span><span>{{ siparis.toplam|para }}</span></div>
+  <div class="s" style="color:#5B675A;font-size:15px"><span>Kartta bloke</span><span>{{ siparis.provizyon_tutari|para }}</span></div>
+</div>
+
+{% if siparis.durum == "kesildi" %}
+  <form method="post" action="{% url 'depo_hazir' siparis.numara %}">
+    {% csrf_token %}
+    <button class="btn blok harman" type="submit" {% if kalan %}disabled{% endif %}>
+      {% if kalan %}{{ kalan }} ürün tartılmadı{% else %}Sipariş hazır{% endif %}</button>
+  </form>
+{% endif %}
+{% endblock %}

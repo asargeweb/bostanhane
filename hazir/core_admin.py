@@ -17,6 +17,7 @@ from django.contrib import admin
 from django.utils import timezone
 
 from .admin_araclar import MagazaKisitliAdmin, tum_magazalari_gorur
+from .araclar import para_yaz
 from .models import (
     HaftalikTeslimGunu, HizmetMahallesi, Il, Ilce, IlgiKaydi,
     Magaza, Mahalle, SatisAyarlari, TeslimTakvimi,
@@ -278,9 +279,9 @@ class SatisAyarlariAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
         """Ayarın müşteriye nasıl yansıdığını tek satırda gösterir."""
         esik = nesne.ucretsiz_teslimat_esigi
         if esik is None:
-            return f"Her siparişe {nesne.teslimat_ucreti:.0f} ₺ teslimat"
-        return (f"{nesne.min_sepet_tutari:.0f} ₺ altı kapalı · "
-                f"{esik:.0f} ₺ üstü ücretsiz")
+            return f"Her siparişe {para_yaz(nesne.teslimat_ucreti, kurusu_gizle=True)} teslimat"
+        return (f"{para_yaz(nesne.min_sepet_tutari, kurusu_gizle=True)} altı kapalı · "
+                f"{para_yaz(esik, kurusu_gizle=True)} üstü ücretsiz")
 
     # Ayar kaydı mağaza açılınca kendiliğinden oluşuyor; elle eklenmesine
     # gerek yok ve iki kayıt açılmasını engellemek daha temiz.

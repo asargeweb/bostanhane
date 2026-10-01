@@ -16,6 +16,17 @@
     {% include "parcalar/alan.html" with alan=form.il %}
     {% include "parcalar/alan.html" with alan=form.ilce %}
   </div>
+  {# Mahalle listesi yüklü olmayan ilçe (Beyşehir dışı): adres yerine davet. #}
+  <div data-ilgi {% if not ilce_bos %}hidden{% endif %}>
+    <div class="uyari" style="margin-bottom:12px"><span>📦</span>
+      <span><b>Buraya henüz kargo göndermiyoruz.</b> Açıldığında haber vermemiz için mahallenizi yazın.</span></div>
+    <div class="alan"><label for="ilgi_mahalle">Mahalleniz</label>
+      <input type="text" id="ilgi_mahalle" name="ilgi_mahalle" maxlength="80" placeholder="Örnek: Kızılay"></div>
+    <button class="btn" type="submit" formaction="{% url 'adres_ilgi' %}" formnovalidate>Haber verin</button>
+    <a href="{% url 'adresler' %}" style="margin-left:12px;font-size:14px">Vazgeç</a>
+  </div>
+
+  <div data-adres-ayrinti {% if ilce_bos %}hidden{% endif %}>
   {% include "parcalar/alan.html" with alan=form.mahalle %}
   <div data-mahalle-bilgi hidden style="margin:-2px 0 13px"></div>
 
@@ -37,5 +48,6 @@
 
   <button class="btn" type="submit" style="margin-top:6px">Adresi kaydet</button>
   <a href="{% url 'adresler' %}" style="margin-left:12px;font-size:14px">Vazgeç</a>
+  </div>
 </form>
 {% endblock %}

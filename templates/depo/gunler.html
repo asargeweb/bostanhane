@@ -1,0 +1,23 @@
+{% extends "depo/taban.html" %}
+{% block baslik %}Teslim günleri{% endblock %}
+{% block icerik %}
+<h1>Teslim günleri</h1>
+{% for tarih, takvimler in gruplar %}
+  <div class="tarih-bas">{% if tarih == bugun %}Bugün{% else %}Yarın{% endif %} · {{ tarih|date:"j F l" }}</div>
+  <div class="kartlar">
+    {% for takvim in takvimler %}
+      <a class="kart" href="{% url 'depo_gun' takvim.pk %}">
+        <b>{{ takvim.hizmet_mahallesi.mahalle.ad }}</b>
+        <div class="alt">{{ takvim.siparis_adet }} sipariş{% if takvim.siparis_adet %} · {{ takvim.hazir_adet }} hazır{% endif %}</div>
+        {% if takvim.durum == "acik" %}
+          <span class="etiket acik">{% if takvim.kesim_zamani <= simdi %}Kesim saati geçti — kesilmeli{% else %}Açık · kesim {{ takvim.kesim_zamani|date:"j F H.i" }}{% endif %}</span>
+        {% else %}
+          <span class="etiket kesildi">{{ takvim.get_durum_display }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+{% empty %}
+  <div class="bos" style="margin-top:16px">Bugün ve yarın teslim günü yok.</div>
+{% endfor %}
+{% endblock %}

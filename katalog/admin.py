@@ -23,6 +23,7 @@ from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 
 from core.admin_araclar import MagazaKisitliAdmin
+from core.araclar import para_yaz
 
 from .models import Birim, Kategori, MagazaUrun, StokHareketi, Urun
 
@@ -66,8 +67,8 @@ class MagazaUrunSatiri(admin.TabularInline):
 
 
 def fiyat_yaz(tutar):
-    """Decimal → '1.250,50' (Türkçe ondalık virgülü)."""
-    return f"{tutar:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
+    """Decimal → '1.250,50' — fiyat kutusunun içi için, ₺ işaretsiz. Biçim para_yaz'dan."""
+    return para_yaz(tutar).removesuffix(" ₺")
 
 
 def miktar_yaz(miktar):

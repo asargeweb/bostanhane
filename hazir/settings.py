@@ -71,6 +71,7 @@ BOSTANHANE_APPS = [
     "hesaplar",
     "katalog",
     "siparis",
+    "depo",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + UCUNCU_PARTI_APPS + BOSTANHANE_APPS
