@@ -377,8 +377,18 @@ class SatisAyarlari(ZamanDamgali):
     mağaza açıldığında bu kayıt o değerlerle oluşturulur, sonrası panelde.
     """
 
+    class VitrinModu(models.TextChoices):
+        KAPALI = "kapali", "Kapalı — yalnızca yakında sayfası"
+        TEST = "test", "Test — vitrin yalnızca giriş yapanlara açık"
+        ACIK = "acik", "Açık — herkese satış"
+
     magaza = models.OneToOneField(Magaza, on_delete=models.CASCADE,
                                   related_name="satis_ayarlari", verbose_name="mağaza")
+
+    vitrin_modu = models.CharField(
+        "vitrin modu", max_length=10, choices=VitrinModu.choices, default=VitrinModu.TEST,
+        help_text="Sanal POS ve yasal metinler tamamlanana kadar TEST'te kalmalı. "
+                  "Test modunda verilen siparişler deneme sayılır ve raporlara girmez.")
 
     min_sepet_tutari = models.DecimalField(
         "minimum sepet tutarı (₺)", max_digits=10, decimal_places=2,
@@ -464,6 +474,30 @@ class SatisAyarlari(ZamanDamgali):
         """Tartılı sepet için karttan bloke edilecek tutar."""
         tutar = Decimal(str(tutar))
         return (tutar * (Decimal("1") + self.provizyon_tampon_orani)).quantize(Decimal("0.01"))
+
+    # -- vitrin ------------------------------------------------------------
+    @property
+    def vitrin_acik_mi(self):
+        """Herkese açık satış yapılıyor mu?"""
+        return self.vitrin_modu == self.VitrinModu.ACIK
+
+    @property
+    def test_modunda_mi(self):
+        return self.vitrin_modu == self.VitrinModu.TEST
+
+    def vitrin_gorunur_mu(self, kullanici):
+        """
+        Bu ziyaretçi vitrini görebilir mi?
+
+        kapali → kimse (yakında sayfası)
+        test   → yalnızca giriş yapmış kişiler
+        acik   → herkes
+        """
+        if self.vitrin_modu == self.VitrinModu.ACIK:
+            return True
+        if self.vitrin_modu == self.VitrinModu.KAPALI:
+            return False
+        return bool(getattr(kullanici, "is_authenticated", False))
 
     def clean(self):
         super().clean()

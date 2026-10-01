@@ -31,7 +31,26 @@ class Command(BaseCommand):
             self.stdout.write("· Coğrafya verisi yerinde.")
 
         if Magaza.objects.exists():
-            self.stdout.write("· Mağaza kaydı var, ilk veri kurulumu atlandı.")
+            self.stdout.write("· Mağaza kaydı var, mağaza kurulumu atlandı.")
+        else:
+            self.stdout.write("Veritabanı boş. Beyşehir mağazası kuruluyor…")
+            call_command("ornek_veri")
+
+        # Ürünler burada OTOMATİK AKTARILMAZ.
+        #
+        # Karar: katalog panelden yönetiliyor. Ürün ve fiyat sürekli değişiyor;
+        # dağıtım sırasında dosyadan veri basmak, panelde yapılan işi silme
+        # riskini her deploy'a taşır. Katalog Ersin'in alanı.
+        #
+        # Taslak listeyi bir kez içeri almak isteyen `urun_yukle` komutunu elle
+        # çalıştırır. O komut da panelde girilmiş fiyatlara dokunmaz.
+        try:
+            from katalog.models import Urun
+        except ImportError:
             return
-        self.stdout.write("Veritabanı boş. Beyşehir mağazası kuruluyor…")
-        call_command("ornek_veri")
+        adet = Urun.objects.count()
+        if adet:
+            self.stdout.write(f"· Katalogda {adet} ürün var.")
+        else:
+            self.stdout.write("· Katalog boş. Ürünler panelden girilecek "
+                              "(/yonetim/katalog/urun/).")

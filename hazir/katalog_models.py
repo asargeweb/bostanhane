@@ -404,6 +404,7 @@ class StokHareketi(ZamanDamgali):
         FIRE = "fire", "Fire"
         SAYIM = "sayim", "Sayım düzeltmesi"
         SATIS = "satis", "Satış"
+        TARTI_FARKI = "tarti_farki", "Tartı farkı"
         IADE = "iade", "İade"
         TAKIP_KAPATILDI = "takip_kapatildi", "Takip kapatıldı"
 

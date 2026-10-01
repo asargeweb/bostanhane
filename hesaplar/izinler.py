@@ -40,6 +40,10 @@ MAGAZA_YONETICISI = {
     "katalog.magazaurun": TUMU,               # fiyat ve stok onun işi
     "katalog.birim": GOR_EKLE_DEGISTIR,       # "tepsi", "kasa" gibi birimi kendi ekler
     "katalog.stokhareketi": SADECE_GOR,       # defter; hareket Ürünler listesinden girilir
+    "siparis.siparis": ["view", "change"],    # sipariş müşteriden gelir, silinmez — iptal edilir
+    "siparis.sipariskalemi": ["view", "change"],  # tartım burada girilir
+    "siparis.sepet": SADECE_GOR,              # terk edilen sepeti görmek için, okunur
+    "siparis.sepetkalemi": SADECE_GOR,
     "hesaplar.kullanici": GOR_EKLE_DEGISTIR,  # personel ve üye ekler, silmez
     "hesaplar.adres": TUMU,
 }
@@ -54,6 +58,8 @@ PAKETLEME = {
     "core.hizmetmahallesi": SADECE_GOR,
     "core.teslimtakvimi": SADECE_GOR,
     "hesaplar.adres": SADECE_GOR,
+    "siparis.siparis": ["view", "change"],        # durumu "hazırlandı"ya çeker
+    "siparis.sipariskalemi": ["view", "change"],  # tartım asıl onun işi
 }
 
 KURYE = {
@@ -62,6 +68,8 @@ KURYE = {
     "core.hizmetmahallesi": SADECE_GOR,
     "core.teslimtakvimi": SADECE_GOR,
     "hesaplar.adres": SADECE_GOR,
+    "siparis.siparis": ["view", "change"],        # teslim kaydı
+    "siparis.sipariskalemi": SADECE_GOR,         # kurye tartmaz, görür
 }
 
 
