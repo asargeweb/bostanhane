@@ -13,12 +13,16 @@ kutucuğu tek ekranda doldurulup bir kerede kaydedilir. 50 ürünün fiyatını 
 sayfa açarak girmek saçma olurdu.
 """
 
-from django.contrib import admin
+from decimal import Decimal, InvalidOperation
+
+from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
+from django.db.models import BooleanField, DecimalField, IntegerField, OuterRef, Subquery, Value
 from django.utils.html import format_html
 
 from core.admin_araclar import MagazaKisitliAdmin
 
-from .models import Kategori, MagazaUrun, Urun
+from .models import Birim, Kategori, MagazaUrun, Urun
 
 
 @admin.register(Kategori)
@@ -42,9 +46,52 @@ class MagazaUrunSatiri(admin.TabularInline):
     verbose_name_plural = "mağaza fiyatları"
 
 
+def fiyat_yaz(tutar):
+    """Decimal → '1.250,50' (Türkçe ondalık virgülü)."""
+    return f"{tutar:,.2f}".replace(",", "#").replace(".", ",").replace("#", ".")
+
+
+def fiyat_oku(metin):
+    """
+    Listeye elle yazılan fiyatı çözer. Hem '32,90' hem '32.90' hem '1.250,50'
+    yazılabilir; ₺ işareti ve boşluk yok sayılır. Boşsa None, okunamazsa ValueError.
+    """
+    metin = metin.replace("₺", "").replace(" ", "").strip()
+    if not metin:
+        return None
+    if "," in metin:
+        metin = metin.replace(".", "").replace(",", ".")
+    try:
+        tutar = Decimal(metin).quantize(Decimal("0.01"))
+    except InvalidOperation:
+        raise ValueError
+    if tutar <= 0:
+        raise ValueError
+    return tutar
+
+
+class FiyatMagazasiSuzgeci(admin.SimpleListFilter):
+    """
+    Ürünler listesindeki fiyat sütunu hangi mağazanın fiyatını göstersin.
+
+    Ürünü süzmez, yalnızca mağaza seçer: fiyat mağaza başına tutulur
+    (Karaman'da domates Beyşehir'den farklı olabilir). Yalnızca süper admin
+    görür; mağaza personeli her zaman kendi mağazasının fiyatını görür.
+    """
+    title = "fiyat mağazası"
+    parameter_name = "fiyat_magaza"
+
+    def lookups(self, request, model_admin):
+        from core.models import Magaza
+        return [(str(m.pk), m.ad) for m in Magaza.objects.filter(aktif=True)]
+
+    def queryset(self, request, queryset):
+        return queryset
+
+
 @admin.register(Urun)
 class UrunAdmin(admin.ModelAdmin):
-    list_display = ("ad", "kategori", "satis_bilgisi", "tartili_isareti",
+    list_display = ("ad", "kategori", "satis_bilgisi", "fiyat_kutusu", "tartili_isareti",
                     "kanallar_metni", "raf_omru_gun", "aktif")
     list_filter = ("kategori", "aktif", "tartili_mi", "yerel_satis",
                    "kargo_satis", "kurumsal_satis", "soguk_zincir", "abonelige_uygun")
@@ -71,6 +118,96 @@ class UrunAdmin(admin.ModelAdmin):
         }),
     )
     actions = ["magazalara_ekle"]
+
+    # -- fiyat sütunu --------------------------------------------------------
+    # Fiyat MagazaUrun'da durur, Urun'da değil; list_editable yalnızca modelin
+    # kendi alanlarını kabul ettiği için kutuyu elle çiziyor, kaydı
+    # changelist_view'da kendimiz yapıyoruz. Amaç: ürünü ve fiyatını tek
+    # ekranda görüp girmek.
+
+    def fiyat_magazasi(self, request):
+        from core.models import Magaza
+        if not getattr(request.user, "tum_magazalari_gorur", request.user.is_superuser):
+            return getattr(request.user, "magaza", None)
+        secilen = request.GET.get(FiyatMagazasiSuzgeci.parameter_name)
+        magazalar = Magaza.objects.filter(aktif=True)
+        if secilen and secilen.isdigit():
+            return magazalar.filter(pk=secilen).first()
+        return magazalar.order_by("pk").first()
+
+    def get_list_filter(self, request):
+        if getattr(request.user, "tum_magazalari_gorur", request.user.is_superuser):
+            return (FiyatMagazasiSuzgeci, *self.list_filter)
+        return self.list_filter
+
+    def get_queryset(self, request):
+        # Satır başına ayrı sorgu olmasın diye fiyatı listeye tek sorguda ekliyoruz.
+        qs = super().get_queryset(request)
+        magaza = self.fiyat_magazasi(request)
+        qs = qs.annotate(_fiyat_duzenlenebilir=Value(
+            request.user.has_perm("katalog.change_magazaurun"), output_field=BooleanField()))
+        if magaza is None:
+            return qs.annotate(_fiyat=Value(None, output_field=DecimalField()),
+                               _fiyat_magazasi=Value(None, output_field=IntegerField()))
+        kayit = MagazaUrun.objects.filter(magaza=magaza, urun=OuterRef("pk"))
+        return qs.annotate(_fiyat=Subquery(kayit.values("fiyat")[:1]),
+                           _fiyat_magazasi=Value(magaza.pk, output_field=IntegerField()))
+
+    @admin.display(description="fiyat")
+    def fiyat_kutusu(self, nesne):
+        if getattr(nesne, "_fiyat_magazasi", None) is None:
+            return "—"
+        birim = "kg" if nesne.birim == Birim.KILOGRAM else nesne.birim_metni.lower()
+        deger = fiyat_yaz(nesne._fiyat) if nesne._fiyat is not None else ""
+        if not nesne._fiyat_duzenlenebilir:
+            return f"{deger} ₺ / {birim}" if deger else "—"
+        return format_html(
+            '<input type="text" name="fiyat_{}" value="{}" size="7" inputmode="decimal"'
+            ' placeholder="fiyat" style="text-align:right"> ₺ / {}'
+            '<input type="hidden" name="fiyat_ilk_{}" value="{}">',
+            nesne.pk, deger, birim, nesne.pk, deger)
+
+    def changelist_view(self, request, extra_context=None):
+        if (request.method == "POST" and "_save" in request.POST
+                and request.user.has_perm("katalog.change_magazaurun")):
+            self.fiyatlari_kaydet(request)
+        return super().changelist_view(request, extra_context)
+
+    def fiyatlari_kaydet(self, request):
+        magaza = self.fiyat_magazasi(request)
+        if magaza is None:
+            return
+        degisen, hatalar = 0, []
+        for anahtar, metin in request.POST.items():
+            if not anahtar.startswith("fiyat_") or anahtar.startswith("fiyat_ilk_"):
+                continue
+            pk = anahtar.removeprefix("fiyat_")
+            # Yalnızca değiştirilen kutular yazılır; başka biri aynı anda
+            # "Mağaza ürünleri"nden fiyat girdiyse üzerine basmayalım.
+            if not pk.isdigit() or metin.strip() == request.POST.get(f"fiyat_ilk_{pk}", "").strip():
+                continue
+            urun = Urun.objects.filter(pk=pk).first()
+            if urun is None:
+                continue
+            try:
+                tutar = fiyat_oku(metin)
+            except ValueError:
+                hatalar.append(f"{urun.ad}: “{metin}” fiyat olarak okunamadı")
+                continue
+            kayit, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
+            kayit.fiyat = tutar
+            try:
+                kayit.full_clean()
+            except ValidationError as hata:
+                hatalar.append(f"{urun.ad}: " + " ".join(
+                    m for mesajlar in hata.message_dict.values() for m in mesajlar))
+                continue
+            kayit.save()
+            degisen += 1
+        if degisen:
+            self.message_user(request, f"{degisen} ürünün fiyatı kaydedildi ({magaza.ad}).")
+        for hata in hatalar:
+            self.message_user(request, f"Kaydedilmedi — {hata}", level=messages.ERROR)
 
     @admin.display(description="satış")
     def satis_bilgisi(self, nesne):

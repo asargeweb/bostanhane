@@ -45,6 +45,43 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, öğleden sonra — Ürünler listesine birimli fiyat kutusu (Ersin'in isteği)
+
+### İstek
+Ersin, **Ürünler** listesinde (`/yonetim/katalog/urun/`) fiyatın birimiyle birlikte
+görünmesini ve fiyatın oradan girilip değiştirilebilmesini istedi.
+
+### Yapıldı
+- Listeye **fiyat** sütunu: `[ 32,90 ] ₺ / kg`, `[ 15,00 ] ₺ / demet` gibi. Kaydet'e
+  basınca fiyat ilgili `MagazaUrun` kaydına yazılır (kayıt yoksa açılır).
+- `list_editable` yalnızca modelin kendi alanlarını kabul ettiği için kutu
+  `format_html` ile çiziliyor, kayıt `changelist_view` → `fiyatlari_kaydet()` içinde.
+  Fiyat listeye `Subquery` ile tek sorguda ekleniyor.
+- **Hangi mağazanın fiyatı:** personel → kendi mağazası; süper admin → yeni
+  "fiyat mağazası" süzgeci (ürünü süzmez, yalnızca mağaza seçer), varsayılan ilk aktif mağaza.
+- Yalnızca değişen kutular yazılır (gizli `fiyat_ilk_<pk>` ile karşılaştırılıyor) — aynı
+  anda "Mağaza ürünleri"nden girilen fiyatın üzerine basılmasın diye.
+- `MagazaUrun.full_clean()` çağrılıyor: satıştaki ürünün fiyatı silinemiyor, eski fiyat
+  kuralı korunuyor. Okunamayan değer ("abc") ürün adıyla hata mesajı veriyor.
+  `32,90`, `32.90`, `1.250,50`, `32,90 ₺` hepsi okunuyor.
+- `katalog.change_magazaurun` yetkisi olmayan (ör. ileride paketleme) yalnızca düz metin görür.
+
+### Test (yerel, işlem geri alındı)
+```
+GET 200 kutu var: True | birim: True
+POST ['1 ürünün fiyatı kaydedildi (Bostanhane Beyşehir).', 'Kaydedilmedi — Patates: “abc” fiyat olarak okunamadı']
+Sil denemesi: ['Kaydedilmedi — Domates: Ürünü satışa açmak için fiyat girilmeli.'] → 32.90
+demet birimi: True
+magaza_yoneticisi 200 | kutu: True | mağaza süzgeci: False
+```
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `katalog/admin.py` | `fiyat_yaz`, `fiyat_oku`, `FiyatMagazasiSuzgeci`; `UrunAdmin`'e `fiyat_kutusu`, `get_queryset`, `get_list_filter`, `changelist_view`, `fiyatlari_kaydet` | Ersin'in isteği | **Evet** — `hazir/katalog_admin.py` birebir aynı |
+
+"Mağaza ürünleri" listesi olduğu gibi duruyor; ikisi aynı kayda yazar.
+
 ## 1 Ekim 2026, öğle — Rota eşitleme + Adım 4 (katalog) yerelde kuruldu, push edildi
 
 ### Sıra değişti — neden
@@ -107,9 +144,29 @@ Kurulan diğer bütün dosyalar `hazir/` ile birebir aynı.
 - Canlı ana sayfa hâlâ 3 eski mahalle — beklenen; `ornek_veri --rotalari_esitle` canlıda
   henüz çalıştırılmadı (Claude Code'un canlıda komut izni yok, Ersin'in çalıştırması bekleniyor).
 
+- **Ürünler (Ersin'in kararı: aktar):** `..\icerik\urunler.xlsx` → `veri/urunler.xlsx` olarak
+  repoya kopyalandı (commit `ba367b9`, dağıtım SUCCESS). Asıl kaynak hâlâ `..\icerik\`;
+  Excel güncellenirse `veri/` kopyası da yenilenmeli.
+- **Canlı eşitleme yapıldı** (Ersin çalıştırdı): yereldekiyle aynı çıktı — 5 fazla gün,
+  39 takvim kaydı silindi; 10 yeni merkez + 57 pasif köy mahallesi; 203 takvim günü;
+  satış ayarları kaydı açıldı. Canlı ana sayfada **13 mahalle doğru günleriyle** görünüyor.
+- **Canlı ürün aktarımı yapıldı** (Ersin çalıştırdı): `50 yeni ürün, 0 güncellenen, 6 yeni
+  kategori, 0 fiyat yazıldı.` Hepsi fiyatsız, satışa kapalı. Fiyatlar canlı panelden girilecek:
+  `/yonetim/katalog/magazaurun/`. **Canlı tarafta bekleyen iş kalmadı.**
+- Çalıştırılan iki komut (Claude Code'a canlıda komut izni verilmedi, Ersin çalıştırdı):
+  `railway ssh --service web python manage.py ornek_veri --rotalari_esitle`
+  `railway ssh --service web python manage.py urun_yukle --dosya veri/urunler.xlsx`
+
 ### İş 4 — Railway değişkenleri
-Claude Code okuyamıyor (izin yok). Ersin panelden bakıp yazacak:
-`DATABASE_URL`, `YONETICI_TELEFON`, `YONETICI_AD` tanımlı mı, `YONETICI_KULLANICI` silinmiş mi.
+Ersin panelden listeyi gönderdi (değerler gizli): `DATABASE_URL`, `DJANGO_ALLOWED_HOSTS`,
+`DJANGO_DEBUG`, `DJANGO_SECRET_KEY`, `PORT`, `YONETICI_AD`, `YONETICI_TELEFON`.
+- `YONETICI_KULLANICI` **yok** — doğru.
+- `YONETICI_SIFRE` **yok.** Ya hesap açıldıktan sonra silindi (doğru), ya da hiç tanımlanmadı —
+  o durumda `ilk_yonetici` "hesap oluşturulmadı" der ve canlıda süper admin yoktur.
+  Ersin'in `/yonetim/` girişini denemesi bunu ayırt eder.
+  **Ersin doğruladı:** hesap açıldıktan sonra silindi; canlıda `/yonetim/` girişi çalışıyor. İş 4 tamam.
+- `DATABASE_URL`'in değeri (`${{Postgres.DATABASE_URL}}` mi) görülmedi; site ve panel
+  çalıştığına göre bağlantı doğru (çıkarım).
 
 ### Karar bekleyen
 - Canlıya 50 ürün nasıl gidecek: (a) panelden elle, (b) `urunler.xlsx`'i repoya
