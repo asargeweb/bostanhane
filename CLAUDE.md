@@ -94,6 +94,8 @@ adim-*.md              ← adım adım kurulum ve geliştirme notları
 | `ornek_hesaplar` | Örnek personel ve üye (şifresiz — giriş yapamazlar) |
 
 Canlı ortamda bu komutlar `Procfile` içinde her dağıtımda kendiliğinden çalışır.
+**Dikkat:** Railway'de web servisinin *Start Command* ayarı boş kalmalı; doluysa `Procfile`'ı
+geçersiz kılar (30 Eylül'de eski bir komut bu yüzden roller/yönetici/ilk veriyi atlattı).
 
 ### Planlanan uygulamalar (sırayla eklenecek)
 
@@ -201,6 +203,24 @@ Marka kılavuzu: `..\logo\bostanhane-marka-kilavuzu.html`.
 ---
 
 ## 8. Çalışma şekli
+
+### İki asistan, iki dosya
+
+Bu projede iki Claude çalışıyor: **Cowork** (tarayıcıda — planlar, araştırır, `hazir/`
+dosyalarını yazar) ve **Claude Code** (VS Code'da — komut çalıştırır, kurar, canlıya alır).
+İkisi şu iki dosyayla konuşur:
+
+| Dosya | Kim yazar | Kim okur |
+|---|---|---|
+| `talimat.md` | Cowork | Claude Code |
+| `rapor.md` | Claude Code | Cowork |
+
+Ersin "talimat oku" der → Claude Code `talimat.md`'yi okur, işleri yapar, sonucu
+`rapor.md`'ye **en üste** yazar. Ersin "rapor oku" der → Cowork okur, yeni talimatı yazar.
+
+**Çakışma kuralı:** Claude Code kurulu bir dosyada (`core/admin.py` gibi) düzeltme
+yaparsa aynı düzeltmeyi `hazir/` içindeki eşine de uygular ve `rapor.md`'de bildirir.
+Yoksa Cowork'ün sonraki sürümü düzeltmenin üzerine yazar.
 
 - Ersin'in **yazılım deneyimi yok**. Her adımı sade Türkçe anlat: ne yaptın, neden yaptın, o ne işe yarar
 - Büyük değişikliklerden önce planı söyle, onay al
