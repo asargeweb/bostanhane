@@ -33,30 +33,34 @@ from core.models import (
 
 # Haftalık rotalar. Her mahalle haftada iki kez ziyaret edilir.
 # Çarşamba ve cumartesi de dolu; kargo paketleme günleri buna göre ayarlanacak.
-ROTA_GUNLERI = {
-    1: [Gun.PAZARTESI, Gun.PERSEMBE],
-    2: [Gun.SALI, Gun.CUMA],
-    3: [Gun.CARSAMBA, Gun.CUMARTESI],
+# Haftalık rota — her mahalleye **haftada bir gün** gidilir.
+#
+# Niye bir gün: minimum sepet 500 ₺, yani müşteri haftalık pazar alışverişi yapıyor.
+# Haftada bir dolu sepet, haftada iki yarım sepetten hem müşteri hem rota için daha iyi.
+# Komşu mahallelerde talep büyürse ikinci gün eklenir — model buna hazır, bir mahalleye
+# birden fazla `HaftalikTeslimGunu` eklenebiliyor.
+#
+# Gün → o gün gidilen mahalleler. **Sıra kurye güzergâhıdır**: listedeki sıra
+# `sira` alanına yazılıyor, yani araç yukarıdan aşağı o sırayla dolaşır.
+#
+# ⚠ BU GRUPLAMA TASLAKTIR. Hangi mahallenin hangisine komşu olduğunu Ersin bilir;
+# panelden (Hizmet verilen mahalleler → teslim günü) ya da buradan düzeltilir.
+# Değiştirdikten sonra: python manage.py ornek_veri --rotalari_esitle
+GUN_ROTALARI = {
+    Gun.PAZARTESI: ["icerisehir", "muftu", "hamidiye"],
+    Gun.SALI:      ["bahcelievler", "esentepe"],
+    Gun.CARSAMBA:  ["yeni", "beytepe"],
+    Gun.PERSEMBE:  ["haciakif", "haciarmagan"],
+    Gun.CUMA:      ["avsar", "evsat"],
+    Gun.CUMARTESI: ["dalyan", "yesilyurt"],
 }
 
-# Merkez mahallesi → rota numarası. Sıralama kurye güzergâhına göre
-# panelden değiştirilebilir; buradaki dağılım başlangıç taslağıdır.
+# Mahalle kısa adı → (gün, güzergâhtaki sıra). Yukarıdaki tablodan üretiliyor;
+# elle doldurmaya gerek yok.
 MERKEZ_ROTALARI = {
-    "muftu": 1,
-    "hamidiye": 1,
-    "dalyan": 1,
-    "esentepe": 1,
-    "beytepe": 1,
-
-    "bahcelievler": 2,
-    "haciakif": 2,
-    "haciarmagan": 2,
-    "evsat": 2,
-
-    "yeni": 3,
-    "icerisehir": 3,
-    "avsar": 3,
-    "yesilyurt": 3,
+    slug: (gun, sira)
+    for gun, slugler in GUN_ROTALARI.items()
+    for sira, slug in enumerate(slugler, start=1)
 }
 
 MERKEZ_KAPASITE = 40      # sipariş / gün
@@ -69,8 +73,9 @@ class Command(BaseCommand):
     def add_arguments(self, ayristirici):
         ayristirici.add_argument(
             "--rotalari_esitle", action="store_true",
-            help="Merkez mahallelerinde yukarıdaki rotada olmayan teslim günlerini siler. "
-                 "Rotalar değiştiğinde eski günlerin üzerine birikmesini önler.")
+            help="Merkez mahallelerini yukarıdaki GUN_ROTALARI tablosuna göre eşitler: "
+                 "tabloda olmayan teslim günlerini ve gelecekteki takvim kayıtlarını siler, "
+                 "güzergâh sırasını tabloya göre düzeltir.")
 
     def handle(self, *args, **secenekler):
         self.esitle = secenekler["rotalari_esitle"]
@@ -119,7 +124,7 @@ class Command(BaseCommand):
         toplam_silinen_kural = 0
         toplam_silinen_gun = 0
         sira = 0
-        for mahalle_slug, rota in MERKEZ_ROTALARI.items():
+        for mahalle_slug, (gun, gun_ici_sira) in MERKEZ_ROTALARI.items():
             mahalle = Mahalle.objects.filter(ilce=ilce, slug=mahalle_slug).first()
             if mahalle is None:
                 self.stdout.write(self.style.WARNING(
@@ -127,31 +132,41 @@ class Command(BaseCommand):
                 continue
             sira += 1
 
+            # Sıra = gün numarası × 10 + güzergâhtaki sıra. Böylece listeler
+            # pazartesiden cumartesiye, her gün içinde de güzergâh sırasına dizilir.
             hizmet, yeni = HizmetMahallesi.objects.get_or_create(
                 magaza=magaza, mahalle=mahalle,
-                defaults={"gunluk_kapasite": MERKEZ_KAPASITE, "sira": sira, "aktif": True},
+                defaults={"gunluk_kapasite": MERKEZ_KAPASITE,
+                          "sira": int(gun) * 10 + gun_ici_sira, "aktif": True},
             )
-            gunler = ROTA_GUNLERI[rota]
-            for gun in gunler:
-                kural, yeni_kural = HaftalikTeslimGunu.objects.get_or_create(
-                    hizmet_mahallesi=hizmet,
-                    gun=gun,
-                    defaults={
-                        "teslim_baslangic": time(9, 0),
-                        "teslim_bitis": time(18, 0),
-                        "kesim_gun_farki": 1,
-                        "kesim_saati": time(18, 0),
-                    },
-                )
-                toplam_takvim += len(TeslimTakvimi.kural_uret(kural, hafta_sayisi=8))
+            gunler = [gun]
+            kural, yeni_kural = HaftalikTeslimGunu.objects.get_or_create(
+                hizmet_mahallesi=hizmet,
+                gun=gun,
+                defaults={
+                    "teslim_baslangic": time(9, 0),
+                    "teslim_bitis": time(18, 0),
+                    "kesim_gun_farki": 1,
+                    "kesim_saati": time(18, 0),
+                },
+            )
+            toplam_takvim += len(TeslimTakvimi.kural_uret(kural, hafta_sayisi=8))
 
             if self.esitle:
+                # Güzergâh sırası artık anlamlı (araç yukarıdan aşağı dolaşıyor),
+                # o yüzden eşitleme sırayı da tabloya göre düzeltiyor.
+                hedef_sira = int(gun) * 10 + gun_ici_sira
+                if hizmet.sira != hedef_sira:
+                    self.stdout.write(
+                        f"    ~ {mahalle.ad}: güzergâh sırası {hizmet.sira} → {hedef_sira}")
+                    hizmet.sira = hedef_sira
+                    hizmet.save(update_fields=["sira"])
                 silinen_kural, silinen_gun = self.rotayi_esitle(hizmet, gunler)
                 toplam_silinen_kural += silinen_kural
                 toplam_silinen_gun += silinen_gun
 
-            gun_metni = hizmet.teslim_gunleri_metni()
-            self.yaz(f"  {mahalle.ad} — rota {rota} · {gun_metni}", yeni)
+            self.yaz(f"  {mahalle.ad} — {hizmet.teslim_gunleri_metni()} "
+                     f"(güzergâhta {gun_ici_sira}.)", yeni)
 
         # -- köy kökenli mahalleler: pasif kayıt ---------------------------
         # Neden hiç eklemeyip boş bırakmıyoruz: pasif kayıt panelde listede

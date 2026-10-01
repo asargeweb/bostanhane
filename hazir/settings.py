@@ -62,6 +62,7 @@ DJANGO_APPS = [
 
 UCUNCU_PARTI_APPS = [
     "rest_framework",
+    "storages",          # nesne depolama (R2 / B2 / S3) — aşağıdaki Medya bölümü
 ]
 
 # Bostanhane uygulamaları — yeni modül ekledikçe buraya eklenecek
@@ -184,7 +185,62 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
-MEDIA_URL = "medya/"
+# --------------------------------------------------------------------------
+# Medya (ürün ve kategori görselleri) — nesne depolama
+#
+# Yüklenen dosyalar sunucu diskine YAZILMAZ. Sebebi iki tane:
+#   1. Railway'in dosya sistemi kalıcı değil; sonraki dağıtımda dosya silinir.
+#   2. Kalıcı disk kiralasak bile Hobby planında 5 GB sınırı var ve bu sert sınır.
+#
+# Bu yüzden görseller S3 uyumlu bir nesne depolamaya gider. R2, Backblaze B2 ve
+# AWS S3 aynı protokolü konuşur; hangisini kullandığınız yalnızca `S3_ENDPOINT_URL`
+# ve `S3_REGION` değerlerini değiştirir, kod aynı kalır.
+#
+# Anahtarlar tanımlı değilse yerel diske düşer — bilgisayarda çalışırken hiçbir
+# kurulum gerekmesin diye. Canlıda tanımsızsa `manage.py check` uyarı verir.
+# --------------------------------------------------------------------------
+S3_ACCESS_KEY_ID = ayar("S3_ACCESS_KEY_ID")
+S3_SECRET_ACCESS_KEY = ayar("S3_SECRET_ACCESS_KEY")
+S3_BUCKET = ayar("S3_BUCKET")
+S3_ENDPOINT_URL = ayar("S3_ENDPOINT_URL")      # R2/B2 için şart, AWS S3'te boş
+S3_REGION = ayar("S3_REGION", "auto")          # R2: auto · AWS: eu-central-1 gibi
+S3_PUBLIC_URL = ayar("S3_PUBLIC_URL")          # görsellerin servis edileceği adres
+S3_KLASOR = ayar("S3_KLASOR", "bostanhane/medya")
+
+NESNE_DEPOLAMA_VAR = bool(S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY and S3_BUCKET)
+
+if NESNE_DEPOLAMA_VAR:
+    # custom_domain şema almaz: "https://cdn.bostanhane.com" değil "cdn.bostanhane.com"
+    _acik_adres = (S3_PUBLIC_URL or "").strip().rstrip("/")
+    for _on in ("https://", "http://"):
+        if _acik_adres.startswith(_on):
+            _acik_adres = _acik_adres[len(_on):]
+
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": S3_BUCKET,
+            "access_key": S3_ACCESS_KEY_ID,
+            "secret_key": S3_SECRET_ACCESS_KEY,
+            "endpoint_url": S3_ENDPOINT_URL or None,
+            "region_name": S3_REGION,
+            "signature_version": "s3v4",
+            "location": S3_KLASOR,
+            # R2 ve B2 ACL desteklemez; kova erişimi sağlayıcı panelinden ayarlanır.
+            "default_acl": None,
+            # Aynı adlı dosya yüklenirse eskisinin üzerine yazmasın.
+            "file_overwrite": False,
+            # Açık adres verildiyse düz URL kullan; verilmediyse imzalı (süreli)
+            # URL üret — kova herkese açık olmasa da görseller panelde görünür.
+            "custom_domain": _acik_adres or None,
+            "querystring_auth": not bool(_acik_adres),
+            "querystring_expire": 3600,
+        },
+    }
+    MEDIA_URL = f"https://{_acik_adres}/{S3_KLASOR}/" if _acik_adres else "medya/"
+else:
+    MEDIA_URL = "medya/"
+
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

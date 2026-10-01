@@ -45,6 +45,66 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 1 Ekim 2026, akşamüstü — Satışta kutucuğu + görsel depolama (Aşama B)
+
+### İş 1 — Fiyat ekranı
+**1b'de Cowork'ün tarifinden ayrıldım — Ersin'in kararıyla.** Talimat sayfa başında tek
+"Fiyatları düzenle" modu (`duzenle=1`) istiyordu; bir önceki raporda yazdığım satır başına
+"düzenle" düğmesi zaten canlıdaydı. İkisini Ersin'e gösterdim, **satır başına düzenle'yi seçti.**
+Koruma iki katmanlı, talimattaki "hem arayüzde hem kaydetme tarafında" şartı karşılanıyor:
+- Arayüz: kutular `disabled` başlıyor, yalnızca o satırın "düzenle"si açıyor; "vazgeç" geri alıp kapatıyor.
+- Sunucu: kapalı alan forma hiç gönderilmez; `fiyatlari_kaydet()` yalnızca gelen **ve**
+  `*_ilk_<pk>` ile karşılaştırınca değişmiş alanları yazar. Açılmamış satıra POST'la yazılamaz.
+
+**1a yapıldı:** aynı hücrede `satista_<pk>` onay kutusu + gizli `satista_ilk_<pk>`.
+Düz görünüm: `32,90 ₺ / kg · ✓ satışta [düzenle]`. Sıra: fiyat → aktif → tek `full_clean()`.
+`durum` listeye girmedi. Sütun adı: "fiyat · satışta".
+
+**1c testleri** (yerel, işlem geri alındı):
+```
+1) açılmadan Kaydet: [] → None False
+2) fiyat+satışta birlikte: ['2 ürünün fiyatı kaydedildi, 1 ürün satışa açıldı (Bostanhane Beyşehir).']
+   → Domates 32.90 True | Salatalık 18.50 False
+   süzgeç korundu: /yonetim/katalog/urun/?kategori__id__exact=1&o=1
+3) fiyatsız satışa açma: ['Kaydedilmedi — Patlıcan: Ürünü satışa açmak için fiyat girilmeli.'] → False
+4) satıştan çekme: ['1 ürün satıştan çekildi (Bostanhane Beyşehir).'] → 32.90 False
+```
+(Satır başına düzenlemede sayfa değişmediği için "moda geçince süzgeç korunuyor mu" testi
+"kaydettikten sonra süzgeç korunuyor mu"ya dönüştü — korunuyor.)
+
+### İş 2 — Görsel depolama, Aşama B
+B1–B2 yapıldı (django-storages kuruldu; `settings.py`, `core/apps.py`, `requirements.txt`,
+`env-ornek.txt` kopyalandı). Önceki rapordaki `env-ornek.txt` yorum notu yeni sürümde düzelmiş.
+```
+check (DEBUG=True):  System check identified no issues (0 silenced).
+makemigrations --check --dry-run:  No changes detected
+check (DJANGO_DEBUG=False):
+?: (bostanhane.W001) Yüklenen görseller sunucu diskine yazılıyor; bir sonraki dağıtımda silinecek.
+depolama: DefaultStorage → /medya/urun/deneme.jpg
+```
+`.env`'de `S3_` anahtarı yok — Ersin kovayı açıp girince depolama sınaması tekrar çalıştırılacak.
+
+### Kurmadığım `hazir/` değişiklikleri
+`hazir/katalog_models.py`, `hazir/urun_yukle.py`, `hazir/ilk_veri.py` kurulu sürümlerden farklı
+ama bu talimatın kopyalama listesinde yok — **kurulmadı**. (Fark: `urun_yukle` varsayılan yolu
+ve fiyat yazınca `aktif=True` yapan satırlar; `ilk_veri` mağaza kontrolü.) Kurulması isteniyorsa
+talimata yazın.
+
+### İş 3 — canlı
+Bu raporla birlikte push ediliyor; sonuç aşağıya eklenecek.
+Talimattaki "50 ürünü aktarayım mı" sorusu önceden çözüldü: Ersin onayladı, canlıda 50 ürün var.
+
+### İş 4 — Railway değişkenleri
+Önceki raporda kapandı (Ersin kontrol etti, `/yonetim/` girişi çalışıyor).
+Yeni: S3 değişkenleri (altı tane) kova açılınca Railway'e eklenecek.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `katalog/admin.py` | Satışta kutucuğu, `_satista` annotate, `fiyatlari_kaydet` fiyat+aktif | İş 1a | **Evet** |
+| `katalog/static/katalog/fiyat_duzenle.js` | vazgeç onay kutusunu da geri alır | İş 1a | **Evet** — `hazir/katalog_fiyat_duzenle.js` |
+
+
 ## 1 Ekim 2026, öğleden sonra (2) — Fiyat kutusu "düzenle" düğmesiyle açılıyor
 
 ### İstek

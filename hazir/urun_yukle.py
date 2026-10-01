@@ -5,7 +5,12 @@ Dosya yolu: katalog/management/commands/urun_yukle.py
 Çalıştırma:  python manage.py urun_yukle
              python manage.py urun_yukle --dosya "C:\\yol\\urunler.xlsx"
 
-Varsayılan dosya: proje klasörünün bir üstündeki `icerik\\urunler.xlsx`
+Dosya şu sırayla aranır:
+  1. `veri/urunler.xlsx`        → **repoda duran tohum dosyası**, sunucuya da gider
+  2. `..\\icerik\\urunler.xlsx` → Ersin'in üzerinde çalıştığı dosya (repoda değil)
+
+İkisi arasındaki fark önemli: `icerik\\` Ersin'in çalışma dosyası, `veri\\` ise canlıya
+giden kopya. Listeyi güncellediğinizde `veri\\urunler.xlsx`'i yenileyip push edin.
 
 Beklenen sütunlar (4. satır başlık, 5. satır örnek, veri 6. satırdan başlar):
     Kategori · Ürün adı · Birim · Tartılı mı · Satış adımı ·
@@ -117,6 +122,10 @@ class Command(BaseCommand):
         ayristirici.add_argument(
             "--kuru_prova", action="store_true",
             help="Hiçbir şey kaydetmeden ne olacağını yazar.")
+        ayristirici.add_argument(
+            "--fiyatlari_guncelle", action="store_true",
+            help="Panelde fiyatı girilmiş ürünlerin fiyatını da Excel'deki değerle "
+                 "değiştirir. Varsayılan olarak girilmiş fiyatlara DOKUNULMAZ.")
 
     def handle(self, *args, **secenekler):
         try:
@@ -126,10 +135,17 @@ class Command(BaseCommand):
                 "openpyxl kurulu değil. Şunu çalıştırın: pip install openpyxl"))
             return
 
-        yol = Path(secenekler["dosya"]) if secenekler["dosya"] else \
-            Path(settings.BASE_DIR).parent / "icerik" / "urunler.xlsx"
+        if secenekler["dosya"]:
+            yol = Path(secenekler["dosya"])
+        else:
+            adaylar = [
+                Path(settings.BASE_DIR) / "veri" / "urunler.xlsx",
+                Path(settings.BASE_DIR).parent / "icerik" / "urunler.xlsx",
+            ]
+            yol = next((a for a in adaylar if a.exists()), adaylar[0])
         if not yol.exists():
             self.stdout.write(self.style.ERROR(f"Dosya bulunamadı: {yol}"))
+            self.stdout.write("Aranan yerler: veri/urunler.xlsx ve ../icerik/urunler.xlsx")
             self.stdout.write("--dosya ile yolu verebilirsiniz.")
             return
 
@@ -140,8 +156,13 @@ class Command(BaseCommand):
             return
 
         self.kuru = secenekler["kuru_prova"]
+        self.fiyatlari_guncelle = secenekler["fiyatlari_guncelle"]
         if self.kuru:
             self.stdout.write(self.style.WARNING("KURU PROVA — hiçbir şey kaydedilmeyecek.\n"))
+        if self.fiyatlari_guncelle:
+            self.stdout.write(self.style.WARNING(
+                "Fiyat güncelleme açık: panelde girilmiş fiyatlar Excel'deki değerle "
+                "değiştirilecek.\n"))
 
         self.stdout.write(f"Dosya: {yol}")
         self.stdout.write(f"Mağaza: {magaza.ad}\n")
@@ -150,7 +171,7 @@ class Command(BaseCommand):
         sayfa = kitap["Ürünler"] if "Ürünler" in kitap.sheetnames else kitap.active
 
         sayac = {"kategori": 0, "urun_yeni": 0, "urun_guncel": 0,
-                 "fiyat": 0, "atlanan": 0, "hata": 0}
+                 "fiyat": 0, "fiyat_korundu": 0, "atlanan": 0, "hata": 0}
 
         with transaction.atomic():
             for satir in sayfa.iter_rows(min_row=VERI_BASLANGICI, values_only=True):
@@ -173,6 +194,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"{sayac['urun_yeni']} yeni ürün, {sayac['urun_guncel']} güncellenen, "
             f"{sayac['kategori']} yeni kategori, {sayac['fiyat']} fiyat yazıldı."))
+        if sayac["fiyat_korundu"]:
+            self.stdout.write(self.style.WARNING(
+                f"{sayac['fiyat_korundu']} üründe paneldeki fiyat korundu, Excel'deki "
+                f"farklı değer yazılmadı. Excel'i geçerli saymak istiyorsanız: "
+                f"--fiyatlari_guncelle"))
         if sayac["atlanan"]:
             self.stdout.write(f"{sayac['atlanan']} örnek satır atlandı.")
         if sayac["hata"]:
@@ -226,14 +252,28 @@ class Command(BaseCommand):
 
         magaza_urun, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
         fiyat = sayi(fiyat_degeri)
+        korundu = False
         if fiyat is not None and fiyat > 0:
-            magaza_urun.fiyat = fiyat
-            magaza_urun.aktif = True
-            magaza_urun.save()
-            sayac["fiyat"] += 1
+            # Panelde girilmiş fiyatın üzerine yazma. Fiyat canlıda panelden
+            # yönetiliyor; Excel eskimiş olabilir ve sessizce fiyat düşürmek
+            # gerçek paraya dokunur.
+            if magaza_urun.fiyat is not None and not self.fiyatlari_guncelle:
+                korundu = magaza_urun.fiyat != fiyat
+            else:
+                magaza_urun.fiyat = fiyat
+                magaza_urun.aktif = True
+                magaza_urun.save()
+                sayac["fiyat"] += 1
 
         isaret = "+" if yeni else "·"
         kanal = urun.kanallar_metni
-        fiyat_metni = f"{fiyat} ₺" if fiyat else "fiyat yok"
+        if korundu:
+            sayac["fiyat_korundu"] += 1
+            fiyat_metni = (f"paneldeki {magaza_urun.fiyat} ₺ korundu "
+                           f"(Excel: {fiyat} ₺)")
+        elif magaza_urun.fiyat is not None:
+            fiyat_metni = f"{magaza_urun.fiyat} ₺"
+        else:
+            fiyat_metni = "fiyat yok"
         self.stdout.write(f"{isaret} {urun_adi} ({kategori.ad}) — "
                           f"{urun.satis_adimi_metni} · {kanal} · {fiyat_metni}")

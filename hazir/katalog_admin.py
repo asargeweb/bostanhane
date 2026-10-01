@@ -18,7 +18,9 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db.models import BooleanField, DecimalField, IntegerField, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from core.admin_araclar import MagazaKisitliAdmin
 
@@ -148,38 +150,48 @@ class UrunAdmin(admin.ModelAdmin):
             request.user.has_perm("katalog.change_magazaurun"), output_field=BooleanField()))
         if magaza is None:
             return qs.annotate(_fiyat=Value(None, output_field=DecimalField()),
+                               _satista=Value(False, output_field=BooleanField()),
                                _fiyat_magazasi=Value(None, output_field=IntegerField()))
         kayit = MagazaUrun.objects.filter(magaza=magaza, urun=OuterRef("pk"))
         return qs.annotate(_fiyat=Subquery(kayit.values("fiyat")[:1]),
+                           _satista=Coalesce(Subquery(kayit.values("aktif")[:1]), False),
                            _fiyat_magazasi=Value(magaza.pk, output_field=IntegerField()))
 
-    @admin.display(description="fiyat")
+    @admin.display(description="fiyat · satışta")
     def fiyat_kutusu(self, nesne):
         if getattr(nesne, "_fiyat_magazasi", None) is None:
             return "—"
         birim = "kg" if nesne.birim == Birim.KILOGRAM else nesne.birim_metni.lower()
         deger = fiyat_yaz(nesne._fiyat) if nesne._fiyat is not None else ""
-        if not nesne._fiyat_duzenlenebilir:
-            return f"{deger} ₺ / {birim}" if deger else "—"
-        # Fiyat önce düz yazı görünür; kutu "düzenle"ye basınca açılır.
-        # Kapalı (disabled) kutu forma gönderilmez, yani Kaydet'e basılsa bile
-        # açılmamış satırın fiyatı değişmez — yanlışlıkla giriş olmasın diye.
         if deger:
             metin = format_html('<b>{} ₺</b> / {}', deger, birim)
         else:
             metin = format_html('<span style="color:#B23A24">{}</span>', "fiyat yok")
+        if nesne._satista:
+            satista = format_html('<span style="color:#1F5132">{}</span>', "✓ satışta")
+        else:
+            satista = format_html('<span style="color:#8A8A8A">{}</span>', "satışta değil")
+        if not nesne._fiyat_duzenlenebilir:
+            return format_html("{} · {}", metin, satista)
+        # Fiyat ve satışta önce düz yazı görünür; kutular "düzenle"ye basınca açılır.
+        # Kapalı (disabled) kutu forma gönderilmez, yani Kaydet'e basılsa bile
+        # açılmamış satır değişmez — yanlışlıkla giriş olmasın diye.
         return format_html(
             '<span class="fiyat-hucre">'
-            '<span class="fiyat-metin">{} '
+            '<span class="fiyat-metin">{} · {} '
             '<button type="button" class="button fiyat-duzenle">{}</button></span>'
             '<span class="fiyat-alan" hidden>'
             '<input type="text" name="fiyat_{}" value="{}" size="7" inputmode="decimal"'
             ' disabled style="text-align:right"> ₺ / {} '
+            '<label><input type="checkbox" name="satista_{}" disabled{}> satışta</label> '
             '<button type="button" class="button fiyat-vazgec">vazgeç</button></span>'
             '<input type="hidden" name="fiyat_ilk_{}" value="{}">'
+            '<input type="hidden" name="satista_ilk_{}" value="{}">'
             '</span>',
-            metin, "düzenle" if deger else "fiyat gir",
-            nesne.pk, deger, birim, nesne.pk, deger)
+            metin, satista, "düzenle" if deger else "fiyat gir",
+            nesne.pk, deger, birim,
+            nesne.pk, mark_safe(" checked") if nesne._satista else "",
+            nesne.pk, deger, nesne.pk, "1" if nesne._satista else "")
 
     class Media:
         js = ["katalog/fiyat_duzenle.js"]
@@ -194,25 +206,36 @@ class UrunAdmin(admin.ModelAdmin):
         magaza = self.fiyat_magazasi(request)
         if magaza is None:
             return
-        degisen, hatalar = 0, []
+        fiyat_sayisi, acilan, kapanan, hatalar = 0, 0, 0, []
         for anahtar, metin in request.POST.items():
+            # Açılan her satırın fiyat kutusu gelir; işaretsiz onay kutusu
+            # gelmediği için satırı fiyat kutusundan tanıyoruz.
             if not anahtar.startswith("fiyat_") or anahtar.startswith("fiyat_ilk_"):
                 continue
             pk = anahtar.removeprefix("fiyat_")
-            # Yalnızca değiştirilen kutular yazılır; başka biri aynı anda
-            # "Mağaza ürünleri"nden fiyat girdiyse üzerine basmayalım.
-            if not pk.isdigit() or metin.strip() == request.POST.get(f"fiyat_ilk_{pk}", "").strip():
+            if not pk.isdigit():
+                continue
+            # Yalnızca değiştirilen alanlar yazılır; başka biri aynı anda
+            # "Mağaza ürünleri"nden değiştirdiyse üzerine basmayalım.
+            fiyat_degisti = metin.strip() != request.POST.get(f"fiyat_ilk_{pk}", "").strip()
+            satista = f"satista_{pk}" in request.POST
+            satista_degisti = satista != bool(request.POST.get(f"satista_ilk_{pk}"))
+            if not (fiyat_degisti or satista_degisti):
                 continue
             urun = Urun.objects.filter(pk=pk).first()
             if urun is None:
                 continue
-            try:
-                tutar = fiyat_oku(metin)
-            except ValueError:
-                hatalar.append(f"{urun.ad}: “{metin}” fiyat olarak okunamadı")
-                continue
             kayit, _ = MagazaUrun.objects.get_or_create(magaza=magaza, urun=urun)
-            kayit.fiyat = tutar
+            # Önce fiyat, sonra satışta, sonra tek denetim: aynı kaydetmede
+            # fiyat girip ürünü satışa açmak çalışsın.
+            if fiyat_degisti:
+                try:
+                    kayit.fiyat = fiyat_oku(metin)
+                except ValueError:
+                    hatalar.append(f"{urun.ad}: “{metin}” fiyat olarak okunamadı")
+                    continue
+            if satista_degisti:
+                kayit.aktif = satista
             try:
                 kayit.full_clean()
             except ValidationError as hata:
@@ -220,9 +243,19 @@ class UrunAdmin(admin.ModelAdmin):
                     m for mesajlar in hata.message_dict.values() for m in mesajlar))
                 continue
             kayit.save()
-            degisen += 1
-        if degisen:
-            self.message_user(request, f"{degisen} ürünün fiyatı kaydedildi ({magaza.ad}).")
+            fiyat_sayisi += 1 if fiyat_degisti else 0
+            if satista_degisti:
+                acilan += 1 if satista else 0
+                kapanan += 0 if satista else 1
+        parcalar = []
+        if fiyat_sayisi:
+            parcalar.append(f"{fiyat_sayisi} ürünün fiyatı kaydedildi")
+        if acilan:
+            parcalar.append(f"{acilan} ürün satışa açıldı")
+        if kapanan:
+            parcalar.append(f"{kapanan} ürün satıştan çekildi")
+        if parcalar:
+            self.message_user(request, ", ".join(parcalar) + f" ({magaza.ad}).")
         for hata in hatalar:
             self.message_user(request, f"Kaydedilmedi — {hata}", level=messages.ERROR)
 

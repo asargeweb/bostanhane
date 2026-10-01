@@ -26,6 +26,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from core.models import ZamanDamgali
 
@@ -291,3 +293,23 @@ class MagazaUrun(ZamanDamgali):
                 "eski_fiyat": "Eski fiyat, yeni fiyattan büyük olmalı. "
                               "İndirim yoksa bu alanı boş bırakın."
             })
+
+
+@receiver(post_save, sender=Urun)
+def urunu_magazalara_ac(sender, instance, created, **kwargs):
+    """
+    Yeni ürün tanımlanınca her aktif mağazaya **fiyatsız ve kapalı** bir kayıt açar.
+
+    Neden: panelde ürün ekleyen biri, ürünün ayrıca "Mağaza ürünleri" listesine de
+    eklenmesi gerektiğini bilmek zorunda kalmasın. Ürünü ekle, fiyatını yaz, aç —
+    o kadar. Kayıt kapalı açılıyor, yani fiyat girilmeden kimseye görünmüyor.
+
+    Mağaza sonradan açılırsa (Karaman) var olan ürünler için "Seçili ürünleri bütün
+    mağazalara ekle" işlemi kullanılır.
+    """
+    if not created:
+        return
+    from core.models import Magaza
+
+    for magaza in Magaza.objects.filter(aktif=True):
+        MagazaUrun.objects.get_or_create(magaza=magaza, urun=instance)

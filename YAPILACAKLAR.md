@@ -1,205 +1,226 @@
-# Yapılacaklar — adım adım
+# YAPILACAKLAR — Ersin
 
-Hedef: bugünün sonunda **bostanhane.com canlıda**, üzerinde gerçek bir "yakında" sayfası ve
-yönetim paneli çalışıyor olsun. Aşağıdaki dört aşamayı sırayla yapın.
+Bu liste **sizin** yapacaklarınız. Claude Code'un işleri `talimat.md` dosyasında,
+onları siz takip etmeyeceksiniz.
 
-Her aşamanın sonunda **"bana gönderin"** yazan şeyi bana iletin; hatalıysa birlikte düzeltiriz.
-
----
-
-# AŞAMA A — Bilgisayarda çalışır hale getirme (15 dk)
-
-VS Code'u açın → **File → Open Folder** → `Masaüstü\bostanhane\bostanhane`
-→ **Terminal → New Terminal**. Komutları oraya yazın.
-
-### A1. Sanal ortamı açın
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-Satır başında `(venv)` görünmeli.
-
-### A2. Django kurulu mu bakın
-```powershell
-python -m django --version
-```
-Hata verirse:
-```powershell
-pip install -r requirements.txt
-```
-
-### A3. Django projesini oluşturun
-```powershell
-python -m django startproject bostanhane .
-```
-Sondaki **nokta** şart. Sol taraftaki dosya listesinde `manage.py` belirmeli.
-
-### A4. Ayar dosyalarını yerine koyun
-```powershell
-Copy-Item env-ornek.txt .env -Force
-Copy-Item hazir\settings.py bostanhane\settings.py -Force
-Copy-Item hazir\urls.py bostanhane\urls.py -Force
-```
-
-### A5. core uygulamasını oluşturun ve dosyalarını koyun
-```powershell
-python manage.py startapp core
-Copy-Item hazir\core_models.py core\models.py -Force
-Copy-Item hazir\core_admin.py core\admin.py -Force
-Copy-Item hazir\core_views.py core\views.py -Force
-
-New-Item -ItemType Directory -Force -Path core\management\commands | Out-Null
-New-Item -ItemType File -Force -Path core\management\__init__.py | Out-Null
-New-Item -ItemType File -Force -Path core\management\commands\__init__.py | Out-Null
-Copy-Item hazir\ornek_veri.py core\management\commands\ornek_veri.py -Force
-Copy-Item hazir\ilk_yonetici.py core\management\commands\ilk_yonetici.py -Force
-
-New-Item -ItemType Directory -Force -Path templates\core | Out-Null
-Copy-Item hazir\ana_sayfa.html templates\core\ana_sayfa.html -Force
-```
-
-### A6. Veritabanını kurun ve örnek veriyi oluşturun
-```powershell
-python manage.py makemigrations core
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py ornek_veri
-```
-`createsuperuser` kullanıcı adı, e-posta ve şifre soracak. Şifre yazarken ekranda görünmez, normaldir.
-
-### A7. Çalıştırın
-```powershell
-python manage.py runserver
-```
-Tarayıcıda iki adrese bakın:
-- `http://127.0.0.1:8000` → **yakında sayfası** (logo, dört adım, e-posta formu)
-- `http://127.0.0.1:8000/yonetim/` → **yönetim paneli** (mağaza, mahalleler, teslim takvimi)
-
-Durdurmak için terminalde **Ctrl + C**.
-
-> **Bana gönderin:** iki sayfanın açıldığını doğrulayın; hata varsa terminaldeki son satırları yapıştırın.
+Son güncelleme: 1 Ekim 2026
 
 ---
 
-# AŞAMA B — Kodu GitHub'a koyma (10 dk)
+## AŞAMA 1 — Claude Code'u çalıştırın · 2 dakika sizde, gerisi onda
 
-Railway, kodu GitHub'dan alır. Bu yüzden önce oraya koyacağız.
+VS Code'da Bostanhane penceresini açın (artık yeşil olan pencere) ve Claude Code'a
+şunu yazın:
 
-### B1. GitHub'da boş depo açın
-1. github.com → giriş yapın
-2. Sağ üstteki **+** → **New repository**
-3. Repository name: `bostanhane`
-4. **Private** seçin (kod herkese açık olmasın)
-5. Aşağıdaki kutulardan **hiçbirini işaretlemeyin** (README, .gitignore, license)
-6. **Create repository**
-
-### B2. Kodu gönderin
-Açılan sayfadaki adresi kopyalayın (`https://github.com/kullaniciadiniz/bostanhane.git` gibi),
-sonra terminalde:
-
-```powershell
-git init
-git add .
-git commit -m "Bostanhane: ilk surum"
-git branch -M main
-git remote add origin https://github.com/KULLANICIADINIZ/bostanhane.git
-git push -u origin main
+```
+talimat oku
 ```
 
-`KULLANICIADINIZ` kısmını kendi adınızla değiştirin. Kullanıcı adı ve şifre sorarsa,
-tarayıcıda GitHub girişi açılır; oradan onaylayın.
+O da şunları yapacak: değişen dosyaları yerine koyacak, görsel depolama ayarını
+kuracak, GitHub'a gönderecek, Railway'de dağıtımı bekleyecek, canlı siteyi kontrol
+edecek. Bitince `rapor.md`'ye yazacak.
 
-> **Kontrol:** GitHub'daki depo sayfasını yenileyin; dosyalar görünmeli.
-> `.env` dosyası **görünmemeli** — şifreler orada, git'e gitmiyor. Görünüyorsa bana haber verin.
+Bu sırada siz Aşama 2'yi yapabilirsiniz, birbirini beklemiyorlar.
+
+- [ ] CC'ye "talimat oku" dedim
 
 ---
 
-# AŞAMA C — Railway'e yayınlama (20 dk)
+## AŞAMA 2 — Cloudflare'da görsel kovası · 10 dakika
 
-### C1. Proje oluşturun
-1. railway.com → **Login with GitHub**
-2. **New Project** → **Deploy from GitHub repo** → `bostanhane` deposunu seçin
-3. Railway kurulumu başlatır. İlk denemede hata verebilir, normaldir — değişkenleri girmedik henüz
+Asasistan için zaten kullandığınız hesapta, **ayrı bir kova** açacağız.
 
-### C2. Veritabanı ekleyin
-Proje ekranında **+ New** → **Database** → **PostgreSQL**. Birkaç saniyede hazır olur.
+Neden ayrı: ürün görsellerini siteye koyabilmek için kovayı herkese okunur yapacağız.
+Asasistan'ın kovasında çalışan fotoğrafları, imzalar ve sözleşmeler var — onlar açık
+olmamalı.
 
-### C3. Ortam değişkenlerini girin
-Web servisine tıklayın → **Variables** sekmesi → aşağıdakileri tek tek ekleyin:
+- [ ] **Kova açtım** — ad: `bostanhane`
+- [ ] **Açık erişim ayarladım** — ya `gorsel.bostanhane.com` alan adını bağladım,
+      ya da r2.dev adresini açtım
+- [ ] **API anahtarı oluşturdum** — yalnızca `bostanhane` kovasına, okuma+yazma yetkili
 
-| Değişken | Değer |
+Elinizde şu altı değer olacak:
+
+| | Örnek |
 |---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (aynen böyle yazın, Railway kendi doldurur) |
-| `DJANGO_SECRET_KEY` | 50 karakterlik rastgele bir metin |
-| `DJANGO_DEBUG` | `False` |
-| `DJANGO_ALLOWED_HOSTS` | `bostanhane.com,www.bostanhane.com` |
-| `YONETICI_KULLANICI` | `ersin` |
-| `YONETICI_EPOSTA` | kendi e-postanız |
-| `YONETICI_SIFRE` | güçlü bir şifre (sonra değiştireceğiz) |
+| Access Key ID | `a1b2c3...` |
+| Secret Access Key | `uzun-bir-metin` (bir daha gösterilmez, kaydedin) |
+| Kova adı | `bostanhane` |
+| Uç nokta | `https://hesapkimliginiz.r2.cloudflarestorage.com` |
+| Bölge | `auto` |
+| Açık adres | `https://gorsel.bostanhane.com` |
 
-> `DJANGO_DEBUG=False` önemli: hata sayfalarında kodunuzun içi ziyaretçilere görünmez.
+> ⚠️ **Bu değerleri sohbete yazmayın.** Secret anahtar bir şifre gibidir. Doğru yer
+> iki tane: bilgisayarınızdaki `.env` dosyası (Aşama 3) ve Railway'in Variables
+> sekmesi (Aşama 4).
 
-### C4. Yayına alın
-**Deployments** sekmesinde **Redeploy** deyin. Kurulum bitince yeşil olmalı.
-
-### C5. Geçici adresi açın
-**Settings → Networking → Generate Domain**. Railway size `bostanhane-production-xxxx.up.railway.app`
-gibi bir adres verir. Tıklayın — yakında sayfası açılmalı.
-
-> Adres "Bad Request (400)" verirse: `DJANGO_ALLOWED_HOSTS` değişkenine bu geçici adresi de ekleyin
-> (virgülle ayırarak) ve tekrar deploy edin.
-
-### C6. Yönetici hesabını ve örnek veriyi oluşturun
-Railway panelinde servisin üç nokta menüsünden bir komut çalıştırma alanı vardır
-(**Command / Run command**). Şu ikisini sırayla çalıştırın:
-
-```
-python manage.py ilk_yonetici
-python manage.py ornek_veri
-```
-
-Sonra `geçici-adres/yonetim/` sayfasından giriş yapın.
-
-> **Bana gönderin:** geçici Railway adresi.
+Ayrıntılı tıklama tarifi: `adim-4b-gorsel-depolama.md` → Aşama A
 
 ---
 
-# AŞAMA D — bostanhane.com'u bağlama (15 dk + bekleme)
+## AŞAMA 3 — Anahtarları bilgisayara girin · 3 dakika
 
-### D1. Railway'de alan adını tanıtın
-Servis → **Settings → Networking → Custom Domain** → `bostanhane.com` yazın.
-Railway size iki şey verir:
-- bir **CNAME hedefi** (`xxxx.up.railway.app` gibi)
-- bir **TXT kaydı** (sahiplik doğrulaması için)
+Claude Code'a şunu yazın:
 
-Aynı işlemi `www.bostanhane.com` için de yapın.
+```
+.env dosyasına S3 anahtarlarını ekleyeceğim, bana satırları hazırla
+```
 
-### D2. Squarespace'te kayıtları girin
-Squarespace → **Domains** → bostanhane.com → **DNS Settings** → **Add record**:
+Hazırladığı satırları `.env` dosyasına yapıştırıp **kendi değerlerinizi** yazın.
+Sonra CC'ye "test et" deyin; `python manage.py check` ile doğrulayacak.
 
-| Tip | Host | Değer |
-|---|---|---|
-| ALIAS | `@` | Railway'in verdiği CNAME hedefi |
-| CNAME | `www` | Railway'in verdiği CNAME hedefi |
-| TXT | Railway'in söylediği host | Railway'in verdiği doğrulama değeri |
+- [ ] `.env` dosyasına anahtarları girdim
+- [ ] CC "uyarı kalmadı" dedi
 
-Kök alan adında (`@`) CNAME kullanılamaz; Squarespace bunun için **ALIAS** sunar, o yüzden ALIAS seçiyoruz.
-Kayıtların **TTL** değerini `300` yapın.
-
-### D3. Bekleyin ve kontrol edin
-Yayılma genelde 10–60 dakika sürer. Railway'deki alan adı satırı yeşile döner ve SSL sertifikası
-otomatik kurulur. Sonra `https://bostanhane.com` adresini açın.
-
-> **Bana gönderin:** site açıldı mı, adres çubuğunda kilit simgesi var mı.
+> `.env` dosyası GitHub'a gitmiyor, anahtarlarınız dışarı sızmıyor.
 
 ---
 
-## Sonrası
+## AŞAMA 4 — Railway ayarları · 10 dakika
 
-Bu dördü bittiğinde şu düzen kurulmuş olur: bilgisayarınızda yazarsınız, `git push` dersiniz,
-Railway otomatik yayınlar. Yani her adımda yaptığımız iş birkaç dakika içinde canlıda görünür.
+Railway panelinde web servisine girin → **Variables** sekmesi.
 
-**Bir hatırlatma:** Yakında sayfasına arama motorlarına kapatan bir satır koydum
-(`noindex`). Site tamamlanınca o satırı sileceğiz; yarım sayfaların Google'a düşmesi
-markanın ilk izlenimini bozar.
+### 4a. Var olanları kontrol edin
 
-Sıradaki geliştirme adımı: `hesaplar` uygulaması — kullanıcı, roller ve üye adresi.
+| Değişken | Olması gereken |
+|---|---|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `YONETICI_TELEFON` | `5330317288` |
+| `YONETICI_AD` | `Ersin Öztürk` |
+| `YONETICI_KULLANICI` | **olmamalı** — varsa silin |
+
+- [ ] Dördünü kontrol ettim
+
+### 4b. Görsel depolama değişkenlerini ekleyin
+
+Aşama 2'deki altı değeri buraya girin:
+
+```
+S3_ACCESS_KEY_ID
+S3_SECRET_ACCESS_KEY
+S3_BUCKET
+S3_ENDPOINT_URL
+S3_REGION
+S3_PUBLIC_URL
+```
+
+- [ ] Altısını ekledim
+- [ ] **Redeploy** dedim
+
+### 4c. Yönetici şifresini güvene alın
+
+`bostanhane.com/yonetim/` adresine telefonunuzla girip **şifrenizi değiştirin**.
+Sonra Railway'den `YONETICI_SIFRE` değişkenini **silin** — şifre orada durmasın.
+
+- [ ] Şifremi değiştirdim
+- [ ] `YONETICI_SIFRE`'yi Railway'den sildim
+
+---
+
+## AŞAMA 5 — Ürün fiyatlarını girin · 20–30 dakika
+
+Bu aşama diğerlerini beklemiyor, canlı panel açıldığı an başlayabilirsiniz.
+
+`bostanhane.com/yonetim/` → **KATALOG → Mağaza ürünleri**
+
+50 satır var. Üç sütun doğrudan listede düzenlenebiliyor: **fiyat**, **durum**,
+**satışta**. Yani sayfa sayfa dolaşmanıza gerek yok — fiyatları yukarıdan aşağı
+yazın, satmaya hazır olanların **satışta** kutucuğunu işaretleyin, sayfanın altındaki
+**Kaydet**'e bir kez basın.
+
+Kolaylıklar:
+
+- Sağ üstteki **kategori** süzgeciyle önce sebzeleri, sonra meyveleri girin
+- **müşteriye görünen** sütunu fiyatı `32,90 ₺` diye gösterir — müşteride nasıl
+  görüneceğini anında görürsünüz
+- Fiyatı olmayan satırda kırmızı **fiyat girilmedi** yazar
+- Mevsimi geçen ürünü silmeyin, durumunu **Mevsim dışı** yapın
+
+> Canlı panelde ürün yoksa CC'ye sorun; ürünler panelden girilecek diye karar verdik,
+> gerekirse taslak listeyi bir kez içeri alabilir.
+
+- [ ] Sebze fiyatlarını girdim
+- [ ] Meyve ve yeşillik fiyatlarını girdim
+- [ ] Bakliyat, yöresel ürün ve yumurta fiyatlarını girdim
+
+---
+
+## AŞAMA 6 — Ürün fotoğrafları · acelesi yok
+
+Aşama 2–4 bitmeden **fotoğraf yüklemeyin**; kaybolur.
+
+Bittiğinde: her ürün için bir kare fotoğraf, açık zemin, en az 1200 × 1200 piksel.
+Panelden ürüne girip **görsel** alanına yüklüyorsunuz.
+
+- [ ] Depolama ayarı bitti, fotoğraf yüklemeye başlayabilirim
+
+---
+
+## ARKA PLANDA YÜRÜYEN İŞLER
+
+Yazılımı beklemiyorlar, paralel gidebilir. Erken başlamak işe yarar.
+
+### Sanal POS başvurusu — en uzun süren iş
+
+`..\icerik\sanal-pos-sorulari.md` dosyasını iyzico ve PayTR'ye gönderin, **yazılı**
+cevap isteyin. İlk beş soru eleyici: cevap "hayır" ise o sağlayıcıyla devam edilmez.
+
+Başvuru haftalar sürüyor ve sitede yasal metinlerin **yayında** olmasını istiyorlar.
+O yüzden bu ikisi birlikte yürümeli.
+
+- [ ] iyzico'ya gönderdim
+- [ ] PayTR'ye gönderdim
+- [ ] Bankamın sanal POS teklifini istedim
+
+### Yasal metinler — hukukçu gerekiyor
+
+KVKK aydınlatma metni, açık rıza, mesafeli satış sözleşmesi, ön bilgilendirme formu,
+iade ve cayma politikası, çerez politikası.
+
+Hukukçuya sorulacak iki özel soru var:
+- Çabuk bozulan ürünler 14 günlük cayma hakkından muaf mı?
+- Tartılı üründe provizyon alıp kesin tutarı sonra çekmek, mesafeli satış mevzuatında
+  nasıl anlatılmalı?
+
+- [ ] Hukukçuyla görüştüm
+
+### @bostanhane.tr Instagram hesabı
+
+Görseller hazır: `..\sosyal-medya\` klasöründe profil fotoğrafı ve üç gönderi.
+Yükleme sırası **3 → 2 → 1** (ızgara 1-2-3 diye okunsun).
+
+- [ ] Hesabı açtım
+- [ ] Profil fotoğrafını ve biyografiyi koydum
+- [ ] Üç gönderiyi sırayla paylaştım
+
+### Mağaza bilgileri
+
+Panelde `Depo adresi girilecek` ve `0332 000 00 00` yer tutucuları duruyor.
+Panel → CORE → Mağazalar → Bostanhane Beyşehir.
+
+- [ ] Depo açık adresini girdim
+- [ ] Telefon ve e-postayı girdim
+
+### Kurumsal e-posta
+
+`bostanhane.com` uzantılı e-posta için sağlayıcı kararı. Sistem e-postaları
+(sipariş onayı, şifre sıfırlama) buradan gidecek.
+
+- [ ] Sağlayıcıya karar verdim
+
+---
+
+## SIRADAKİ YAZILIM ADIMI — Adım 5: sipariş
+
+Sepet, sipariş, kesim işlemi, alım listesi. İşin kalbi.
+
+Başlamadan **iki karar** gerekiyor. Düşünün, acelesi yok:
+
+1. **Kesim saatinden sonra müşteri siparişini değiştirebilsin mi?**
+   Değiştiremezse iş kolay: kesim saatinde liste kapanır, sabah alım yapılır.
+   Değiştirebilsin derseniz alım listesi kesimden sonra da oynar — o zaman
+   "ürün ekleme yok, sadece çıkarma var" gibi bir orta yol gerekir.
+
+2. **Bir ürün tükendiğinde ne olacak?**
+   Üç seçenek: siparişi iptal etmek, benzer ürün önermek, ya da eksik teslim edip
+   o kalemin parasını iade etmek. Üçünün müşteri deneyimi ve yazılım yükü farklı.

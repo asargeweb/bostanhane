@@ -1,299 +1,318 @@
 # TALİMAT — Claude Code için
 
-> **Bu dosya nasıl çalışıyor**
->
-> Ersin iki asistanla çalışıyor: **Cowork** (tarayıcıdaki Claude — planlar, araştırır,
-> hazır dosya yazar) ve **Claude Code** (VS Code'daki Claude — komut çalıştırır, kodu
-> kurar, canlıya alır).
->
 > | Dosya | Kim yazar | Kim okur |
 > |---|---|---|
 > | `talimat.md` | Cowork | Claude Code |
 > | `rapor.md` | Claude Code | Cowork |
 >
-> Ersin "talimat oku" dediğinde Claude Code bu dosyayı okur ve **Yapılacaklar**
-> bölümündeki işleri sırayla yapar. Bitince sonucu `rapor.md`'ye **en üste** yazar;
-> Ersin Cowork'e "rapor oku" der.
->
 > **Kurallar**
-> 1. Bu dosyayı Claude Code **değiştirmez**, sadece okur. Söyleyeceği her şey `rapor.md`'ye.
-> 2. `hazir/` klasöründeki dosyaları Cowork yazar. Claude Code kurulu bir dosyada
->    düzeltme yaparsa **aynı düzeltmeyi `hazir/` içindeki eşine de uygular** ve
->    `rapor.md`'de bildirir.
-> 3. Geri alınamaz bir iş (veritabanı silme, `git push --force`, servis silme) önce
->    Ersin'e sorulur.
-> 4. Ersin'in yazılım deneyimi yok. Komutları çalıştır, ne yaptığını sade Türkçe anlat.
->    İnteraktif soru (şifre gibi) çıkarsa dur ve ne yazması gerektiğini söyle.
+> 1. Bu dosyayı değiştirmezsin, sadece okursun. Söyleyeceğin her şey `rapor.md`'ye.
+> 2. Kurulu bir dosyada düzeltme yaparsan **aynı düzeltmeyi `hazir/` eşine de uygula**
+>    ve rapora yaz.
+> 3. Geri alınamaz iş önce Ersin'e sorulur.
+> 4. Ersin'in yazılım deneyimi yok. Ne yaptığını sade Türkçe anlat.
 >
-> Proje bağlamı: `CLAUDE.md`. Adım talimatları: `adim-*.md`.
+> Proje bağlamı: `CLAUDE.md`. Ersin'in listesi: `YAPILACAKLAR.md`.
 
 ---
 
-# Önceki rapor okundu — teşekkürler
+# Ersin ne istedi
 
-Üç şeyi doğru yaptın:
+> *"site kısmımızda ürünler yayınlansın. şu an sanki canlı satış yapıyor gibi hareket
+> edelim. stok yönetimi vs hepsini aynı anda canlı sitede de görelim. üyelik kısmı vs
+> aktifleşsin"*
 
-- **Rota birleşmesi hatasını yakaladın.** Kurduğun durumu burada birebir
-  tekrarladım, aynı sonucu aldım: Müftü dört günlük, Yeni dört günlük, Bahçelievler
-  üç günlük görünüyor. Sebep `get_or_create`'in eksiği ekleyip fazlayı almaması.
-- **Canlıda `ornek_veri` çalıştırmamakla doğru karar verdin.** Çalışsaydı canlı sayfa
-  yanlış günleri gösterecekti.
-- **Canlı sayfa gözlemin doğru, benimki yanlıştı.** Ben "mahalle listesi hiç yok"
-  dedim; sen `curl` ile baktın, liste var — eski üç mahalle. Senin ölçümün geçerli.
+Yani: vitrin + sepet + üyelik + stok, canlıda çalışır halde. Bu **Adım 5, 6 ve 7'nin
+tamamı** — birkaç oturumluk iş. Sırayı ve iş bölümünü aşağıda kurdum.
 
-Çözüm dosyası hazır: `hazir/ornek_veri.py` içinde artık `--rotalari_esitle` seçeneği var.
-Senin önerdiğin üç davranışın hepsi uygulandı; test sonuçları aşağıda.
+Fiyat ekranı işini (satışta kutucuğu + düzenleme modu) Ersin sana ayrıca söyledi;
+o bitince buraya geç.
 
 ---
 
-# Yapılacaklar — 1 Ekim 2026
+## İş bölümü — çakışmayı önlemek için
 
-## 1. Rota eşitlemesini yerelde uygula
+| Kim | Ne |
+|---|---|
+| **Cowork (ben)** | `siparis` modülünün **modelleri**: Sepet, Siparis, SiparisKalemi, kesim, alım listesi. Göç gerektiren her şey bende. Ayrıca `MagazaUrun`'a stok alanları. |
+| **Claude Code (sen)** | **Üyelik** (kayıt, giriş, çıkış, adres yönetimi) ve **vitrin iskeleti** (şablonlar, taban şablon, marka stilleri). Bunlar yeni model gerektirmiyor. |
+
+Niye böyle: üyelik `Kullanici` ve `Adres` modellerini kullanıyor, ikisi de **var**.
+Yani sen hiç `makemigrations` çalıştırmadan ilerleyebilirsin. Ben modelleri bitirip
+`hazir/`'a koyunca sepet ve sipariş ekranlarını üstüne kurarsın.
+
+**Sen `siparis` uygulamasını oluşturmayacaksın.** Modelleri ben yazıyorum.
+
+---
+
+# Ersin'in bekleyen iki kararı — verdim
+
+Projeyi bekletmemek için karar verdim. İkisi de `.env`/panel ayarı değil, akış kararı;
+değiştirmek isterse söyler.
+
+### Karar 1 — Kesim saatinden sonra sipariş değiştirilemez
+
+Kesim saatine kadar müşteri sepetini değiştirebilir, siparişini iptal edebilir.
+Kesim saatinden sonra **kilitlenir**.
+
+Sebebi: kesim saatinin varlık sebebi alım listesini dondurmak. Kesimden sonra değişikliğe
+izin vermek, mağaza hale gittikten sonra listenin değişmesi demek — işin temelini bozar.
+
+### Karar 2 — Tükenen ürün: eksik teslim + o kalemin parası çekilmez
+
+Provizyon mimarisi bu sorunu kendiliğinden çözüyor. Sipariş anında para **çekilmiyor**,
+bloke ediliyor. Teslimat sabahı ürün bulunamazsa o kalem siparişten düşülür ve
+**çekilen tutara girmez**. Müşteriye bildirim gider: *"Maydanoz bugün bulunamadı,
+tutarınızdan düşüldü."*
+
+Yani iptal de yok, benzer ürün dayatması da yok. Sepetin geri kalanı gelir.
+
+Bunun için sipariş kaleminde iki alan olacak: `siparis_miktari` (müşterinin istediği)
+ve `teslim_miktari` (gerçekte giden). Tartılı üründe ikisi zaten farklı olacak —
+aynı mekanizma hem tartı farkını hem bulunamayan ürünü taşıyor. Tek kavram, iki iş.
+
+---
+
+# Stok yönetimi — burada klasik stok YOK, ve bu bilinçli
+
+Bunu doğru kurmak önemli, yoksa yanlış şeyi inşa ederiz.
+
+Bostanhane'nin modeli **"önce talep, sonra alım"**. Yani taze ürün için depoda stok
+tutulmuyor; kesim saatinde ne satıldıysa o kadar alınıyor. Klasik "elimde 40 kg domates
+var, düştükçe azalt" mantığı bu işte **yanlış** olur.
+
+Taze üründe yönetilen üç şey var, üçü de zaten modelde:
+
+| Alan | Ne işe yarar |
+|---|---|
+| `MagazaUrun.durum` | Satışta · Tükendi · Mevsim dışı — günlük bulunabilirlik |
+| `MagazaUrun.gunluk_limit` | Bir teslim gününde en fazla kaç birim satılsın |
+| `TeslimTakvimi.kapasite` | O gün kaç siparişe kadar alınsın |
+
+**Ama bir istisna var: kargo kanalı.** Bal, pekmez, Akçabelen fasulyesi, bakliyat —
+bunlar dayanıklı, depoda duruyor ve **gerçekten stoğu var**. 20 kavanoz bal varsa
+21'inci satılmamalı.
+
+Bu yüzden `MagazaUrun`'a iki alan ekleyeceğim:
+
+- `stok_takibi` (bool) — bu üründe adet sayılsın mı
+- `stok_adedi` (int, null) — takip açıksa eldeki miktar
+
+Taze ürünlerde `stok_takibi=False` kalır, `durum` ve `gunluk_limit` çalışır.
+Kargo ürünlerinde `True` olur, sipariş verildikçe düşer, sıfırlanınca `durum`
+kendiliğinden `Tükendi` olur.
+
+Panelde iki ayrı ekran olacak: **günlük bulunabilirlik** (taze — sadece durum
+değiştirme, hızlı) ve **stok** (kargo ürünleri — sayı girme). Bunları modeller
+geldikten sonra kuracaksın.
+
+---
+
+# Canlı satış — bir uyarı ve bir çözüm
+
+Ersin "sanki canlı satış yapıyor gibi" dedi. Tamam, ama şunu açıkça kurmamız gerekiyor:
+
+**Şu an gerçek sipariş alınamaz.** Sanal POS yok, yasal metinler yok (mesafeli satış
+sözleşmesi, ön bilgilendirme, KVKK, cayma politikası). Bu haliyle siteyi herkese açıp
+sipariş almak hem parasız sipariş hem mevzuata aykırı satış demek.
+
+Çözüm: **vitrin modu**. Site üç durumdan birinde olacak:
+
+| Mod | Davranış |
+|---|---|
+| `kapali` | Şu anki "yakında" sayfası |
+| `test` | Vitrin ve sepet çalışır, ama **yalnızca giriş yapmış kullanıcılara**. Ziyaretçi "yakında" sayfasını görür. Verilen siparişler `test_siparisi=True` damgalanır. |
+| `acik` | Herkese açık gerçek satış |
+
+Varsayılan **`test`**. Ersin ve ortağı giriş yapıp uçtan uca denerler, gerçek müşteri
+göremez, biriken deneme siparişleri raporları kirletmez ve sonra temizlenebilir.
+
+`acik` moduna geçiş, sanal POS + yasal metinler tamamlanınca tek ayar değişikliğiyle
+olacak. `noindex` satırı da o zaman kalkacak.
+
+Bu ayarı `SatisAyarlari`'na ekleyeceğim (`vitrin_modu`). **Modeli ben yazıyorum**, sen
+şablon tarafında `vitrin_modu` değerine bakacaksın.
+
+---
+
+# Yapılacaklar — sırayla
+
+## 1. Üyelik — kayıt, giriş, çıkış
+
+Yeni model yok. `hesaplar` uygulamasına görünümler ve şablonlar.
+
+### Sayfalar
+
+| Adres | Ne |
+|---|---|
+| `/kayit/` | Telefon, ad soyad, şifre (iki kez), KVKK onayı |
+| `/giris/` | Telefon + şifre |
+| `/cikis/` | Çıkış, ana sayfaya döner |
+| `/hesabim/` | Ad soyad ve e-posta düzenleme, şifre değiştirme bağlantısı |
+| `/hesabim/adresler/` | Adres listesi, ekleme, düzenleme, varsayılan yapma |
+
+### Kurallar
+
+- **Giriş anahtarı telefon.** `hesaplar.models.telefon_duzelt` ve `telefon_dogrula`
+  **zaten var**, onları kullan — `0532 111 22 33` da `+90...` da kabul edilsin,
+  kaydederken tek biçime insin. Yeniden yazma.
+- Kayıt olan kullanıcı `rol=Rol.UYE` olur. `magaza` boş kalır (model bunu zorunlu
+  kılıyor, `clean()`'e bak).
+- **KVKK onayı kutucuğu zorunlu.** İşaretlenince `kvkk_onayi = timezone.now()`.
+  Metnin kendisi henüz yok (hukukçuda) — şimdilik bir yer tutucu sayfaya bağla ve
+  `rapor.md`'ye "metin bekliyor" diye yaz.
+- **Kampanya izni ayrı ve işaretsiz gelsin** (`duyuru_izni`). KVKK onayıyla aynı
+  kutuya koymak açık rıza kuralına aykırı; ikisi ayrı olmak zorunda.
+- `telefon_dogrulandi` **False** kalsın. SMS sağlayıcısı seçilmedi; doğrulama sonra
+  eklenecek. Üyelik bunu beklemesin.
+- Şifre sıfırlama: **şimdilik yapma.** E-posta zorunlu değil, SMS yok. Ersin panelden
+  şifre verebiliyor. Sağlayıcı seçilince eklenecek.
+- Adres formunda **mahalle seçimi**: önce il/ilçe, sonra mahalle. Beyşehir dışında da
+  adres girilebilmeli (kargo kanalı). Mahalleye hizmet verilmiyorsa form bunu bir
+  bilgi notuyla söylesin: *"Bu mahalleye şu an kurye gitmiyor; kargo ile
+  gönderilebilir."* `Mahalle.yerel_hizmet()` bunu söylüyor.
+- `Adres.save()` ilk adresi kendiliğinden varsayılan yapıyor, varsayılanı tek tutuyor.
+  Formda ayrıca uğraşma.
+
+### Şablonlar
+
+Taban şablon gerekiyor: `templates/taban.html` — üst menü (logo, kategoriler, sepet,
+hesabım/giriş), alt bilgi, marka renkleri ve tipografi.
+
+- Renkler ve yazı tipleri `CLAUDE.md` bölüm 7'de. Mevcut `ana_sayfa.html` aynı
+  paleti kullanıyor, oradan devam et.
+- Logo: `..\logo\svg\` klasöründe. Küçük olanı satır içine gömebilirsin
+  (`ana_sayfa.html`'de örneği var).
+- **Mobil önce.** Müşterilerin çoğu telefondan girecek.
+- **Tasarım hazır, uydurmana gerek yok.** İki dosya var:
+  - `..\tasarim\bostanhane-tasarim.html` — ana sayfa, teslim günü akışı, sepet (1. tur)
+  - `..\tasarim\bostanhane-tasarim-2.html` — **kayıt, giriş, hesabım, siparişlerim,
+    vitrin, ürün sayfası, adreslerim, test modu şeridi** (2. tur, bugün çizdim)
+
+  İkincisi senin şu an yapacağın ekranların tamamını kapsıyor. HTML'i aç, sınıf
+  adlarını ve yapıyı oradan al — `.kart`, `.adet`, `.kesim`, `.test-serit`, `.alan`,
+  `.onay`, `.adres-k` hepsi tanımlı. Mockup'lar sabit marka renkleriyle `.m` kapsamı
+  içinde; gerçek şablonda CSS değişkenlerine çevir.
+
+  Her bölümün altında **neden öyle tasarlandığını** anlatan notlar var. Onları oku;
+  bazıları iş kuralı (örneğin KVKK ve kampanya izninin ayrı kutular olması zorunlu).
+
+## 2. Vitrin iskeleti — ürünleri göster
+
+Sepet **henüz yok** (modeli yazıyorum), ama ürünleri listeleyebilirsin.
+
+| Adres | Ne |
+|---|---|
+| `/urunler/` | Kategorilere göre ürün listesi, kart görünümü |
+| `/urunler/<kategori-slug>/` | Kategori sayfası |
+| `/urun/<urun-slug>/` | Ürün sayfası |
+
+### Ürün kartında ne yazacak
+
+- Ad, görsel (yoksa marka renginde yer tutucu)
+- Fiyat: **tutardan sonra para birimi** → `32,90 ₺`
+- `urun.satis_adimi_metni` → *"kilogram · 500 g'dan itibaren"*
+- Tartılı üründe bir not: *"Tartıya göre kesinleşir"*
+- `uyari_metni` doluysa göster
+- Tükendi / mevsim dışı ise rozet, sepete ekleme kapalı
+
+### Hangi ürünler görünecek
+
+Yalnızca `MagazaUrun.satista_mi` **True** olanlar. O özellik şunların hepsine bakıyor:
+`aktif` ve fiyat var ve `durum == SATISTA` ve `urun.aktif`. Kendi koşulunu yazma, onu kullan.
+
+Mağaza seçimi: şimdilik ilk aktif mağaza. Müşterinin mahallesine göre mağaza seçimi
+sepetle birlikte gelecek.
+
+### Vitrin modu
+
+`SatisAyarlari.vitrin_modu` alanını **ben ekleyeceğim**. Sen şimdilik şöyle yaz:
+
+```python
+mod = getattr(ayarlar, "vitrin_modu", "test")
+```
+
+`getattr` ile, çünkü alan henüz yok — böylece kodun şimdi de çalışır, model gelince
+kendiliğinden doğru değeri okur. Model gelince `getattr`'ı kaldırırsın.
+
+Davranış: `kapali` → "yakında" sayfası · `test` → giriş yapmışsa vitrin, yapmamışsa
+"yakında" · `acik` → herkese vitrin.
+
+## 2b. Teslim günü düzeni değişti — vitrinde buna göre göster
+
+Ersin'in isteği: *"günler ve altında haritaya göre mahalleler olsun. şimdilik her
+mahalle yalnızca 1 gün olsun; sonrasında komşu mahalleler için gerekirse 2 gün olabilir."*
+
+Yaptım. **Her mahalleye haftada bir gün** gidiliyor artık, 13 mahalle altı güne dağıldı:
+
+| Gün | Mahalleler (güzergâh sırası) |
+|---|---|
+| Pazartesi | İçerişehir · Müftü · Hamidiye |
+| Salı | Bahçelievler · Esentepe |
+| Çarşamba | Yeni · Beytepe |
+| Perşembe | Hacıakif · Hacıarmağan |
+| Cuma | Avşar · Evsat |
+| Cumartesi | Dalyan · Yeşilyurt |
+
+⚠ **Bu gruplama coğrafi değil, taslak.** Hangi mahallenin hangisine komşu olduğunu
+bilmiyorum; Ersin düzeltecek. `ornek_veri.py` içindeki `GUN_ROTALARI` tablosundan ya da
+panelden değişiyor.
+
+Değişen dosyalar (`hazir/` içinde hazır): `ornek_veri.py`, `core_views.py`, `ana_sayfa.html`.
 
 ```powershell
 Copy-Item hazir\ornek_veri.py core\management\commands\ornek_veri.py -Force
+Copy-Item hazir\core_views.py core\views.py -Force
+Copy-Item hazir\ana_sayfa.html templates\core\ana_sayfa.html -Force
 python manage.py ornek_veri --rotalari_esitle
 ```
 
-**Beklenen çıktı** (sandbox'ta aynı durumu kurup aldığım sonuç):
+Eşitleme çıktısında 20 fazla teslim günü ve ~155 takvim kaydının silindiğini, ayrıca
+güzergâh sıralarının düzeltildiğini göreceksin (`~ İçerişehir: güzergâh sırası 11 → 1`).
 
-```
-  − Müftü: Salı kaldırıldı
-  − Müftü: Cuma kaldırıldı
-  − Bahçelievler: Çarşamba kaldırıldı
-  − Yeni: Pazartesi kaldırıldı
-  − Yeni: Cuma kaldırıldı
-Eşitleme: 5 fazla teslim günü ve 40 takvim kaydı silindi.
-Beyşehir'de 70 mahalle tanımlı: 13 aktif, 57 pasif.
-```
+### Sende ne değişiyor
 
-Sonrasında 13 mahallenin günleri tam rotaya oturmalı:
-
-| Rota | Günler | Mahalleler |
-|---|---|---|
-| 1 | Pazartesi, Perşembe | Müftü, Hamidiye, Dalyan, Esentepe, Beytepe |
-| 2 | Salı, Cuma | Bahçelievler, Hacıakif, Hacıarmağan, Evsat |
-| 3 | Çarşamba, Cumartesi | Yeni, İçerişehir, Avşar, Yeşilyurt |
-
-### Seçeneğin davranışı — test edilmiş
-
-- **Yalnızca `--rotalari_esitle` ile siler.** Bayraksız çalıştırmada hiçbir şey
-  silinmez. Panelden elle eklenmiş bir teslim gününü bayraksız çalıştırıp kontrol
-  ettim: korunuyor. Senin istediğin gibi, varsayılan "var olana dokunma".
-- **Geçmişe dokunmaz.** Yalnızca bugünden sonraki takvim günleri siliniyor;
-  tarihçe kalıyor.
-- **Sipariş koruması baştan yazılı.** `takvim_silinebilir()` yöntemi, takvim gününe
-  bağlı sipariş varsa silmiyor ve ekrana `! 03.10.2026 siparişli, silinmedi` yazıyor.
-  Sipariş modeli henüz yok; `getattr(kayit, "siparisler", None)` ile yokluğa dayanıklı
-  yazdım, üç durumu da test ettim (model yok / sipariş var / ilişki boş).
-- **Tekrar çalıştırılabilir.** İkinci çalıştırmada `0 fazla teslim günü` yazıyor.
-- Sildiği her kuralı `− Müftü: Salı kaldırıldı` biçiminde yazıyor.
-
-## 2. Canlıya uygula
-
-```powershell
-git add .
-git commit -m "ornek_veri: rotalari_esitle secenegi"
-git push
-```
-
-Dağıtım yeşile dönünce **canlıda bir kez** şunu çalıştır:
-
-```
-python manage.py ornek_veri --rotalari_esitle
-```
-
-Railway'in komut çalıştırma alanından ya da `railway run` ile. Push tek başına yetmez:
-`ilk_veri` mağaza var diye `ornek_veri`'yi atlıyor, canlı veri değişmiyor.
-
-Sonra `https://www.bostanhane.com` sayfasında **13 mahalle** ve doğru günler görünmeli.
-
-> **Not — bunu neden Procfile'a koymuyoruz:** `--rotalari_esitle` her dağıtımda çalışsa,
-> Ersin'in panelden elle eklediği teslim günleri her deploy'da silinirdi. Bu yüzden
-> `ilk_veri` olduğu gibi kalıyor (yalnızca boş veritabanında tohumlar). Rotalar
-> ileride değişirse canlıda yine bir kez elle çalıştıracağız.
-
-## 3. CLAUDE.md'ye iki satır ekle
-
-`Yönetim komutları` tablosunun altına:
-
-```markdown
-`ornek_veri --rotalari_esitle`: merkez mahallelerinde rotada olmayan teslim günlerini
-ve onların gelecekteki takvim kayıtlarını siler. Rotalar (`ROTA_GUNLERI`,
-`MERKEZ_ROTALARI`) değiştiğinde yerelde ve canlıda bir kez elle çalıştırılır.
-Procfile'a konmaz: panelden elle eklenen teslim günlerini silerdi.
-```
-
-## 4. Railway değişkenleri — Ersin'in işi
-
-Logları ve değişkenleri okuyamadığını yazmışsın. Ersin'e sorup paneldeki şu dört
-değeri `rapor.md`'ye yazdır (şifreyi değil, sadece tanımlı olup olmadığını):
-
-| Değişken | Olması gereken |
-|---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `YONETICI_TELEFON` | `5330317288` |
-| `YONETICI_AD` | `Ersin Öztürk` |
-| `YONETICI_KULLANICI` | **silinmiş olmalı** |
-
-Yönetici hesabı canlıda zaten açıldıysa (`/yonetim/` girişi çalışıyorsa) son üçü
-Railway'den silinebilir — şifre ortam değişkeninde durmasın.
+- **Ana sayfa artık gün başlıklı kartlar gösteriyor** — ben yazdım, hazır.
+  `core_views.gun_gun_mahalleler(magaza)` yardımcısı günlere göre gruplanmış liste
+  döndürüyor; vitrin ve sepet ekranlarında da aynı yardımcıyı kullan.
+- **Mahalle artık tek günlü**, yani `teslim_gunleri_metni()` tek gün döndürüyor.
+  Arayüzde "Salı ve Cuma" değil "Salı" yazacak. Ama **çoğul yapıyı bozma**: model
+  hâlâ birden fazla gün tutabiliyor, Ersin komşu mahallelere ikinci gün ekleyebilir.
+  Şablonlarda tek gün varsayımı yapma, listeyi dön.
+- `HizmetMahallesi.sira` artık **kurye güzergâhı**: `gün × 10 + güzergâhtaki sıra`.
+  Yani sıralama hem günü hem gün içindeki durağı taşıyor. Listelerde `sira`'ya göre
+  dizmeye devam et.
+- Ana sayfanın alt bilgisinde `{{ magaza.ilce }}, {{ magaza.il }}` "Beyşehir / Konya,
+  Konya" diye çıkıyordu (çünkü `Ilce.__str__` zaten ili içeriyor). `{{ magaza.konum }}`
+  olarak düzelttim — aynı hatayı yeni şablonlarda yapma, `konum` özelliği var.
 
 ---
 
-## 5. Adım 4 — katalog (yukarıdaki dört iş bittikten SONRA)
+## 3. Bunları yapma
 
-Karar değişti: **katalog modülünü fiyatları beklemeden yazdım.** Model fiyata bağlı
-değil; fiyatsız ürün kaydedilebiliyor ama satışa açılamıyor. Ersin fiyatları panelden
-girecek — Excel'de doldurmaktan kolay.
+- **`siparis` uygulamasını oluşturma, sepet modeli yazma.** Bende.
+- `MagazaUrun`'a stok alanı ekleme. Bende.
+- `SatisAyarlari`'na `vitrin_modu` ekleme. Bende.
+- Ödeme ekranı yapma — sanal POS seçilmedi.
+- SMS doğrulama ekleme — sağlayıcı seçilmedi.
 
-Talimat: `adim-4-katalog.md`. Dosyalar `hazir/` klasöründe:
-`katalog_models.py`, `katalog_admin.py`, `katalog_apps.py`, `urun_yukle.py`,
-güncellenmiş `settings.py`, `hesaplar_izinler.py`, `requirements.txt`.
+## 4. Raporda görmek istediklerim
 
-Ürün listesi `..\icerik\urunler.xlsx` — **50 ürün**, 6 kategori. Süt ürünleri
-listeden çıktı (aşağıdaki nota bakın), yumurta kaldı.
-
-### Burada test ettiğim şeyler (sandbox'ta hepsi geçti)
-
-- Excel'den aktarım: 50 ürün, 6 kategori, 13 kargo ürünü, 26 tartılı ürün
-- Birim ve satış adımı çözümü: `500 g` → `0,500`; `1 demet` → `1`; `12 ay` → 360 gün;
-  `24 saat` → 1 gün
-- Kargo kuralının dört şartı: tartılı + kargo, soğuk zincir + kargo, raf ömrü 5 gün +
-  kargo, raf ömrü boş + kargo — dördü de reddediliyor
-- Provizyon: domates 32,90 ₺/kg → 1 kg için 37,84 ₺, 2,5 kg için 94,59 ₺ (tampon %15).
-  Tartısız üründe provizyon = tutar
-- Fiyatsız ürün satışa açılamıyor; "Satışa aç" işlemi fiyatsızları atlıyor ve kaçını
-  atladığını söylüyor
-- Mağaza izolasyonu: Karaman mağazası açıp denedim, Beyşehir yöneticisi yalnızca kendi
-  50 kaydını görüyor
-- Panel sayfalarının hepsi 200
-- Tekrar aktarım panelden girilen fiyatı silmiyor: Excel'de boş olan hücre yazılmıyor
-
-### Bir düzeltme — Django 6 ayrıntısı
-
-`format_html()` artık argümansız çağrılamıyor; `format_html('<span>metin</span>')`
-`TypeError: args or kwargs must be provided` veriyor. `katalog_admin.py` içinde buna
-düştüm, `format_html('<span>{}</span>', "metin")` olarak düzelttim. Başka yerde
-argümansız `format_html` görürsen aynı şekilde düzelt ve rapora yaz.
-
-### Yeni paket
-
-`requirements.txt`'e `openpyxl>=3.1` eklendi (Excel okumak için).
-`pip install -r requirements.txt` çalıştırmayı atlamayın, yoksa `urun_yukle` komutu
-"openpyxl kurulu değil" der.
-
-### İş kuralı sayıları değişti ve artık PANELDEN düzenleniyor
-
-Ersin'in kararı:
-
-| Ayar | Eski | **Yeni** |
-|---|---|---|
-| Minimum sepet | 150 ₺ | **500 ₺** |
-| Teslimat ücreti | 40 ₺ | **50 ₺** |
-| Ücretsiz teslimat eşiği | 300 ₺ | **1000 ₺** |
-
-Gerekçe: haftalık pazar alışverişi. Butik manav tek seferde dolu sepet satar;
-yüksek sepet kurye başına durak sayısını azaltıp rotayı kendi ayağında tutar.
-
-Sonra şunu istedi: **bu eşikler siteden düzeltilebilsin.** Haklı — bunlar iş kararı,
-sık değişir, her değişiklik için kod düzeltip yeniden yayın yapmak saçma.
-
-Bu yüzden yeni bir model var: **`core.SatisAyarlari`** — mağaza başına bir kayıt.
-
-```
-Magaza ──1:1── SatisAyarlari
-                 min_sepet_tutari
-                 teslimat_ucreti
-                 ucretsiz_teslimat_esigi      (boş = ücretsiz teslimat yok)
-                 provizyon_tampon_orani
-                 otomatik_teslim_onayi_saat
-                 talep_acma_suresi_saat
-```
-
-**Mağaza başına olmasının sebebi:** Karaman'ın teslimat ücreti Beyşehir'den farklı
-olabilir; mesafe ve mahalle yoğunluğu farklı. Test ettim: Ermenek mağazasına 70 ₺
-verdim, Beyşehir 50 ₺ kaldı.
-
-**`.env` artık yalnızca ilk kurulum varsayılanı.** Yeni mağaza açılınca `post_save`
-sinyali ayar kaydını bu değerlerle oluşturuyor; sonrası panelde. `settings.py`'deki
-`BOSTANHANE` sözlüğü kalıyor ama kodun hiçbir yeri artık oradan canlı değer okumuyor —
-`SatisAyarlari.getir(magaza)` okuyor.
-
-**Panelde nerede:** CORE → **Satış ayarları**. Üç sayı listede doğrudan düzenlenebiliyor
-(`list_editable`), yazıp Kaydet demek yeterli. Mağaza sayfasının içinde de bir bölüm
-olarak duruyor. Ekleme ve silme kapalı — kayıt mağaza açılınca kendiliğinden oluşuyor,
-iki kayıt olması anlamsız.
-
-**Yetki:** mağaza yöneticisi kendi mağazasının ayarını görür ve değiştirir
-(`core.satisayarlari`: view + change). Paketleme yalnızca görür. Mağaza izolasyonu
-test edildi: Beyşehir yöneticisi Ermenek'in ayarını görmüyor.
-
-### Bu değişiklik için fazladan yapılacaklar
-
-Adım 4 talimatındaki komutlara **bir migration daha** ekleniyor:
-
-```powershell
-python manage.py makemigrations core      # SatisAyarlari tablosu
-python manage.py makemigrations katalog
-python manage.py migrate
-python manage.py roller_kur
-python manage.py ornek_veri               # var olan mağazaya ayar kaydını açar
-```
-
-`ornek_veri` artık şu satırı da yazıyor:
-
-```
-  Satış ayarları: minimum 500 ₺ · teslimat 50 ₺ · ücretsiz eşiği 1000 ₺ (panelden değiştirilir)
-```
-
-Güncellenen `hazir/` dosyaları: `core_models.py`, `core_admin.py`, `katalog_models.py`,
-`hesaplar_izinler.py`, `ornek_veri.py`, `settings.py`, `env-ornek.txt`.
-
-> **Senin düzeltmelerini korudum.** `core_admin.py` ve `core_admin_araclar.py`'yi
-> senin sürümünden aldım — `tum_magazalari_gorur`, `liste_filtrelerini_daralt`,
-> `MagazaAdmin` içindeki `magaza_yolu = "pk"` ve `IlgiKaydi`'nin yalnızca süper
-> adminde görünmesi yerinde. Üzerine yalnızca `SatisAyarlari` bölümlerini ekledim.
-
-### Test ettiğim sepet davranışı
-
-```
-sepet   420 ₺ → sipariş verilemez (80 ₺ eksik)
-sepet   500 ₺ → +50 ₺ teslimat, toplam 550,00 ₺ (500 ₺ daha alırsan ücretsiz)
-sepet  1000 ₺ → teslimat ÜCRETSİZ
-provizyon: 500 ₺ tartılı sepet → karttan 575,00 ₺ bloke
-```
-
-Panelden tamponu %10'a çekip ürün provizyonunun 37,84 ₺'den 36,19 ₺'ye düştüğünü
-doğruladım — yani ayar gerçekten her yere yansıyor, bir yerde kopya kalmıyor.
-
-Eşik minimumun altına yazılırsa sistem kabul etmiyor: o halde her sipariş ücretsiz
-teslimat alırdı, muhtemelen kaza olur. Hata mesajı bunu açıklıyor.
-
-Adım 5'te sepet ekranı üç satırı göstermeli: eksik tutar, teslimat ücreti, ücretsiz
-teslimata kalan. Son satır sepeti en çok büyüten şey olacak.
+- Hangi sayfalar çalışıyor, hangi adreslerde
+- Kayıt → giriş → adres ekleme akışını uçtan uca denediğini (test istemcisiyle olur)
+- Beyşehir dışı bir adres eklemeyi denediğini ve "kurye gitmiyor" notunun çıktığını
+- Taban şablonun telefon genişliğinde bozulmadığını
+- `hesaplar` içindeki telefon yardımcılarını yeniden yazmadığını
 
 ---
 
-## Yapma
+## Durum özeti
 
-- **Adım 5 (`siparis`) kodunu yazmaya başlama.** Önce üç karar gerekiyor: minimum
-  sepet tutarı, kesim sonrası değişiklik hakkı, tükenen ürün davranışı.
-  `adim-4-katalog.md` sonunda yazılı; Ersin'le konuşacağım.
-- Veritabanını silme.
-- `hazir/` dosyalarını Cowork'e haber vermeden yeniden yazma (Kural 2).
+**Bitti:** coğrafya · hizmet alanı · hesaplar (modeller) · katalog · satış ayarları ·
+görsel depolama (anahtar bekliyor).
 
----
+**Şu anda:** fiyat ekranı (sende) → üyelik ve vitrin iskeleti (sende) ·
+`siparis` modelleri (bende).
 
-## Bilgi — süt rafa kaldırıldı
-
-Ersin günlük çiğ süt + abonelik kararı almıştı, sonra **şimdilik beklemeye aldı.**
-Sebebi iki engel: çiğ sütün tüketiciye satışı 2017/20 tebliğ ile izinli üreticilere
-bağlı (Bostanhane manav, üretici değil), ve soğuk zincir ayrı bir yatırım.
-Plan `..\icerik\sut-abonelik-plani.md` dosyasında duruyor, sırası gelince açılacak.
-
-Yine de ürün modeline iki alanı **baştan koydum**: `abonelige_uygun` ve `soguk_zincir`.
-Sonradan eklemek migration zahmeti olurdu. `abonelik` modülü yol haritasında Adım 7.
-
-Süt ürünleri ürün listesinden çıkarıldı; **köy yumurtası kaldı** (soğuk zincir
-istemiyor, raf ömrü 21 gün, izin sorunu yok).
+**Sonra:** sepet ve sipariş ekranları · kesim işlemi ve alım listesi · paketleme ve
+kurye ekranları · ödeme (POS bekliyor).
