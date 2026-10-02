@@ -20,9 +20,12 @@
 
       {# İki onay ayrı, ikincisi işaretsiz gelir: kampanya izni açık rıza ister. #}
       <label class="onay" style="margin-top:14px">{{ form.kvkk }}
-        <span><b>Aydınlatma metnini</b> okudum, kişisel verilerimin işlenmesini kabul ediyorum.
-          <span style="color:#8A968A">(Metin hazırlanıyor.)</span></span></label>
+        <span><a href="{% url 'yasal_aydinlatma' %}" target="_blank">Aydınlatma metnini</a> okudum,
+          kişisel verilerimin işlenmesini kabul ediyorum.</span></label>
       {% for hata in form.kvkk.errors %}<div class="hata" style="margin:-4px 0 10px">{{ hata }}</div>{% endfor %}
+      <label class="onay">{{ form.kosullar }}
+        <span><a href="{% url 'yasal_kullanim' %}" target="_blank">Üyelik ve Kullanım Koşulları</a>'nı okudum, kabul ediyorum.</span></label>
+      {% for hata in form.kosullar.errors %}<div class="hata" style="margin:-4px 0 10px">{{ hata }}</div>{% endfor %}
       <label class="onay">{{ form.duyuru_izni }}
         <span>Kampanya ve indirim bildirimleri almak istiyorum.
           <span style="color:#8A968A">Sipariş bildirimleri bundan bağımsızdır.</span></span></label>

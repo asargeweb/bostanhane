@@ -4,9 +4,9 @@ Kurye ekranları (Adım 6b): bugünün teslimatları, güzergâh sırasıyla rot
 Kapıda ödeme yok — kart önceden çekiliyor. Tutar yalnızca müşteri sorarsa
 söylensin diye görünür.
 
-Kuryeye rota ataması henüz yok (modelde kurye–rota bağı yok): kurye kendi
-mağazasının bugünkü bütün teslimatlarını görür. Birden çok kurye olunca
-atama kararı verilecek.
+Hangi kuryenin hangi rotayı gördüğü `TeslimTakvimi.kuryenin_rotalari`'nda:
+atanmış rota yalnızca kuryesine, atanmamış rota mağazanın bütün kuryelerine
+görünür. Bu dosyada ayrıca kural yazılmıyor.
 """
 
 from django.contrib import messages
@@ -29,12 +29,18 @@ TESLIM_EDILECEK = [Siparis.Durum.HAZIRLANIYOR, Siparis.Durum.YOLDA]
 ULASILAMADI = "ulaşılamadı"
 
 
+def gorulebilen_rotalar(request):
+    """Bu kişinin görebileceği rotalar: kendi mağazası + atama kuralı."""
+    sorgu = TeslimTakvimi.objects.filter(hizmet_mahallesi__magaza=request.magaza)
+    return TeslimTakvimi.kuryenin_rotalari(request.user, sorgu)
+
+
 @kurye_gerekli
 def bugun(request):
     """Bugünün teslimatları, mahalle başına kaç paket — güzergâh sırasıyla."""
-    takvimler = (TeslimTakvimi.objects
-                 .filter(hizmet_mahallesi__magaza=request.magaza, tarih=timezone.localdate())
-                 .select_related("hizmet_mahallesi__mahalle")
+    takvimler = (gorulebilen_rotalar(request)
+                 .filter(tarih=timezone.localdate())
+                 .select_related("hizmet_mahallesi__mahalle", "kurye")
                  .annotate(
                      bekleyen=Count("siparisler", filter=Q(siparisler__durum__in=TESLIM_EDILECEK)),
                      teslim=Count("siparisler", filter=Q(siparisler__durum=Siparis.Durum.TESLIM_EDILDI)),
@@ -56,8 +62,7 @@ def _rota_siparisleri(takvim):
 @kurye_gerekli
 def rota(request, pk):
     takvim = get_object_or_404(
-        TeslimTakvimi.objects.select_related("hizmet_mahallesi__mahalle"),
-        pk=pk, hizmet_mahallesi__magaza=request.magaza)
+        gorulebilen_rotalar(request).select_related("hizmet_mahallesi__mahalle", "kurye"), pk=pk)
     siparisler = list(_rota_siparisleri(takvim))
     for siparis in siparisler:
         siparis.ulasilamadi = ULASILAMADI in siparis.ic_not
@@ -74,7 +79,7 @@ def rota(request, pk):
 @require_POST
 def yola_cik(request, pk):
     """Paketlenmiş siparişleri YOLDA yapar — müşteri "Yolda" görsün. Paneldeki işlemle aynı."""
-    takvim = get_object_or_404(TeslimTakvimi, pk=pk, hizmet_mahallesi__magaza=request.magaza)
+    takvim = get_object_or_404(gorulebilen_rotalar(request), pk=pk)
     adet = takvim.siparisler.filter(durum=Siparis.Durum.HAZIRLANIYOR).update(
         durum=Siparis.Durum.YOLDA, guncellendi=timezone.now())
     messages.success(request, f"{adet} sipariş yola çıktı.")
@@ -82,9 +87,10 @@ def yola_cik(request, pk):
 
 
 def _kuryenin_siparisi(request, numara):
+    """Başka kuryeye atanmış rotanın siparişi açılmaz — adres ve telefon kişisel veri."""
     return get_object_or_404(
         Siparis.objects.select_related("teslim_takvimi__hizmet_mahallesi__mahalle"),
-        numara=numara, magaza=request.magaza)
+        numara=numara, magaza=request.magaza, teslim_takvimi__in=gorulebilen_rotalar(request))
 
 
 @kurye_gerekli

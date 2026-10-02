@@ -45,6 +45,8 @@
   </div>
 </div>
 
+<p style="font-size:14px;margin:0 0 14px"><a href="{% url 'siparis_sozlesmesi' siparis.numara %}">Bu siparişin sözleşmesi ›</a></p>
+
 {% if siparis.degistirilebilir_mi %}
   <form method="post" action="{% url 'siparis_iptal' siparis.numara %}" onsubmit="return confirm('Sipariş iptal edilsin mi?')">
     {% csrf_token %}

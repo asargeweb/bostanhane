@@ -136,6 +136,10 @@ def siparis_ver(request):
     if not request.satis_ayarlari.test_modunda_mi:
         messages.error(request, "Ödeme sistemi henüz açılmadı; sipariş alınamıyor.")
         return redirect("sepet")
+    if not (request.POST.get("on_bilgilendirme") and request.POST.get("mesafeli_satis")):
+        messages.error(request, "Sipariş için Ön Bilgilendirme Formu'nu okuduğunuzu ve "
+                                "Mesafeli Satış Sözleşmesi'ni kabul ettiğinizi işaretleyin.")
+        return redirect("sepet")
     sepet = sepet_bul(request, request.magaza)
     if sepet is None:
         return redirect("sepet")

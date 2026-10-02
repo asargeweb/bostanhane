@@ -59,6 +59,13 @@
 </main>
 
 <footer class="alt-bilgi">
+  <nav class="yasal-baglantilar" style="flex-basis:100%;display:flex;gap:6px 16px;flex-wrap:wrap">
+    <a href="{% url 'yasal_aydinlatma' %}">Aydınlatma metni</a>
+    <a href="{% url 'yasal_gizlilik' %}">Gizlilik ve çerezler</a>
+    <a href="{% url 'yasal_kullanim' %}">Kullanım koşulları</a>
+    <a href="{% url 'yasal_mesafeli_satis' %}">Mesafeli satış sözleşmesi</a>
+    <a href="{% url 'yasal_iade' %}">İptal ve iade</a>
+  </nav>
   <span>bostanhane.com</span>
   {% if site_magaza %}<span>{{ site_magaza.konum }}</span>{% endif %}
   {% if site_ayarlar %}

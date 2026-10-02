@@ -17,6 +17,121 @@
 
 ---
 
+## 2 Ekim 2026 (4) — Kurye ataması: sorduğun kararı veriyorum
+
+**Önce: bir üstteki talimatı (2 Ekim (3), yasal metinler) henüz okumamışsın.** Raporunda
+"okuduğum talimat: 2 Ekim (2)" yazıyor. (3) sen çalışırken yazılmış olmalı. Bu talimatı
+bitirince **yukarı doğru bakmayı alışkanlık edin:** son raporunda yazdığın numaradan
+sonraki bütün başlıklar sende demektir. Şimdilik sırada (3) ve (4) var, ikisi de yapılacak.
+
+Kurye ekranı iyi olmuş. İki şeyi ben söylemeden doğru yapmışsın:
+
+- **"Yola çıktım" düğmesi.** `YOLDA`'ya geçiren tek yol paneldi, kurye panele girmiyor —
+  o düğme olmadan müşteri siparişinde hiç "Yolda" görmeyecekti. Kalsın.
+- **`personel_gerekli` ortak kapısı.** Depo ve kurye aynı yetki mantığını iki kez
+  yazmaktan kurtuldu. `depo_gerekli` adını koruman da doğru; benim `depo/alim.py`
+  dosyam o isimle içeri alıyor, kırılmadı.
+
+---
+
+### 1. Kurye ↔ rota ataması — karar: `TeslimTakvimi.kurye`
+
+Raporunda yazmışsın: *"modelde kurye ↔ rota bağı olmadığından kurye, mağazasının bugünkü
+bütün teslimatlarını görüyor. Birden çok kurye olunca karar gerekir."* Doğru tespit.
+
+**Atama sipariş bazında değil, mahalle-gün bazında olacak.** Sebebi işin kendisi: kurye
+bir mahalleye girip sokak sokak dolaşıyor. Aynı mahallenin siparişlerini iki kuryeye
+bölmek aynı sokağa iki araba sokmak demek. `TeslimTakvimi` zaten "bir mahallenin bir
+günü" demek — atamanın doğal yeri orası.
+
+`core/models.py`'ye `TeslimTakvimi.kurye` eklendi (boş olabilir) ve bir yardımcı:
+
+```python
+TeslimTakvimi.kuryenin_rotalari(kullanici, sorgu)
+```
+
+Kural şu:
+
+| Durum | Kurye ne görür |
+|---|---|
+| Rotaya kurye atanmamış | **Bütün kuryeler görür** — bugünkü davranışın aynısı |
+| Rotaya kurye atanmış | Yalnızca o kurye görür |
+| Yönetici / süper admin | Hepsini görür |
+
+Atamayı boş bırakmak eski davranışı sürdürüyor; **tek kuryeyle çalışan mağaza hiçbir şey
+yapmak zorunda değil.** İkinci kurye işe girdiğinde yönetici atama yapmaya başlar, o andan
+sonra herkes yalnızca kendi rotasını görür. Zorunlu alan yapsaydım bugün tek kuryeli
+Beyşehir'de her hafta 13 atama yapmak gerekirdi — işe yaramayan iş.
+
+Kurye silinirse `SET_NULL`: rota kaybolmaz, ataması boşalır ve yine herkese görünür.
+Sandbox'ta sekiz durumu da denedim, hepsi geçti.
+
+```powershell
+Copy-Item hazir\core_models.py core\models.py -Force
+python manage.py makemigrations core
+python manage.py migrate
+```
+
+Beklenen: `core/migrations/0006_teslimtakvimi_kurye.py` (yerelde 0005 çıktı, numara sende farklı olabilir).
+
+**Senden:**
+
+1. `lojistik/views.py` → rota sorgularını `TeslimTakvimi.kuryenin_rotalari(request.user, sorgu)`
+   ile süz. Kendi `if` zincirini yazma; kural tek yerde dursun.
+2. `core/admin.py` → `TeslimTakvimiAdmin`'e `kurye` sütunu, yan süzgeç ve düzenlenebilir alan.
+   `limit_choices_to` zaten yalnızca kurye rolündekileri listeliyor. Mağaza yöneticisi
+   **yalnızca kendi mağazasının** kuryelerini seçebilmeli — `MagazaKisitliAdmin`
+   `suzulecek_modeller` listesine `kullanici` eklemen gerekebilir, ama dikkat: bu
+   `uye` autocomplete'ini bozmuştu. Bozarsa `formfield_for_foreignkey` ile yalnızca
+   `kurye` alanını süz.
+3. Kurye ekranında, atanmamış bir rotanın başına küçük bir not: *"Bu rota kimseye
+   atanmadı"*. Yönetici unuttuysa görünsün.
+
+---
+
+### 2. Sırada ne var
+
+Üç ekran bitti (panel, depo, kurye), müşteri tarafı canlıda. Geriye iki şey kaldı:
+
+**Sende — kesim saatinin kendiliğinden çalışması.** Şu an günü birinin elle kesmesi
+gerekiyor. Kimse kesmezse sipariş akmaya devam eder, alım listesi hiç kesinleşmez.
+Bu, işin sessizce bozulabileceği tek yer.
+
+- `siparis/management/commands/gunu_kes.py` — kesim saati geçmiş ve hâlâ `ACIK` olan
+  bütün takvimleri bulup `gunu_kes()` çağırsın. Kaç gün, kaç sipariş kesildiğini yazsın.
+- `--kuru` seçeneği: ne yapacağını yazsın ama yapmasın. Canlıda ilk çalıştırmada lazım.
+- Railway'de zamanlanmış görev olarak kurulacak (Ersin'e soracağım, sen kurma).
+- Komut **tekrar çalıştırılabilir** olmalı: ikinci kez çalışınca kesilmiş günlere
+  dokunmasın, hata vermesin. Zamanlanmış görevler iki kez tetiklenebilir.
+
+**Bende — ödeme (`odeme` uygulaması) hazırlığı.** Sağlayıcı seçilmedi ama provizyon
+akışının modeli sağlayıcıdan bağımsız: `OdemeIslemi` (provizyon, çekim, iade), sipariş
+bağı, sağlayıcı işlem numarası. Yazıp `hazir/`'a koyacağım. Sen `odeme` uygulaması açma.
+
+---
+
+### 3. Raporda görmek istediklerim
+
+- `okuduğum talimat: 2 Ekim (3) ve (4)` satırı
+- Yasal metinlerin altısının da açıldığı ve kutuların bağlandığı (talimat (3))
+- `bostanhane.W002` uyarısının çalıştığı (talimat (3))
+- İki kuryeyle: her birinin yalnızca kendi rotasını, atanmamışları ikisinin de gördüğü
+- `gunu_kes` komutunun `--kuru` çıktısı ve iki kez çalıştırıldığında hata vermediği
+
+---
+
+### 4. Bunları yapma
+
+- `odeme` uygulaması açma, `OdemeIslemi` yazma — bende.
+- `depo/alim.py`, `templates/depo/alim.html`, yasal metinlerin içeriği — bende.
+- Zamanlanmış görevi Railway'de kurma — Ersin'e soracağım.
+- Sipariş modeline yeni durum ekleme.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 2 Ekim 2026 (3) — Yasal metinler hazır
 
 Altı sayfa yazdım, `hazir/` içinde. Hepsi `{% extends "taban.html" %}` ile senin taban

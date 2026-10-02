@@ -282,6 +282,20 @@ class TeslimTakvimi(ZamanDamgali):
     kapasite = models.PositiveIntegerField("kapasite", default=40)
     durum = models.CharField("durum", max_length=12, choices=Durum.choices, default=Durum.ACIK)
     aciklama = models.CharField("not", max_length=200, blank=True)
+    # Rotayı hangi kurye götürüyor. Boşsa mağazanın bütün kuryeleri görür —
+    # tek kuryeyle çalışırken atama yapmak gereksiz iş olur.
+    #
+    # Atama mahalle-gün bazında, sipariş bazında değil: kurye bir mahalleyi
+    # baştan sona dolaşır, tek tek siparişler bölüştürülmez.
+    #
+    # "kurye" metni Rol.KURYE'nin değeri. Burada Rol'ü içeri almıyoruz:
+    # `hesaplar` zaten `core`'dan ZamanDamgali alıyor, ters yönde içe aktarma
+    # döngü yaratır.
+    kurye = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="kurye", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="rotalari",
+        limit_choices_to={"rol": "kurye"},
+        help_text="Boş bırakılırsa bu rotayı mağazanın bütün kuryeleri görür.")
 
     class Meta:
         verbose_name = "teslim takvimi"
@@ -303,6 +317,24 @@ class TeslimTakvimi(ZamanDamgali):
         """Kesim saatine kalan süre. Geçtiyse None döner."""
         fark = self.kesim_zamani - timezone.localtime()
         return fark if fark.total_seconds() > 0 else None
+
+    @classmethod
+    def kuryenin_rotalari(cls, kullanici, sorgu=None):
+        """
+        Bu kullanıcının görmesi gereken rotalar.
+
+        Kurye: kendine atanmış rotalar **ve** hiç kimseye atanmamış olanlar.
+        Atama boş bırakıldığında eski davranış sürüyor — tek kuryeyle çalışan
+        mağaza hiçbir şey yapmak zorunda kalmıyor. İkinci kurye işe girince
+        yönetici atamaya başlar, o andan sonra herkes yalnızca kendi rotasını
+        görür.
+
+        Yönetici ve süper admin: hepsi.
+        """
+        sorgu = cls.objects.all() if sorgu is None else sorgu
+        if getattr(kullanici, "rol", None) != "kurye":
+            return sorgu
+        return sorgu.filter(models.Q(kurye=kullanici) | models.Q(kurye__isnull=True))
 
     @classmethod
     def kural_uret(cls, kural: HaftalikTeslimGunu, hafta_sayisi: int = 8):

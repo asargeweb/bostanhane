@@ -98,6 +98,11 @@
       {% if test_modu %}
         <form method="post" action="{% url 'siparis_ver' %}" style="margin-top:14px">
           {% csrf_token %}
+          {# Bilgilendirme ve sözleşme hukuken ayrı ayrı onaylanır; ikisi de zorunlu. #}
+          <label class="onay"><input type="checkbox" name="on_bilgilendirme" required>
+            <span><a href="{% url 'yasal_on_bilgilendirme' %}" target="_blank">Ön Bilgilendirme Formu</a>'nu okudum.</span></label>
+          <label class="onay"><input type="checkbox" name="mesafeli_satis" required>
+            <span><a href="{% url 'yasal_mesafeli_satis' %}" target="_blank">Mesafeli Satış Sözleşmesi</a>'ni kabul ediyorum.</span></label>
           <button class="btn blok harman" type="submit" {% if not hazir %}disabled{% endif %}>Deneme siparişi ver</button>
         </form>
         <p style="font-size:12.5px;color:#5B675A;margin:8px 0 0">

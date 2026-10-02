@@ -239,6 +239,14 @@ def siparis_detay(request, numara):
 
 
 @login_required
+def siparis_sozlesmesi(request, numara):
+    """Müşteri hangi sözleşmeyi kabul ettiğini sonradan görebilsin: sipariş bilgileriyle dolu hâli."""
+    siparis = get_object_or_404(Siparis.objects.prefetch_related("kalemler"),
+                                numara=numara, uye=request.user)
+    return render(request, "yasal/mesafeli_satis.html", {"siparis": siparis})
+
+
+@login_required
 @require_POST
 def siparis_iptal(request, numara):
     siparis = get_object_or_404(Siparis, numara=numara, uye=request.user)

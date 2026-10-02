@@ -16,6 +16,7 @@ urlpatterns = [
     path("hesabim/siparisler/", views.siparislerim, name="siparislerim"),
     path("hesabim/siparisler/<str:numara>/", views.siparis_detay, name="siparis_detay"),
     path("hesabim/siparisler/<str:numara>/iptal/", views.siparis_iptal, name="siparis_iptal"),
+    path("hesabim/siparisler/<str:numara>/sozlesme/", views.siparis_sozlesmesi, name="siparis_sozlesmesi"),
     path("adres/ilceler/", views.ilceler, name="adres_ilceler"),
     path("adres/mahalleler/", views.mahalleler, name="adres_mahalleler"),
     path("adres/mahalle/<int:pk>/", views.mahalle_bilgi, name="adres_mahalle_bilgi"),

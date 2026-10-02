@@ -40,3 +40,35 @@ def medya_depolama_kontrolu(app_configs, **kwargs):
             id="bostanhane.W001",
         )
     ]
+
+
+@register()
+def yasal_metin_kontrolu(app_configs, **kwargs):
+    """
+    Canlıda yasal metinlerde doldurulmamış `xxx` (şirket unvanı, vergi no, adres…)
+    kaldıysa uyar. Şirket bilgileri olmadan sözleşme hükümsüz, KVKK aydınlatması
+    eksik olur; bunu insan hafızasına bırakmıyoruz.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+
+    if settings.DEBUG:
+        return []
+    isaret = 'class="xxx"'
+    klasor = Path(settings.BASE_DIR) / "templates" / "yasal"
+    eksikler = []
+    for dosya in sorted(klasor.glob("*.html")):
+        adet = dosya.read_text(encoding="utf-8").count(isaret)
+        if adet:
+            eksikler.append(f"{dosya.name} ({adet})")
+    if not eksikler:
+        return []
+    return [
+        KontrolUyarisi(
+            "Yasal metinlerde doldurulmamış şirket bilgisi (xxx) var: " + ", ".join(eksikler),
+            hint="Unvan, vergi no, MERSİS ve adres girilmeden gerçek satışa geçilmemeli. "
+                 "Dosyalar: templates/yasal/",
+            id="bostanhane.W002",
+        )
+    ]

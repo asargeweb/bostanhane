@@ -189,12 +189,27 @@ class TeslimTakvimiAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     magaza_yolu = "hizmet_mahallesi__magaza"
 
     list_display = ("tarih", "hizmet_mahallesi", "durum", "kapasite",
-                    "kesim_zamani", "durum_rozeti")
-    list_filter = ("durum", "hizmet_mahallesi__magaza", "hizmet_mahallesi")
+                    "kesim_zamani", "durum_rozeti", "kurye")
+    list_editable = ("kurye",)
+    list_filter = ("durum", "hizmet_mahallesi__magaza", "hizmet_mahallesi", "kurye")
     date_hierarchy = "tarih"
     search_fields = ("hizmet_mahallesi__mahalle__ad",)
-    list_select_related = ("hizmet_mahallesi", "hizmet_mahallesi__mahalle")
+    list_select_related = ("hizmet_mahallesi", "hizmet_mahallesi__mahalle", "kurye")
     actions = ["kes"]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Kurye kutusunda yalnızca kurye rolündeki aktif kişiler; mağaza yöneticisi
+        yalnızca kendi mağazasınınkileri görür. Kullanıcı modelini genel süzgece
+        (`suzulecek_modeller`) eklemek üye seçimini bozuyordu, o yüzden yalnızca bu alan.
+        """
+        if db_field.name == "kurye":
+            from hesaplar.models import Kullanici, Rol
+            kuryeler = Kullanici.objects.filter(rol=Rol.KURYE, is_active=True)
+            if not self.tum_magazalari_gorur(request):
+                kuryeler = kuryeler.filter(magaza=self.kullanicinin_magazasi(request))
+            kwargs["queryset"] = kuryeler
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     @admin.display(description="sipariş")
     def durum_rozeti(self, nesne):

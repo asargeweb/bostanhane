@@ -40,6 +40,9 @@ class KayitFormu(forms.Form):
     kvkk = forms.BooleanField(
         label="Aydınlatma metnini okudum, kişisel verilerimin işlenmesini kabul ediyorum.",
         error_messages={"required": "Üye olmak için aydınlatma metnini onaylamanız gerekiyor."})
+    kosullar = forms.BooleanField(
+        label="Üyelik ve Kullanım Koşulları'nı okudum, kabul ediyorum.",
+        error_messages={"required": "Üye olmak için kullanım koşullarını kabul etmeniz gerekiyor."})
     duyuru_izni = forms.BooleanField(
         label="Kampanya ve indirim bildirimleri almak istiyorum.", required=False)
 

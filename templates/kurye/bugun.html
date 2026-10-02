@@ -7,6 +7,7 @@
   <a class="kart {% if not takvim.bekleyen and not takvim.toplanmadi %}bitti{% endif %}" href="{% url 'kurye_rota' takvim.pk %}">
     <span class="sira">{{ forloop.counter }}</span>
     <span class="ana"><b>{{ takvim.hizmet_mahallesi.mahalle.ad }}</b>
+      {% if takvim.kurye %}<span>{{ takvim.kurye.get_short_name }}</span><br>{% else %}<span style="color:#8A5A12">Kimseye atanmadı</span><br>{% endif %}
       <span>{{ takvim.bekleyen }} paket bekliyor{% if takvim.teslim %} · {{ takvim.teslim }} teslim edildi{% endif %}{% if takvim.toplanmadi %} · {{ takvim.toplanmadi }} henüz paketlenmedi{% endif %}</span></span>
     <span class="ok">›</span>
   </a>

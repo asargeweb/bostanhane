@@ -45,6 +45,104 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 2 Ekim 2026 (4) — Yasal metinler bağlandı, W002, kurye ataması, gunu_kes komutu
+
+okuduğum talimat: 2 Ekim (3) ve (4)
+
+(3) gerçekten ben (2)'yi işlerken yazılmış; bundan sonra son raporumdaki numaradan yukarı bakıyorum.
+
+### Talimat (3) — yasal metinler
+
+**Kurulum:** altı şablon `templates/yasal/`, `yasal.css` `site.css`'in sonuna. Adresler `bostanhane/urls.py`'de
+`TemplateView` ile, girişsiz:
+`/aydinlatma-metni/` `/kullanim-kosullari/` `/gizlilik-politikasi/` `/on-bilgilendirme-formu/`
+`/mesafeli-satis-sozlesmesi/` `/iptal-ve-iade/` — `name`'ler talimattaki gibi (`yasal_…`).
+
+**İki yapısal düzeltme — içeriğe dokunmadan:**
+1. Altı şablonun hepsi `{% comment %}` bloğuyla başlıyordu; Django'da `{% extends %}` ilk etiket olmak zorunda
+   (`TemplateSyntaxError: {% extends "taban.html" %} must be the first tag`). `extends` satırını en başa aldım,
+   açıklama hemen altında. **`hazir/yasal_*.html` eşlerine de uygulandı.** Yeni şablonlarda `{# … #}` kullan ya da
+   `extends`'i en üste koy.
+2. `mesafeli_satis.html` `|para` kullanıyor ama `{% load bostan %}` yok. Şablonu değiştirmek yerine
+   `TEMPLATES.OPTIONS.builtins = ["core.templatetags.bostan"]` yaptım: `para`, `miktar`, `telefon` filtreleri
+   artık her şablonda yüklemesiz çalışıyor (`hazir/settings.py` eşitlendi).
+
+**Bağlantılar:**
+- Kayıt: KVKK kutusu → `yasal_aydinlatma`; **yeni zorunlu kutu** "Üyelik ve Kullanım Koşulları'nı okudum,
+  kabul ediyorum" → `yasal_kullanim` (talimat "üyelik kutusu" diyordu, ekranda yoktu; `KayitFormu.kosullar`).
+  Kampanya izni ayrı ve işaretsiz kaldı.
+- Sepet: "Deneme siparişi ver"in üstünde iki zorunlu kutu → `yasal_on_bilgilendirme`, `yasal_mesafeli_satis`.
+  `siparis_ver` ikisini **sunucuda da** denetliyor.
+- Siparişlerim detay: "Bu siparişin sözleşmesi ›" → `/hesabim/siparisler/<numara>/sozlesme/` (yalnızca kendi siparişi).
+- Alt bilgi: aydınlatma, gizlilik, kullanım koşulları, mesafeli satış, iptal ve iade.
+
+**W002** `core/apps.py`'de, W001'in yanında (`bostanhane/checks.py` diye bir dosya yok; `hazir/core_apps.py` eşitlendi):
+```
+DJANGO_DEBUG=False manage.py check
+?: (bostanhane.W002) Yasal metinlerde doldurulmamış şirket bilgisi (xxx) var: aydinlatma.html (14),
+   gizlilik.html (4), iade.html (4), kullanim.html (8), mesafeli_satis.html (6), on_bilgilendirme.html (11)
+   HINT: Unvan, vergi no, MERSİS ve adres girilmeden gerçek satışa geçilmemeli. Dosyalar: templates/yasal/
+```
+Yerelde (`DEBUG=True`) uyarı yok. Canlıda her dağıtım kaydında görünecek — xxx'ler dolana kadar beklenen bu.
+
+**Dizgi / hesap notu (metne dokunmadım):** Ön Bilgilendirme m.4 örneği "1,5 kg domates … tahmini 49,35 ₺,
+**bloke 54,29 ₺**" diyor. Ayarlardaki tampon %15 → 49,35 × 1,15 = **56,75 ₺** (ürün sayfası ve sepet de bunu
+gösteriyor). 54,29 ₺ %10 tampona denk geliyor. Ya sayı düzelmeli ya "örneğin %10 tamponla" denmeli —
+tampon panelden değiştiği için sabit sayı yerine yüzdeyi şablona `{{ site_ayarlar.provizyon_tampon_orani|yuzde }}`
+ile vermek de düşünülebilir.
+
+### Talimat (4) — kurye ataması
+`hazir/core_models.py` kuruldu → `core/migrations/0005_teslimtakvimi_kurye.py` — temiz.
+- `lojistik/views.py`: bütün rota sorguları `TeslimTakvimi.kuryenin_rotalari(request.user, sorgu)`'dan geçiyor
+  (`gorulebilen_rotalar`). Kendi `if`'im yok. Sipariş sayfası ve teslim/ulaşılamadı POST'u da **görebildiği rotaya
+  bağlı** — başka kuryenin müşterisinin adresi/telefonu açılmıyor (404).
+- Ekranda: atanmamış rotada "Bu rota kimseye atanmadı — mağazanın bütün kuryeleri görüyor."; günün listesinde
+  her mahallenin altında kuryenin adı ya da "Kimseye atanmadı".
+- `TeslimTakvimiAdmin` (+ `hazir/core_admin.py`): `kurye` sütunu, `list_editable`, yan süzgeç. Seçim kutusunu
+  `formfield_for_foreignkey` ile **yalnızca `kurye` alanında** süzdüm (aktif + kurye rolü; yönetici kendi mağazası).
+  `suzulecek_modeller`'e dokunmadım.
+- Not: süper admin listede başka mağazanın kuryesini seçebilir (form satırın mağazasını bilmiyor). Tek mağazayla sorun değil.
+
+### `gunu_kes` komutu — `siparis/management/commands/gunu_kes.py`
+`ACIK` ve `kesim_zamani <= şimdi` olanları `gunu_kes()` ile keser; her gün kendi `atomic`'inde (biri hata verirse
+ötekiler kesilir; arada elle kesilen gün "atlandı" olur). `--kuru` hiçbir şey değiştirmez.
+
+### Test (yerel, işlem geri alındı)
+```
+1) altı yasal sayfa girişsiz: hepsi 200 · alt bilgi bağlantıları var
+   kayıt, koşullar işaretsiz: 'Üye olmak için kullanım koşullarını kabul etmeniz gerekiyor.' · işaretli → 302 kayıt
+2) sözleşme işaretsiz sipariş: 'Sipariş için Ön Bilgilendirme Formu'nu okuduğunuzu ve … işaretleyin.' → 0 sipariş
+   ikisi işaretli → /hesabim/siparisler/BH-2026-000001/ · detayda sözleşme bağlantısı
+   dolu sözleşme: numara, alıcı adı, 'Domates' satırı, Toplam (KDV dâhil) 564,35 ₺
+3) gunu_kes --kuru:
+     KURU ÇALIŞMA — hiçbir şey değiştirilmeyecek.
+     kesilecek: Bostanhane Beyşehir · Müftü · 02.10.2026 (kesim 02.10 15.59) — 1 sipariş
+     … (5 satır)
+     Toplam: 5 gün kesilecek, 1 sipariş toplamaya açılacak.
+   kuru sonrası durum: acik
+   gunu_kes (1): Toplam: 5 gün kesildi, 1 sipariş toplamaya açıldı.
+   gunu_kes (2): 02.10.2026 16.04 · Kesilecek gün yok.        ← ikinci çalıştırma hatasız
+4) Bugün Müftü→kurye1, Hamidiye→kurye2, İçerişehir atanmamış — rota sayfaları:
+   kurye1   {'Müftü': 200, 'Hamidiye': 404, 'İçerişehir': 200}
+   kurye2   {'Müftü': 404, 'Hamidiye': 200, 'İçerişehir': 200}
+   yönetici {'Müftü': 200, 'Hamidiye': 200, 'İçerişehir': 200}
+   kurye2 → kurye1'in siparişi: sayfa 404, teslim POST 404 · atanmamış rotada uyarı notu var
+5) panel takvim listesi 200, kurye sütunu var · yönetici kurye seçenekleri: yalnızca kendi mağazasının kuryeleri
+```
+Telefon genişliği (390 px, Edge mobil taklidi): altı yasal sayfa + kayıt — sayfa genişliği 390, taşma yok;
+Ön Bilgilendirme görüntüsüne bakıldı, satıcı tablosu ve provizyon örneği sığıyor.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `templates/yasal/*.html` | `extends` satırı en üste (içerik aynı) | **Evet** `hazir/yasal_*.html` |
+| `core/apps.py` | W002 | **Evet** `hazir/core_apps.py` |
+| `core/admin.py` | `TeslimTakvimiAdmin` kurye | **Evet** `hazir/core_admin.py` |
+| `bostanhane/settings.py` | `builtins` | **Evet** |
+| `bostanhane/urls.py` | yasal sayfalar | **Evet** |
+| `hesaplar/{forms,views,urls}.py`, `siparis/views.py`, `lojistik/views.py`, `templates/{taban,hesaplar/kayit,hesaplar/siparis_detay,siparis/sepet,kurye/*}.html` | kutular, sözleşme, atama | `hazir/`'de eşi yok |
+| Yeni: `siparis/management/commands/gunu_kes.py` | | `hazir/`'de eşi yok |
+
 ## 2 Ekim 2026 (2) — Alım listesi kuruldu, ilgi kaydı yeni alanlarla, kurye ekranı
 
 okuduğum talimat: 2 Ekim (2)

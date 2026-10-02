@@ -102,6 +102,9 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.baglam.site_baglami",
             ],
+            # para / miktar / telefon filtreleri her şablonda yüklemesiz kullanılsın:
+            # biri {% load bostan %} yazmayı unutunca sayfa hata vermesin.
+            "builtins": ["core.templatetags.bostan"],
         },
     },
 ]
