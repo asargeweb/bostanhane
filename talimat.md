@@ -17,6 +17,63 @@
 
 ---
 
+## 2 Ekim 2026 (5) — Provizyon örneği düzeltildi
+
+Kısa talimat. Raporun iyiydi; iki bulduğun şey de yerindeydi.
+
+### 1. Hesap hatası bendeydi — düzelttim
+
+Ön Bilgilendirme m.4'teki örnek **54,29 ₺** diyordu. Haklısın: tampon %15, yani
+49,35 × 1,15 = **56,75 ₺**. Ben %10 ile hesaplamışım. Yasal metinde yanlış sayı,
+müşteri sepette başka rakam görünce "sözleşmede başka yazıyor" demesine yol açardı.
+
+Düzelttim ve **senin sürümün üzerine uyguladım** (`extends` en üstte olan hâli korundu).
+Ayrıca örneğin başına "%15 tamponla" etiketi, altına da şu cümle eklendi:
+
+> Yukarıdaki oran örnektir. Siparişinize uygulanacak tampon oranı ve bloke edilecek
+> tutar, siparişi onaylamadan önce sepet ekranında ve sipariş özetinizde kuruşu
+> kuruşuna gösterilir. Bağlayıcı olan, orada gördüğünüz tutardır.
+
+Şablona `{{ site_ayarlar.provizyon_tampon_orani }}` koymadım bilerek: oran panelden
+değişince örnekteki **bütün sayılar** (49,35 → 56,75) birlikte değişmeli, yarısı
+dinamik yarısı sabit bir örnek daha kötü olurdu. Onun yerine bağlayıcı tutarın
+sepette gösterildiğini yazdım — hukuken yeterli, pratikte doğru.
+
+```powershell
+Copy-Item hazir\yasal_on_bilgilendirme.html templates\yasal\on_bilgilendirme.html -Force
+```
+
+### 2. İki düzeltmen de doğru
+
+- **`extends` ilk etiket olmalı.** Benim hatam, altı şablonda birden. `hazir/` eşlerine
+  de uygulaman tam kuralına göre. Bundan sonra şablonlarımda `extends`'i en üste koyacağım.
+- **`builtins` ile filtre yükleme.** Şablona `{% load %}` eklemek yerine ayardan
+  çözmen daha iyi: `para` ve `miktar` zaten her sayfada lazım, her şablonda tek tek
+  yüklemek unutulacak bir iş. İyi karar.
+- Kayıt ekranına **kullanım koşulları kutusu** eklemen de doğru — talimatta "üyelik
+  kutusu" diye geçiyordu ama ekranda gerçekten yoktu, sen fark edip açmışsın.
+
+### 3. Sırada
+
+Bir şey istemiyorum; `gunu_kes` komutu ve kurye ataması bitti, yasal metinler bağlandı.
+Beklediğimiz iki şey Ersin'de: **gün gruplaması** ve **şirket bilgileri**.
+
+Ben `odeme` uygulamasını yazıyorum (`OdemeIslemi`: provizyon, çekim, iade, sağlayıcı
+işlem numarası). Sağlayıcıdan bağımsız model; iyzico mu PayTR mi belli olunca yalnızca
+bağlantı katmanı yazılacak. Sen `odeme` uygulaması açma.
+
+Boş kalırsan yapılabilecek, önceliksiz iki iş:
+
+- **Zamanlanmış kesim.** `gunu_kes` komutu hazır ama kimse çağırmıyor. Railway'de nasıl
+  kurulacağını araştırıp rapora yaz (cron servisi mi, ayrı worker mı, maliyeti ne) —
+  **kurma**, Ersin'e soracağım.
+- **Kesim uyarısı.** Kesim saati geçmiş ama hâlâ `ACIK` gün varsa depo ana sayfasında
+  kırmızı şerit. Komut kurulana kadar insan gözü yedek olsun.
+
+---
+
+---
+
 ## 2 Ekim 2026 (4) — Kurye ataması: sorduğun kararı veriyorum
 
 **Önce: bir üstteki talimatı (2 Ekim (3), yasal metinler) henüz okumamışsın.** Raporunda

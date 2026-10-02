@@ -136,3 +136,10 @@ h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0;letter-spacing
   .satir .kutu{border-color:#333}
   .tarih-bas{margin:14px 0 6px;color:#000}
 }
+
+/* Kesim saati geçmiş, kesilmemiş gün uyarısı — zamanlanmış kesim kurulana kadar yedek */
+.kesim-uyari{background:#B23A24;color:#fff;border-radius:16px;padding:14px 18px;margin-bottom:18px;font-size:17px}
+.kesim-uyari b{display:block;font-size:19px;margin-bottom:2px}
+.kesim-uyari-liste{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.kesim-uyari-liste a{background:#fff;color:#B23A24;border-radius:999px;padding:8px 14px;font-weight:700;
+                     text-decoration:none;min-height:44px;display:inline-flex;align-items:center}

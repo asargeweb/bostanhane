@@ -64,10 +64,19 @@ def gunler(request):
     gruplar = {}
     for takvim in takvimler:
         gruplar.setdefault(takvim.tarih, []).append(takvim)
+    # Kesim saati geçmiş ama kesilmemiş günler — tarihi ne olursa olsun. Zamanlanmış
+    # `gunu_kes` kurulana kadar insan gözü yedek: kesilmeyen günde sipariş akmaya
+    # devam eder, alım listesi kesinleşmez.
+    kesilmemis = list(TeslimTakvimi.objects
+                      .filter(hizmet_mahallesi__magaza=request.magaza,
+                              durum=TeslimTakvimi.Durum.ACIK, kesim_zamani__lte=timezone.now())
+                      .select_related("hizmet_mahallesi__mahalle")
+                      .order_by("kesim_zamani"))
     return render(request, "depo/gunler.html", {
         "gruplar": sorted(gruplar.items()),
         "bugun": bugun,
         "simdi": timezone.now(),
+        "kesilmemis": kesilmemis,
     })
 
 

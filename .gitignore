@@ -30,3 +30,6 @@ desktop.ini
 # Mobil (ileride)
 node_modules/
 .expo/
+
+# Claude Code kişisel ayarları
+.claude/settings.local.json

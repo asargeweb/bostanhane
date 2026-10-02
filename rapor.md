@@ -45,6 +45,63 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 2 Ekim 2026 (5) — Provizyon örneği kuruldu, kesim uyarısı, zamanlanmış kesim araştırması
+
+okuduğum talimat: 2 Ekim (5)
+
+### 1. Ön Bilgilendirme Formu
+`hazir/yasal_on_bilgilendirme.html` → `templates/yasal/on_bilgilendirme.html`. `extends` en üstte, örnek
+"(%15 tamponla) … bloke 56,75 ₺" ve bağlayıcı tutar cümlesi var; 54,29 kalmadı.
+
+### 2. Kesim uyarısı (önceliksiz iş — yapıldı)
+`/depo/` en üstünde kırmızı şerit: **"⚠ Kesim saati geçti, N gün hâlâ açık."** + her gün için büyük
+bağlantı (mahalle · tarih → gün sayfası, orada "Günü kes" düğmesi). Sorgu tarihten bağımsız
+(`ACIK` ve `kesim_zamani <= şimdi`, kendi mağazası) — bugün/yarın listesinin dışında kalmış eski gün de yakalanır.
+```
+yerel veride: '⚠ Kesim saati geçti, 4 gün hâlâ açık.' → Evsat · 2 Ekim, Avşar · 2 Ekim, Dalyan · 3 Ekim, Yeşilyurt · 3 Ekim
+hepsi kesilince (geri alındı): uyarı yok
+```
+Dosyalar: `depo/views.py` (`gunler`), `templates/depo/gunler.html`, `static/css/depo.css` (sonuna `.kesim-uyari`).
+**Canlıda da büyük olasılıkla açık kalmış günler var** — kimse kesmedi; Ersin depo ekranını açınca görecek.
+
+### 3. Zamanlanmış kesim — Railway araştırması (kurulmadı)
+Kaynak: docs.railway.com/reference/cron-jobs, …/pricing/plans.
+
+**Nasıl çalışıyor:** Railway'de zamanlama bir **servis ayarı** ("Settings → Cron Schedule"). Servis o saatte
+başlatılır, başlatma komutunu çalıştırır ve **kendisi kapanmalıdır**. Kurallar:
+- Saatler **UTC** (İstanbul = UTC+3; 18.00 kesimi = 15.00 UTC).
+- İki çalıştırma arası **en az 5 dakika**.
+- Önceki çalıştırma bitmemişse yenisi **atlanır** (çakışma olmaz). `gunu_kes` saniyeler içinde biter ve kapanır — uygun.
+
+**Önerilen kurulum (Ersin onaylarsa):**
+1. Railway projesinde **yeni servis**, aynı GitHub deposundan (`asargeweb/bostanhane`) — adı ör. `kesim`.
+2. Bu serviste **Start Command** = `python manage.py gunu_kes`. (Web servisinde Start Command **boş** kalmalı —
+   Procfile'ı ezer; bu ayrı serviste ise doldurulması gerekiyor, Procfile'daki `migrate`/`gunicorn` burada çalışmamalı.)
+3. **Cron Schedule** = `*/15 * * * *` (15 dakikada bir). Neden sabit "15.00" değil: kesim saati panelden mahalle
+   başına değişebiliyor ve bir çalıştırma kaçarsa sonraki telafi ediyor; komut tekrar çalıştırılabilir olduğundan
+   sık çalışmanın zararı yok. En fazla 15 dakika gecikmeyle keser.
+4. Değişkenler: web servisiyle aynı — `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `DJANGO_SECRET_KEY`, `DB_MOTOR`
+   ve `settings.py`'nin okuduğu diğerleri (Railway'de "shared variables" ile ikisine birden verilebilir).
+5. İlk çalıştırmadan önce canlıda bir kez `python manage.py gunu_kes --kuru` (railway ssh) — açık kalmış eski günler
+   bir anda kesilecek; listeyi önceden görmek iyi olur.
+
+**Maliyet tahmini (Hobby, $5/ay içinde $5 kullanım):** RAM $0,000231/GB·dk, CPU $0,000463/vCPU·dk.
+Bir çalıştırma ≈ 20 sn, ~0,3 GB, ~0,5 vCPU → ≈ $0,0001; 15 dakikada bir → ayda ~2.900 çalıştırma ≈ **$0,3/ay**.
+Ek servis olarak kayda değer bir yük getirmiyor. (Tahmin; gerçek süre Django açılışına bağlı, ilk günlerde
+Railway'in kullanım ekranından bakılmalı.)
+
+**Alternatifler (önermiyorum):**
+- Web sürecinin içinde zamanlayıcı (APScheduler vb.): gunicorn 2 işçiyle iki kez çalışır, dağıtımda kesilir.
+- GitHub Actions'tan korumalı bir adresi çağırmak: yeni bir dış giriş noktası ve gizli anahtar demek; GitHub'ın
+  zamanlaması da gecikmeli olabiliyor.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `templates/yasal/on_bilgilendirme.html` | senin sürümün kuruldu | zaten aynı |
+| `depo/views.py`, `templates/depo/gunler.html`, `static/css/depo.css` | kesim uyarısı | `hazir/`'de eşi yok |
+| `.gitignore` | `.claude/settings.local.json` (Ersin'in Claude Code oturum rengi ayarı, kişisel) | — |
+
 ## 2 Ekim 2026 (4) — Yasal metinler bağlandı, W002, kurye ataması, gunu_kes komutu
 
 okuduğum talimat: 2 Ekim (3) ve (4)

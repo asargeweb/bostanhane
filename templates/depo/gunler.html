@@ -1,6 +1,15 @@
 {% extends "depo/taban.html" %}
 {% block baslik %}Teslim günleri{% endblock %}
 {% block icerik %}
+{% if kesilmemis %}
+  <div class="kesim-uyari">
+    <b>⚠ Kesim saati geçti, {{ kesilmemis|length }} gün hâlâ açık.</b>
+    Kesilmeden sipariş almaya devam eder, alım listesi kesinleşmez.
+    <div class="kesim-uyari-liste">
+      {% for takvim in kesilmemis %}<a href="{% url 'depo_gun' takvim.pk %}">{{ takvim.hizmet_mahallesi.mahalle.ad }} · {{ takvim.tarih|date:"j F" }} ›</a>{% endfor %}
+    </div>
+  </div>
+{% endif %}
 <h1>Teslim günleri</h1>
 {% for tarih, takvimler in gruplar %}
   <div class="tarih-bas" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
