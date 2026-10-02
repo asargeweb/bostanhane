@@ -71,6 +71,7 @@ BOSTANHANE_APPS = [
     "hesaplar",
     "katalog",
     "siparis",
+    "odeme",
     "depo",
     "lojistik",
 ]

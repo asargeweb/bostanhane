@@ -16,7 +16,9 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from core.araclar import para_yaz
 from core.models import IlgiKaydi, Ilce, Mahalle
+from odeme.islemler import bloke_coz
 from siparis.models import Siparis
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
@@ -254,7 +256,14 @@ def siparis_iptal(request, numara):
         siparis.iptal_et(kullanici=request.user, sebep="Müşteri iptal etti")
     except ValidationError as hata:
         messages.error(request, " ".join(hata.messages))
+        return redirect("siparis_detay", numara=numara)
+    messages.success(request, f"{siparis.numara} numaralı sipariş iptal edildi.")
+    try:
+        cozum = bloke_coz(siparis, kullanici=request.user, sebep="Müşteri iptal etti")
+    except ValidationError as hata:
+        messages.warning(request, "Karttaki bloke çözülemedi: " + " ".join(hata.messages))
     else:
-        messages.success(request, f"{siparis.numara} numaralı sipariş iptal edildi.")
+        if cozum is not None and cozum.basarili_mi:
+            messages.info(request, f"Kartınızdaki {para_yaz(cozum.tutar)} bloke çözüldü.")
     return redirect("siparis_detay", numara=numara)
 

@@ -9,7 +9,14 @@
   · {{ siparis.olusturuldu|date:"j F Y, H.i" }}</p>
 
 {% if siparis.test_siparisi %}
-  <div class="uyari" style="margin-bottom:14px"><span>⚠</span><span>Bu bir deneme siparişidir. Gerçek değildir, ödeme alınmadı.</span></div>
+  <div class="uyari" style="margin-bottom:14px"><span>⚠</span><span>Bu bir deneme siparişidir. Gerçek değildir, kartınızda gerçek para hareketi olmaz.</span></div>
+{% endif %}
+{% if siparis.odeme_durumu == "provizyon" %}
+  <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Kartınızda <b>{{ siparis.provizyon_tutari|para }}</b> bloke edildi. Tartımdan sonra yalnızca kesin tutar çekilecek.</span></div>
+{% elif siparis.odeme_durumu == "cekildi" %}
+  <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Kartınızdan <b>{{ siparis.cekilen_tutar|para }}</b> çekildi.{% if siparis.cekilen_tutar < siparis.provizyon_tutari %} Kalan blokaj serbest bırakıldı.{% endif %}</span></div>
+{% elif siparis.durum == "iptal" and siparis.odeme_durumu == "bekliyor" %}
+  <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Sipariş iptal edildi; kartınızdaki bloke çözüldü.</span></div>
 {% endif %}
 
 <div class="blok">

@@ -18,7 +18,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from core.araclar import para_yaz
 from katalog.models import MagazaUrun
+from odeme.islemler import provizyon_al
 
 from .models import SepetKalemi
 from .vitrin_araclari import sepet_bul, siradaki_teslimler, vitrin_gerekli
@@ -148,7 +150,35 @@ def siparis_ver(request):
     except ValidationError as hata:
         messages.error(request, " ".join(hata.messages))
         return redirect("sepet")
+
+    # Kartta bloke. Alınamazsa sipariş açılmış sayılmaz: iptal edilir (stok geri
+    # döner) ve ürünler sepete geri konur — müşteri sepetini yeniden kurmak zorunda kalmasın.
+    try:
+        provizyon = provizyon_al(siparis, kullanici=request.user)
+        hata_metni = "" if provizyon.basarili_mi else (provizyon.hata_mesaji or "banka onay vermedi")
+    except ValidationError as hata:
+        hata_metni = " ".join(hata.messages)
+    if hata_metni:
+        siparis.iptal_et(kullanici=request.user, sebep=f"Provizyon alınamadı: {hata_metni}")
+        sepete_geri_koy(sepet, siparis)
+        messages.error(request, f"Ödeme alınamadı: {hata_metni}. Sipariş oluşturulmadı; "
+                                f"ürünleriniz sepette duruyor.")
+        return redirect("sepet")
+
     messages.success(request, f"Deneme siparişiniz alındı: {siparis.numara}. "
-                              f"Gerçek değildir, ödeme alınmadı.")
+                              f"Kartınızda {para_yaz(provizyon.tutar)} bloke edildi (deneme — "
+                              f"gerçek para hareketi yok). Tartımdan sonra yalnızca kesin tutar çekilecek.")
     return redirect("siparis_detay", numara=siparis.numara)
+
+
+def sepete_geri_koy(sepet, siparis):
+    """Ödemesi alınamayan siparişin ürünlerini ve teslim gününü sepete geri koyar."""
+    for kalem in siparis.kalemler.select_related("magaza_urun"):
+        try:
+            sepet.ekle(kalem.magaza_urun, kalem.siparis_miktari)
+        except ValidationError:
+            pass                       # bu arada satıştan kalkmış olabilir; sepet ekranı söyler
+    if siparis.teslim_takvimi_id:
+        sepet.teslim_takvimi_id = siparis.teslim_takvimi_id
+        sepet.save(update_fields=["teslim_takvimi", "guncellendi"])
 

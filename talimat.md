@@ -17,6 +17,156 @@
 
 ---
 
+## 2 Ekim 2026 (6) — `odeme` uygulaması hazır
+
+### Önce: canlıya alma raporda yok
+
+Talimat (5)'in 3. maddesi **"Canlıya alma — bunu rapora yaz"** idi. Raporunda
+1. madde, kesim uyarısı ve Railway araştırması var; canlıya alma yok. Yaptın mı?
+
+Tek cümle yeter: *"gitti, commit X"* ya da *"gitmedi, sebep şu"*. Bir engel
+gördüysen sorun değil — bilmediğim şey sorun. Şu an bana canlının hâli belirsiz
+görünüyor ve Ersin'e yanlış şey söylüyor olabilirim.
+
+(Raporda *"Ersin depo ekranını açınca görecek"* diye yazmışsın; depo ekranı canlıda
+mı, emin değilim. Oradan sorulmuş oluyor.)
+
+### Railway kesim servisi — araştırman iyi, Ersin'e götürdüm
+
+`*/15 * * * *` gerekçen doğru: kesim saati mahalle başına değişiyor, sabit saat
+tutmaz; komut tekrar çalıştırılabilir olduğundan sık çalışmanın zararı yok, kaçan
+çalıştırmayı sonraki telafi ediyor. Ayrı servis olması da doğru — web sürecinin
+içine zamanlayıcı koymanın iki işçide iki kez çalışacağını fark etmen ince bir nokta.
+
+Ersin onay verince kuracaksın. **Şimdi kurma.** Onay gelirse ilk iş canlıda
+`gunu_kes --kuru` — açık kalmış eski günler bir anda kesilecek, listeyi önceden
+görmek lazım.
+
+---
+
+### Asıl iş: ödeme
+
+Söz verdiğim iş bitti. Sanal POS sözleşmesi olmadan **bütün para akışı çalışıyor**:
+bloke et → tart → kesin tutarı çek → gerekirse iade et.
+
+### 1. Kurulum
+
+```powershell
+python manage.py startapp odeme
+Copy-Item hazir\odeme_models.py       odeme\models.py        -Force
+Copy-Item hazir\odeme_saglayicilar.py odeme\saglayicilar.py  -Force
+Copy-Item hazir\odeme_islemler.py     odeme\islemler.py      -Force
+Copy-Item hazir\odeme_admin.py        odeme\admin.py         -Force
+Copy-Item hazir\odeme_apps.py         odeme\apps.py          -Force
+Copy-Item hazir\hesaplar_izinler.py   hesaplar\izinler.py    -Force
+```
+
+`BOSTANHANE_APPS`'e `"odeme"` (sıralamada `siparis`'ten sonra), sonra:
+
+```powershell
+python manage.py makemigrations odeme
+python manage.py migrate
+python manage.py roller_kur
+```
+
+**`roller_kur`'u atlama.** Atlarsan mağaza yöneticisi ödeme defterinde 403 alır —
+bu hatayı üçüncü kez yaşıyoruz, ben de bu kez sandbox'ta yaşadım. Çıktıda
+Mağaza Yöneticisi 47 yetki görünmeli, `! atlandı` satırı olmamalı.
+
+### 2. Ne yapıyor
+
+**`OdemeIslemi`** — her para hareketi bir satır: provizyon, çekim, iade, bloke çözme.
+Siparişteki `cekilen_tutar` tek bir sayı; bu defter o sayının **nereden geldiğini**
+tutuyor. Müşteri "param çekilmemiş", banka "çekilmiş" dediğinde tartışma sağlayıcı
+işlem numarasıyla çözülür. Stok defterinde de aynısını yaptık.
+
+**Çağrılacak dört işlev** (`odeme.islemler`):
+
+| İşlev | Ne zaman |
+|---|---|
+| `provizyon_al(siparis, kullanici)` | Sipariş onaylandığı anda |
+| `cekim_yap(siparis, kullanici)` | Tartım bitip sipariş hazırlandığında |
+| `bloke_coz(siparis, kullanici, sebep)` | Sipariş iptal edildiğinde |
+| `iade_et(siparis, tutar, kullanici, sebep)` | Kusurlu ürün kararından sonra |
+
+Sağlayıcıyı doğrudan çağırma, hep bunlardan geç: deftere yazma, siparişin ödeme
+durumunu güncelleme ve çift çekim koruması burada.
+
+**Korumalar — hepsini denedim:**
+
+- **Çift çekim.** Her işlemin bir istek anahtarı var (`BH-2026-000011-cekim-1`).
+  Aynı anahtarla ikinci çağrı yeni istek göndermiyor, var olan kaydı döndürüyor.
+  Ağ koparsa, kullanıcı iki kez tıklarsa, zamanlanmış görev iki kez tetiklenirse
+  müşteriden iki kez para çekilmiyor.
+- **Çekilen tutar blokeyi aşamaz.** Tartı tahmini çok aşarsa sessizce fazla çekmek
+  yerine hata veriyor — bankadan zaten çekilemez, müşteriye sorulması gerekir.
+- **Çekim sonrası bloke çözülemez**, **çözülmüş blokeden çekim yapılamaz**,
+  **provizyonsuz çekim yapılamaz**.
+- **Kısmi iade** birden çok kez yapılabiliyor; toplam iade çekilen tutarı aşamıyor.
+  Hepsi iade edilince durum `iade`, bir kısmı iade edilince `kismi_iade`.
+- **Kart bilgisi yanıttan temizleniyor.** Sağlayıcılar bazen gönderdiğimiz isteği
+  yanıtta geri döndürür; kart numarası o yoldan loglara sızar. `yaniti_temizle`
+  iç içe sözlük ve listelerde de kart, CVV ve son kullanma alanlarını `***` yapıyor.
+  Bu bir tercih değil, PCI-DSS gereği.
+
+### 3. `DenemeSaglayici` — bugünden çalışıyor
+
+Sağlayıcı seçilmedi ama akış beklemesin diye gerçek para hareketi olmayan bir
+sağlayıcı yazdım. Her isteği başarılı sayıp sahte işlem numarası döndürüyor
+(`DENEME-PRV-a3f9…`). Vitrin test modundayken bütün zincir prova edilebiliyor.
+
+**Kilit:** Vitrin `acik` moddayken deneme sağlayıcı kullanılamıyor — `saglayici_sec`
+hata veriyor. Müşterinin "ödedim" sanıp hiç para çekilmemesi olabilecek en kötü
+hatalardan biri, kod seviyesinde engelledim.
+
+iyzico/PayTR seçilince `odeme/saglayicilar.py` içine `Saglayici`'den türeyen tek bir
+sınıf yazılacak, `SAGLAYICILAR` sözlüğüne bir satır eklenecek, `ODEME_SAGLAYICI`
+ayarı değişecek. Başka hiçbir yer değişmeyecek.
+
+### 4. Senden — akışa bağlama
+
+Şu an işlevler yazılı ama **kimse çağırmıyor**. Üç yere bağlanacak:
+
+1. **Sipariş onayı** (`siparis/views.py`, `siparis_ver`) → `siparise_cevir`'den hemen
+   sonra `provizyon_al(siparis, kullanici=request.user)`.
+   **Provizyon başarısızsa sipariş iptal edilmeli** ve müşteriye "ödeme alınamadı"
+   denmeli — stok da geri dönmeli (`siparis.iptal_et()` zaten yapıyor).
+2. **Depo "hazır" düğmesi** (`depo/views.py`, `hazir`) → durum `HAZIRLANIYOR`
+   yapıldıktan sonra `cekim_yap(siparis, kullanici=request.user)`.
+   Çekim başarısızsa durumu geri alma; mesajla bildir ve `ic_not`'a yaz — mal
+   hazırlanmış, para sorunu ayrı bir iş.
+3. **Sipariş iptali** (`hesaplar/views.py` iptal görünümü ve panel) →
+   `bloke_coz(siparis, kullanici=…, sebep="Müşteri iptal etti")`.
+
+İade akışını **bağlama** — kusurlu ürün bildirimi ekranı henüz yok, sırası gelince.
+
+Ekranlarda gösterilecek metin: provizyon alındıysa *"Kartınızda {tutar} bloke edildi.
+Tartımdan sonra yalnızca kesin tutar çekilecek."* Çekim sonrası *"Kartınızdan {tutar}
+çekildi."* Tutarları `para_yaz` ile yaz.
+
+### 5. Raporda görmek istediklerim
+
+- `okuduğum talimat: 2 Ekim (6)` satırı
+- `roller_kur` çıktısı (47 yetki, `! atlandı` yok)
+- Uçtan uca: sipariş ver → kartta bloke → tart → hazır → kesin tutar çekildi,
+  defterde üç satır
+- İptal edilen siparişte blokenin çözüldüğü
+- Ödeme defteri sayfasının mağaza yöneticisiyle açıldığı ve **değiştirilemediği**
+- Provizyon başarısız olduğunda siparişin açılmadığı ve stoğun geri döndüğü
+  (deneme sağlayıcıda negatif tutar başarısız döner, onunla sınayabilirsin)
+
+### 6. Bunları yapma
+
+- `odeme/saglayicilar.py`'ye gerçek sağlayıcı yazma — sözleşme yok, test anahtarı yok.
+- Ödeme defterini panelden yazılabilir yapma.
+- İade akışını ekrana bağlama.
+- Canlıda `ODEME_SAGLAYICI` ayarını değiştirme; `deneme` kalsın.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 2 Ekim 2026 (5) — Provizyon örneği düzeltildi
 
 Kısa talimat. Raporun iyiydi; iki bulduğun şey de yerindeydi.
@@ -53,9 +203,31 @@ Copy-Item hazir\yasal_on_bilgilendirme.html templates\yasal\on_bilgilendirme.htm
 - Kayıt ekranına **kullanım koşulları kutusu** eklemen de doğru — talimatta "üyelik
   kutusu" diye geçiyordu ama ekranda gerçekten yoktu, sen fark edip açmışsın.
 
-### 3. Sırada
+### 3. Canlıya alma — bunu rapora yaz
 
-Bir şey istemiyorum; `gunu_kes` komutu ve kurye ataması bitti, yasal metinler bağlandı.
+Raporlarında **Adım 5'ten (commit `e1fceb0`) sonra canlıya gittiğine dair bir not yok.**
+O tarihten beri yerelde biriken işler: depo ekranları, alım listesi, kurye ekranı,
+kurye ataması, yasal metinler, `gunu_kes` komutu, ilgi kaydı düzeltmesi.
+
+Hepsi yerelde denenmiş durumda. Canlıya almanın önünde bir engel görmüyorum:
+
+- Yeni migration'lar: `core` 0004 (ilgi kaydı) ve 0005 (kurye) — ikisi de alan ekliyor,
+  veri silmiyor. PostgreSQL'de sorunsuz geçmeli.
+- `roller_kur` Procfile'da zaten çalışıyor; yeni uygulamalar (`depo`, `lojistik`) model
+  içermediği için ek yetki gerekmiyor.
+- Yasal metinlerde `xxx` var, ama sayfalar **vitrin test modunda** ve gerçek satış yok.
+  W002 uyarısı dağıtım kaydında görünecek — beklenen davranış, dağıtımı durdurmaz.
+
+Dağıtımdan sonra rapora **canlıdan** şunları yaz: `/iptal-ve-iade/` açılıyor mu,
+`/depo/` mağaza yöneticisiyle açılıyor mu, dağıtım kaydında W002 görünüyor mu.
+Yerelde çalışması canlıda çalıştığı anlamına gelmiyor; 30 Eylül'deki Start Command
+olayı bunu gösterdi.
+
+Bir engel görüyorsan **gönderme**, sebebini rapora yaz.
+
+### 4. Sırada
+
+Başka bir şey istemiyorum; `gunu_kes` komutu ve kurye ataması bitti, yasal metinler bağlandı.
 Beklediğimiz iki şey Ersin'de: **gün gruplaması** ve **şirket bilgileri**.
 
 Ben `odeme` uygulamasını yazıyorum (`OdemeIslemi`: provizyon, çekim, iade, sağlayıcı

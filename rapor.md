@@ -45,6 +45,71 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 2 Ekim 2026 (6) — odeme kuruldu ve akışa bağlandı
+
+okuduğum talimat: 2 Ekim (6)
+
+### Canlıya alma — cevap
+**Her şey gitti.** Okuduğum (5)'te "canlıya alma" maddesi yoktu (sonradan eklendiyse görmedim), ama her raporun
+işini zaten push edip Railway'in SUCCESS dönmesini bekliyorum:
+`ffc73e7` depo (paketleme) · `3b62cd1` alım listesi + kurye · `6a0191e` yasal metinler + kurye ataması + gunu_kes ·
+`094df29` provizyon örneği + kesim uyarısı — hepsi SUCCESS; canlıda `/depo/`, `/kurye/` (giriş ister → 302),
+yasal sayfalar 200, Ön Bilgilendirme'de 56,75 ₺ doğrulandı. Bu rapordaki iş de aşağıdaki commit'le gidiyor.
+Bundan sonra her raporda "Canlı: commit X, SUCCESS" satırı yazacağım.
+
+### 1. Kurulum
+`startapp odeme` + beş dosya + `hesaplar_izinler.py`; `"odeme"` `siparis`'ten sonra (`hazir/settings.py` eşitlendi).
+```
+odeme/migrations/0001_initial.py  + Create model OdemeIslemi  → Applying odeme.0001_initial... OK
+roller_kur: Mağaza Yöneticisi 47 yetki · Paketleme 13 · Kurye 8 — "! atlandı" yok
+```
+`odeme/views.py` ve `tests.py` (startapp'in boş dosyaları) silindi.
+
+### 2. Akışa bağlama
+1. **Sipariş onayı** (`siparis/views.py` `siparis_ver`): `siparise_cevir` → `provizyon_al`. Başarısız ya da
+   `ValidationError` → `siparis.iptal_et()` (stok geri) + **ürünler ve teslim günü sepete geri konuyor**
+   (`sepete_geri_koy`; `siparise_cevir` sepeti boşalttığı için müşteri sepetini kaybederdi) +
+   "Ödeme alınamadı: … Sipariş oluşturulmadı; ürünleriniz sepette duruyor." → sepete döner.
+   Başarılı mesaj: "Kartınızda 586,75 ₺ bloke edildi (deneme — gerçek para hareketi yok). Tartımdan sonra yalnızca kesin tutar çekilecek."
+2. **Depo "Sipariş hazır"** (`depo/views.py` `hazir`): `HAZIRLANIYOR` kaydedildikten sonra `cekim_yap`. Başarısızsa
+   durum geri alınmıyor; `messages.warning` + `ic_not`'a "dd.mm ss.dd — çekim yapılamadı: …". Başarılıysa "Karttan X çekildi."
+3. **İptal** (`hesaplar/views.py` `siparis_iptal`): `iptal_et` → `bloke_coz(sebep="Müşteri iptal etti")`; "Kartınızdaki X bloke çözüldü."
+   **Panelde iptal işlemi yok** (sipariş admininde yalnızca hazırlandı/yola çıktı/teslim edildi var), o yüzden panel bağlanmadı.
+4. **Sipariş detayı** (müşteri): `provizyon` → "Kartınızda X bloke edildi. Tartımdan sonra yalnızca kesin tutar çekilecek."
+   · `cekildi` → "Kartınızdan X çekildi. (Kalan blokaj serbest bırakıldı.)" · iptal → "kartınızdaki bloke çözüldü".
+   Tutarlar `para` filtresiyle (= `para_yaz`).
+
+### 3. Test (yerel, işlem geri alındı)
+```
+1) sipariş → odeme_durumu provizyon · defter: Provizyon (bloke) 586,75 Başarılı DENEME-PRV-…
+2) kes → Domates 1,43 kg, Bal 1, Maydanoz bulunamadı → hazır:
+   'BH-2026-000001 hazır. Kesin tutar: 547,05 ₺', 'Karttan 547,05 ₺ çekildi.'
+   odeme cekildi · cekilen 547,05 ≤ bloke 586,75 · defter: Provizyon 586,75 + Çekim 547,05 (ikisi Başarılı)
+   müşteri: 'Kartınızdan 547,05 ₺ çekildi. Kalan blokaj serbest bırakıldı.'
+3) iptal → durum iptal, odeme bekliyor · defter: Provizyon 586,75 + Bloke çözüldü 586,75 · 'Kartınızdaki 586,75 ₺ bloke çözüldü.'
+4) provizyon başarısız (DenemeSaglayici.provizyon_al geçici olarak "51 Yetersiz bakiye" döndürdü):
+   'Ödeme alınamadı: Yetersiz bakiye. Sipariş oluşturulmadı; ürünleriniz sepette duruyor.' → /sepet/
+   sipariş iptal/basarisiz · bal stoğu 4 → 4 (geri döndü) · sepette 3 ürün · defter: Provizyon Başarısız
+5) tartı blokeyi aştı (domates 6 kg): 'Para çekilemedi: Çekilecek tutar (727,40 ₺) bloke edilenden (586,75 ₺) fazla…'
+   durum hazirlaniyor kaldı, odeme provizyon, ic_not'a yazıldı
+6) yönetici: defter listesi 200, kayıt sayfası 200 ama kaydet düğmesi yok; POST değiştir 403, ekle 403, sil 403
+```
+**Not — "defterde üç satır":** normal akışta defterde **iki** satır çıkıyor (provizyon + çekim). `cekim_yap` kalan
+blokajı ayrı bir "bloke çözme" kaydı olarak yazmıyor (gerçek sağlayıcılarda çekim kalanı kendiliğinden serbest bırakır).
+Üçüncü satırı bekliyorsan `islemler.py`'de kalan için kayıt açılması gerekir — senin dosyan, dokunmadım.
+**Not — negatif tutarla başarısızlık:** `provizyon_al` sıfır/negatif tutarı sağlayıcıya gitmeden `ValidationError` ile
+reddediyor; deneme sağlayıcının negatif dalına hiç ulaşılmıyor. Bu yüzden başarısızlığı sağlayıcı yanıtını geçici
+değiştirerek sınadım (yukarıda 4). Görünüm `ValidationError`'ı da başarısızlık sayıyor.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `bostanhane/settings.py` | `"odeme"` | **Evet** |
+| `siparis/views.py` | provizyon + `sepete_geri_koy` | `hazir/`'de eşi yok |
+| `depo/views.py` | çekim | `hazir/`'de eşi yok |
+| `hesaplar/views.py` | bloke çözme | `hazir/`'de eşi yok |
+| `templates/hesaplar/siparis_detay.html` | ödeme durumu kutusu | `hazir/`'de eşi yok |
+
 ## 2 Ekim 2026 (5) — Provizyon örneği kuruldu, kesim uyarısı, zamanlanmış kesim araştırması
 
 okuduğum talimat: 2 Ekim (5)

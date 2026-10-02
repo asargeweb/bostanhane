@@ -22,6 +22,7 @@ from core.araclar import para_yaz
 from core.models import TeslimTakvimi
 from hesaplar.erisim import personel_gerekli
 from hesaplar.models import Rol
+from odeme.islemler import cekim_yap
 from siparis.models import Siparis, SiparisKalemi, gunu_kes
 
 DEPO_ROLLERI = {Rol.PAKETLEME, Rol.MAGAZA_YONETICISI}
@@ -183,5 +184,20 @@ def hazir(request, numara):
     siparis.hazirlandi_zamani = timezone.now()
     siparis.save(update_fields=["durum", "hazirlandi_zamani", "guncellendi"])
     messages.success(request, f"{siparis.numara} hazır. Kesin tutar: {para_yaz(siparis.toplam)}")
+
+    # Kesin tutarı karttan çek. Başarısızsa hazır durumu geri alınmaz — mal hazır,
+    # para sorunu ayrı bir iş; yöneticinin görmesi için not düşülür.
+    try:
+        cekim = cekim_yap(siparis, kullanici=request.user)
+        sorun = "" if cekim.basarili_mi else (cekim.hata_mesaji or "banka onay vermedi")
+    except ValidationError as hata:
+        sorun = " ".join(hata.messages)
+    if sorun:
+        saat = timezone.localtime().strftime("%d.%m %H.%M")
+        siparis.ic_not = f"{siparis.ic_not}\n{saat} — çekim yapılamadı: {sorun}".strip()
+        siparis.save(update_fields=["ic_not", "guncellendi"])
+        messages.warning(request, f"Para çekilemedi: {sorun} Yöneticiye haber verin.")
+    else:
+        messages.info(request, f"Karttan {para_yaz(cekim.tutar)} çekildi.")
     return redirect("depo_gun", pk=siparis.teslim_takvimi_id) if siparis.teslim_takvimi_id \
         else redirect("depo")
