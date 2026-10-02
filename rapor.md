@@ -45,6 +45,79 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 2 Ekim 2026 (2) — Alım listesi kuruldu, ilgi kaydı yeni alanlarla, kurye ekranı
+
+okuduğum talimat: 2 Ekim (2)
+
+### 1. Alım listesi
+`depo/alim.py`, `templates/depo/alim.html` kuruldu; `hazir/depo_alim.css` `static/css/depo.css`'in **sonuna** eklendi.
+`depo/urls.py`'ye iki adres (`depo_alim`, `depo_alim_takvim`). Bağlantılar:
+`gunler.html` → her tarih başlığının sağında "Alım listesi ›"; `gun.html` → kesildiyse "Günün alım listesi".
+```
+/depo/ alım bağlantısı: True
+alım listesi 200 | kesin değil uyarısı (kesimden önce): True
+gün sayfasında "Günün alım listesi": True
+/depo/alim/takvim/<pk>/ → /depo/alim/2026-10-02/ 200
+```
+Senin dosyalarına dokunmadım. **Değişen tek şey:** `depo_gerekli` artık `depo/views.py`'de
+`personel_gerekli(DEPO_ROLLERI, "Depo ekranı")` — depo ve kurye aynı kapıyı kullansın diye
+ortak parça `hesaplar/erisim.py`'ye taşındı. Adı ve davranışı aynı; `from .views import depo_gerekli` çalışıyor.
+(Süper admin'in seçtiği mağaza oturumda `personel_magaza` anahtarında; eskiden `depo_magaza`'ydı.)
+
+### 2. İlgi kaydı
+`hazir/core_models.py` kuruldu → `core/migrations/0004_ilgikaydi_ilce_ilgikaydi_uye_alter_ilgikaydi_eposta_and_more.py` — temiz.
+- `haber-ver`: `get_or_create(uye=…, ilce=…, mahalle_adi=<yalnızca yazılan>)`, defaults: e-posta, telefon,
+  kaynak "adres formu · kargo talebi". İki kez basınca 1 kayıt.
+- `IlgiKaydiAdmin` (+ `hazir/core_admin.py`): sütunlar `eposta, telefon, uye, mahalle_adi, ilce, kaynak, …`;
+  süzgeç `ilce` ilk sırada; arama üye adı ve ilçede de; `uye` autocomplete, `ilce` raw_id.
+```
+ilgi: 1 kayıt | ('Yenişehir', 'Meram / Konya', 'Ayşe Yılmaz', '5334445566', __str__ '5334445566')
+panel ?ilce__id__exact=Meram → 200, Yenişehir listede
+```
+
+### 3. Kurye ekranı (Adım 6b) — yeni `lojistik` uygulaması
+Modeli yok; `BOSTANHANE_APPS`'e `"lojistik"` (planlanan uygulamalar listesindeki ad). Ayrı şablon
+`templates/kurye/` + `static/css/kurye.css` (telefon: 18–26 px yazı, 58 px düğme).
+
+| Adres | Ne |
+|---|---|
+| `/kurye/` | Bugünün mahalleleri **güzergâh sırasıyla** (`hizmet_mahallesi__sira`): "2 paket bekliyor · 1 teslim edildi · 1 henüz paketlenmedi" |
+| `/kurye/rota/<takvim>/` | `HAZIRLANIYOR` + `YOLDA` (+ teslim edilenler soluk, en altta); "Ulaşılamadı" ve DENEME rozeti; **Yola çıktım (n paket)** |
+| `POST …/yola-cik/` | O günün `HAZIRLANIYOR` siparişleri → `YOLDA` (paneldeki "yola çıktı" işlemiyle aynı) |
+| `/kurye/teslim/<numara>/` | Büyük ad, `tel:+90…` bağlantılı telefon, adres + tarif, **Haritada aç** (enlem/boylam yoksa açık adres aratılıyor), tutar + "Kapıda ödeme alınmaz", eksik/bulunamayan kalemler |
+| `POST …/teslim-et/` | `siparis.teslim_edildi_isaretle()` — yalnızca HAZIRLANIYOR/YOLDA iken |
+| `POST …/ulasilamadi/` | Durum `YOLDA`, `ic_not`'a `02.10 15.55 — ulaşılamadı (kurye: Ad)`. Yeni durum yok |
+
+- Erişim: kurye, mağaza yöneticisi, süper admin; mağazaya göre süzülüyor. Kurye `/giris/`'ten `/kurye/`'ye gidiyor;
+  Hesabım'da "Kurye ekranı" bağlantısı (personel için).
+- **Rota ataması yok:** modelde kurye ↔ rota bağı olmadığından kurye, mağazasının bugünkü bütün teslimatlarını görüyor.
+  Birden çok kurye olunca karar gerekir.
+- **"Yola çıktım" benim eklemem:** talimatta yoktu ama `YOLDA`'ya geçiren tek yol paneldi; kurye panele girmiyor.
+  Müşteri siparişlerinde "Yolda"yı bununla görüyor.
+
+### Test (yerel, işlem geri alındı) — bugüne geçici teslim günü, 2 sipariş, kes → tart → hazır → kurye
+```
+/kurye/ 200 | '2 paket bekliyor' · üye ve paketleme → / 'Kurye ekranı yalnızca mağaza personeli içindir.'
+yola çık: '2 sipariş yola çıktı.' ['yolda', 'yolda']
+teslim sayfası 200 | tel:+905334445566 | harita: …maps/search/?api=1&query=Atat%C3%BCrk%20Cd.…Bey%C5%9Fehir%2C%20Konya
+  | tarif görünüyor | tutar '564,35 ₺'
+teslim ettim: 'Ayşe Yılmaz — teslim edildi.' | teslim_edildi, teslim_zamani var, otomatik_onay_zamani hesaplanıyor
+ulaşılamadı: '…Sipariş listede kalıyor.' | yolda | ic_not '02.10 15.55 — ulaşılamadı (kurye: Hasan Kurye)'
+  rotada hâlâ var + "Ulaşılamadı" rozeti | /kurye/ sayaç: '1 paket bekliyor · 1 teslim edildi'
+ikinci kez teslim: 'Bu sipariş teslime açık değil (Teslim edildi).'
+müşteri siparişlerim: ['Yolda', 'Teslim edildi']
+```
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `core/admin.py` | `IlgiKaydiAdmin` sütun/süzgeç | **Evet** `hazir/core_admin.py` |
+| `bostanhane/settings.py`, `bostanhane/urls.py` | `"lojistik"`, `lojistik.urls` | **Evet** |
+| `static/css/depo.css` | sonuna `depo_alim.css` | `hazir/`'de eşi yok |
+| `depo/views.py`, `depo/urls.py`, `templates/depo/{gunler,gun}.html` | ortak kapı, alım adresleri, bağlantılar | `hazir/`'de eşi yok |
+| `hesaplar/views.py`, `templates/hesaplar/hesabim.html`, `core/templatetags/bostan.py` (`telefon` filtresi) | ilgi alanları, personel yönlendirmesi, bağlantılar | `hazir/`'de eşi yok |
+| Yeni: `hesaplar/erisim.py`, `lojistik/{apps,views,urls}.py`, `templates/kurye/*`, `static/css/kurye.css` | | `hazir/`'de eşi yok |
+
 ## 2 Ekim 2026 — Para biçimi tek kaynakta, Beyşehir dışı ilgi kaydı, paketleme ekranı
 
 okuduğum talimat: 2 Ekim (1)

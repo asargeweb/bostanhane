@@ -1,0 +1,193 @@
+{% comment %}
+  Mesafeli Satış Sözleşmesi — `templates/yasal/mesafeli_satis.html`
+
+  Sepet onay ekranındaki ikinci kutunun bağlantısı. Ön Bilgilendirme Formu
+  "bilgilendirme", bu ise "sözleşme" — ikisi ayrı ayrı zorunlu.
+
+  DİKKAT (CC için): Bu sayfa iki biçimde kullanılacak.
+  1. Boş hâli: `/mesafeli-satis-sozlesmesi/` — herkes okuyabilir, sipariş
+     bilgileri yerine "siparişinizde yer alan" yazar.
+  2. Dolu hâli: siparişlerim sayfasından açılan sürüm — `siparis` değişkeni
+     gönderilirse madde 3 ve 4 gerçek sipariş bilgileriyle dolar.
+  Şablon ikisini de kaldırıyor; `{% if siparis %}` koşullarına bak.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}Mesafeli Satış Sözleşmesi{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>Mesafeli Satış Sözleşmesi</h1>
+{% if siparis %}
+  <p class="tarih">Sipariş {{ siparis.numara }} · {{ siparis.olusturuldu|date:"j F Y, H.i" }}</p>
+{% else %}
+  <p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+{% endif %}
+
+<h2>Madde 1 — Taraflar</h2>
+<h3>Satıcı</h3>
+<table class="bilgi">
+  <tr><th>Unvan</th><td><span class="xxx">xxx</span> Ltd. Şti.</td></tr>
+  <tr><th>MERSİS numarası</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Adres</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Telefon</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>E-posta</th><td><span class="xxx">xxx</span></td></tr>
+</table>
+
+<h3>Alıcı</h3>
+{% if siparis %}
+  <table class="bilgi">
+    <tr><th>Ad soyad</th><td>{{ siparis.teslim_ad_soyad }}</td></tr>
+    <tr><th>Telefon</th><td>{{ siparis.teslim_telefon }}</td></tr>
+    <tr><th>Teslimat adresi</th>
+        <td>{{ siparis.teslim_acik_adres }}<br>
+            {{ siparis.teslim_mahalle }} · {{ siparis.teslim_ilce }} / {{ siparis.teslim_il }}</td></tr>
+  </table>
+{% else %}
+  <p>
+    Siparişi veren üyenin, sipariş sırasında seçtiği adres kaydındaki ad soyad,
+    telefon ve teslimat adresi bilgileri.
+  </p>
+{% endif %}
+
+<h2>Madde 2 — Konu</h2>
+<p>
+  Bu sözleşme, Alıcı'nın Satıcı'ya ait www.bostanhane.com internet sitesi
+  üzerinden elektronik ortamda siparişini verdiği, aşağıda nitelikleri ve satış
+  fiyatı belirtilen ürünlerin satışı ve teslimi ile ilgili olarak 6502 sayılı
+  Tüketicinin Korunması Hakkında Kanun ve Mesafeli Sözleşmeler Yönetmeliği
+  hükümleri gereğince tarafların hak ve yükümlülüklerini düzenler.
+</p>
+<p>
+  Alıcı, siparişini onaylamadan önce
+  <a href="{% url 'yasal_on_bilgilendirme' %}">Ön Bilgilendirme Formu</a>'nu
+  okuduğunu, satıcı bilgilerini, ürünün temel niteliklerini, vergiler dâhil
+  satış fiyatını, ödeme ve teslimat şartlarını, provizyon uygulamasını ve cayma
+  hakkını öğrendiğini kabul ve beyan eder.
+</p>
+
+<h2>Madde 3 — Sözleşme konusu ürün ve bedel</h2>
+{% if siparis %}
+  <table class="bilgi urunler">
+    <tr><th>Ürün</th><th>Miktar</th><th>Birim fiyat</th><th>Tutar</th></tr>
+    {% for kalem in siparis.kalemler.all %}
+      <tr>
+        <td>{{ kalem.urun_adi }}</td>
+        <td>{{ kalem.siparis_miktari }} {{ kalem.birim_adi }}</td>
+        <td>{{ kalem.birim_fiyat|para }}</td>
+        <td>{{ kalem.tutar|para }}</td>
+      </tr>
+    {% endfor %}
+    <tr><th colspan="3">Ara toplam</th><td>{{ siparis.ara_toplam|para }}</td></tr>
+    <tr><th colspan="3">Teslimat ücreti</th><td>{{ siparis.teslimat_ucreti|para }}</td></tr>
+    <tr class="toplam"><th colspan="3">Toplam (KDV dâhil)</th><td>{{ siparis.toplam|para }}</td></tr>
+    {% if siparis.provizyon_tutari %}
+      <tr><th colspan="3">Bloke edilen (provizyon)</th><td>{{ siparis.provizyon_tutari|para }}</td></tr>
+    {% endif %}
+  </table>
+  <p class="dipnot">
+    Yukarıdaki miktarlar sipariş anındaki miktarlardır. Tartılı ürünlerde kesin
+    tutar tartımdan sonra belirlenir ve siparişlerim sayfanızda görünür.
+  </p>
+{% else %}
+  <p>
+    Sözleşme konusu ürünlerin adı, miktarı, birim fiyatı, teslimat ücreti ve
+    vergiler dâhil toplam bedeli, Alıcı'nın sipariş özetinde ve siparişlerim
+    sayfasında ayrı ayrı gösterilir. Ürün bedelleri sipariş anında dondurulur.
+  </p>
+{% endif %}
+
+<h2>Madde 4 — Ödeme ve provizyon</h2>
+<p>
+  Ödeme yalnızca kredi veya banka kartı ile, sanal POS üzerinden alınır.
+  Kapıda ödeme kabul edilmez. Alıcı'nın kart bilgileri Satıcı tarafından
+  saklanmaz.
+</p>
+<p>
+  Tartıyla satılan ürünler içeren siparişlerde, sipariş anında kartta tahmini
+  tutarın bir miktar üzerinde bir tutar <b>bloke edilir</b>; ürünler tartıldıktan
+  sonra yalnızca <b>kesin tutar tahsil edilir</b> ve bloke edilen fazla kısım
+  serbest bırakılır. Bloke edilen tutarın karta yansıma ve çözülme süresi
+  Alıcı'nın bankasının uygulamasına bağlıdır.
+</p>
+<p>
+  Siparişte bulunamayan ürün olursa bedeli tahsil edilmez; tahsil edilen toplam
+  tutar bu çıkarmalar sonrası oluşan tutardır.
+</p>
+
+<h2>Madde 5 — Teslimat</h2>
+<p>
+  Ürünler, Alıcı'nın seçtiği teslim gününde, Alıcı'nın bildirdiği adrese Satıcı'nın
+  kendi kuryesiyle teslim edilir. Kargo ile gönderime uygun ürünlerde teslimat
+  kargo firması aracılığıyla yapılır.
+</p>
+<p>
+  Her teslim günü için, teslimattan bir gün önce belirlenen bir <b>kesim saati</b>
+  vardır. Kesim saatinden sonra sipariş değiştirilemez ve iptal edilemez; ürünler
+  Alıcı'nın siparişine göre tedarik edildiğinden bu aşamadan sonra geri dönüş
+  mümkün değildir.
+</p>
+<p>
+  Teslimat, Mesafeli Sözleşmeler Yönetmeliği uyarınca en geç 30 gün içinde yapılır.
+  Alıcı adreste bulunamaz ve kendisine ulaşılamazsa, Satıcı siparişi mağazaya geri
+  alır ve Alıcı ile iletişime geçer.
+</p>
+<p>
+  Teslim alan kişinin Alıcı'dan farklı olması hâlinde, Satıcı teslimatı Alıcı'nın
+  adres kaydında belirttiği kişiye yapar.
+</p>
+
+<h2>Madde 6 — Cayma hakkı</h2>
+<p>
+  Alıcı, 14 gün içinde cayma hakkına sahiptir. Ancak Mesafeli Sözleşmeler
+  Yönetmeliği m.15/1-(ç) uyarınca <b>çabuk bozulabilen veya son kullanma tarihi
+  geçebilecek ürünlerde</b> (meyve, sebze, yeşillik, süt ürünleri ve benzeri)
+  cayma hakkı kullanılamaz. Aynı maddenin (d) bendi uyarınca, ambalajı açılmış
+  olup sağlık ve hijyen açısından iadesi uygun olmayan ürünlerde de cayma hakkı
+  kullanılamaz.
+</p>
+<p>
+  Cayma hakkının kapsamı, kullanılma usulü ve süreleri
+  <a href="{% url 'yasal_on_bilgilendirme' %}#cayma">Ön Bilgilendirme Formu'nun
+  8. maddesinde</a> ayrıntılı olarak açıklanmıştır ve bu sözleşmenin ayrılmaz
+  parçasıdır.
+</p>
+
+<h2>Madde 7 — Ayıplı mal</h2>
+<p>
+  Teslim edilen üründe ayıp bulunması hâlinde Alıcı'nın 6502 sayılı Kanun'dan
+  doğan hakları saklıdır. Satıcı ayrıca, taze üründe teslim gününden itibaren
+  24 saat içinde fotoğraflı bildirim yapılması hâlinde ilgili ürün bedelini iade
+  eder veya bir sonraki siparişte mahsup eder.
+</p>
+
+<h2>Madde 8 — Alıcı'nın beyanları</h2>
+<p>
+  Alıcı, siparişi onaylamakla; bu sözleşmenin ve Ön Bilgilendirme Formu'nun tüm
+  şartlarını okuduğunu, anladığını ve kabul ettiğini, verdiği adres ve iletişim
+  bilgilerinin doğru olduğunu, 18 yaşını doldurduğunu ve sözleşme kurmaya ehil
+  olduğunu beyan eder.
+</p>
+
+<h2>Madde 9 — Uyuşmazlık</h2>
+<p>
+  Bu sözleşmeden doğan uyuşmazlıklarda, Ticaret Bakanlığı'nca her yıl ilan edilen
+  parasal sınırlar dâhilinde Alıcı'nın yerleşim yerindeki veya işlemin yapıldığı
+  yerdeki <b>Tüketici Hakem Heyetleri</b> ile <b>Tüketici Mahkemeleri</b> yetkilidir.
+</p>
+
+<h2>Madde 10 — Yürürlük</h2>
+<p>
+  Bu sözleşme, Alıcı'nın siparişi elektronik ortamda onaylaması anında kurulmuş
+  ve yürürlüğe girmiş sayılır. Sözleşmenin bir örneği Alıcı'nın siparişlerim
+  sayfasında saklanır.
+</p>
+
+{% if siparis %}
+  <p class="dipnot">
+    Bu sözleşme {{ siparis.olusturuldu|date:"j F Y H.i" }} tarihinde
+    {{ siparis.numara }} numaralı siparişin onaylanmasıyla kurulmuştur.
+  </p>
+{% endif %}
+
+</article>
+{% endblock %}

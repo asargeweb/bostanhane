@@ -1,0 +1,52 @@
+/*
+  Yasal metin sayfaları — `static/css/site.css` dosyasının SONUNA eklenir.
+  Değişken adları CC'nin site.css'inden geliyor; bulunamazsa yedek değer var.
+*/
+
+.yasal{max-width:760px;margin:0 auto;padding:8px 0 40px;line-height:1.7}
+.yasal h1{font-family:Fraunces,Georgia,serif;font-size:30px;margin:0 0 4px}
+.yasal h2{font-family:Fraunces,Georgia,serif;font-size:21px;margin:30px 0 8px;
+          padding-top:18px;border-top:1px solid var(--line,#E3DDCD)}
+.yasal h3{font-size:17px;margin:18px 0 6px}
+.yasal p,.yasal li{font-size:16px}
+.yasal ul,.yasal ol{padding-left:22px}
+.yasal li{margin-bottom:6px}
+.yasal .tarih{color:var(--ink2,#5B675A);font-size:15px;margin:0 0 8px}
+.yasal .dipnot{color:var(--ink2,#5B675A);font-size:15px;margin-top:28px;
+               padding-top:14px;border-top:1px solid var(--line,#E3DDCD)}
+
+/* Önemli başlık — provizyon maddesi gibi, atlanmaması gereken yerler */
+.yasal h2.onemli{border-top-color:var(--harman,#D98A2B);color:var(--harman,#D98A2B)}
+
+.yasal table.bilgi{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
+.yasal table.bilgi th,.yasal table.bilgi td{border:1px solid var(--line,#E3DDCD);
+                                            padding:9px 12px;text-align:left;vertical-align:top}
+.yasal table.bilgi th{background:var(--krem,#F6F3EA);font-weight:700;width:34%}
+.yasal table.bilgi tr:first-child th{width:auto}
+.yasal table.urunler th{width:auto}
+.yasal table.urunler td:not(:first-child),
+.yasal table.urunler th:not(:first-child){text-align:right;white-space:nowrap}
+.yasal table.urunler tr.toplam{font-weight:700;background:var(--krem,#F6F3EA)}
+
+.yasal .uyari-kutu{background:#FDF3E6;border:1px solid #F0D9B6;border-radius:12px;
+                   padding:14px 18px;margin:14px 0}
+.yasal .ornek-kutu{background:#F2F7EF;border:1px solid #D4E4CB;border-radius:12px;
+                   padding:14px 18px;margin:14px 0}
+.yasal ol.adimlar{counter-reset:a;list-style:none;padding-left:0}
+.yasal ol.adimlar>li{counter-increment:a;position:relative;padding-left:40px;margin-bottom:12px}
+.yasal ol.adimlar>li::before{content:counter(a);position:absolute;left:0;top:1px;
+  width:28px;height:28px;border-radius:50%;background:var(--yesil,#1F5132);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}
+
+/*
+  Doldurulmamış resmî bilgi. Turuncu ve altı çizgili — sayfada gözden kaçmaz.
+  Şirket bilgileri gelince hepsi değiştirilecek; sitede tek bir `xxx` kalmamalı.
+*/
+.yasal .xxx{background:#FDF3E6;color:#B23A24;font-weight:700;padding:0 5px;
+            border-radius:4px;border-bottom:2px dashed #B23A24}
+
+@media (max-width:560px){
+  .yasal h1{font-size:25px}
+  .yasal table.bilgi th{width:40%}
+  .yasal table.bilgi th,.yasal table.bilgi td{padding:7px 9px;font-size:15px}
+}

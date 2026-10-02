@@ -1,0 +1,86 @@
+{% comment %}
+  İptal ve İade Koşulları — `templates/yasal/iade.html`
+
+  Hukuki metin değil, müşterinin arayıp bulduğu sade sayfa. Bağlayıcı hükümler
+  Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi'nde; bu sayfa onlara
+  yönlendiriyor. Alt bilgide "İptal ve İade" diye görünecek.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}İptal ve İade{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>İptal ve İade</h1>
+<p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+
+<h2>Siparişimi iptal edebilir miyim?</h2>
+<p>
+  <b>Kesim saatine kadar evet.</b> Siparişlerim sayfanızdan tek düğmeyle iptal
+  edebilirsiniz; bloke edilen tutar serbest bırakılır, kartınızdan para çekilmez.
+</p>
+<p>
+  Kesim saatinden sonra iptal edilemez. Sebebi şu: Bostanhane ürünü depoda
+  bekletmiyor. Kesim saatinde o günün bütün siparişleri toplanıyor ve ertesi
+  sabah <b>yalnızca satılmış kadar</b> ürün alınıyor. Siz siparişi verdiğiniz
+  için o ürün sizin adınıza alınmış oluyor.
+</p>
+
+<h2>Ürün bulunamazsa ne oluyor?</h2>
+<p>
+  O gün pazardan bulamadığımız bir ürün olursa siparişinizden çıkarılır ve
+  <b>bedeli tahsil edilmez</b>. Siparişlerim sayfanızda hangi ürünün çıkarıldığını
+  ve ne kadar düşüldüğünü görürsünüz. Bulunamayan ürünün yerine size sormadan
+  başka bir ürün koymayız.
+</p>
+
+<h2>Tartı farkı nasıl işliyor?</h2>
+<p>
+  Tartılı üründe sipariş anında kartınızdan para çekilmez, bir tutar bloke edilir.
+  Ürünler tartıldıktan sonra <b>yalnızca kesin tutar</b> çekilir, fazlası serbest
+  kalır. 1,5 kg domates istediniz, tartıda 1,43 kg çıktı — 1,43 kg'ın parasını
+  ödersiniz.
+</p>
+
+<h2>Ürün bozuk çıktıysa?</h2>
+<p>
+  Teslim gününden itibaren <b>24 saat içinde</b> siparişlerim sayfanızdan
+  fotoğraf yükleyerek bildirin. İnceleyip haklı bulursak o ürünün bedelini iade
+  eder veya bir sonraki siparişinizde düşeriz. Ürünü geri göndermenize gerek yok.
+</p>
+
+<h2>14 günlük cayma hakkı taze üründe neden yok?</h2>
+<p>
+  Mesafeli satışta 14 gün içinde sebepsiz cayma hakkı vardır, ama kanun
+  <b>çabuk bozulabilen</b> ürünleri bu hakkın dışında tutar
+  (Mesafeli Sözleşmeler Yönetmeliği m.15/1-ç). Domatesi 10 gün sonra iade etmek
+  kimse için anlamlı olmadığından kanun koyucu bu istisnayı getirmiştir.
+  Bu bizim koyduğumuz bir kural değil.
+</p>
+<p>
+  <b>Bal, bakliyat, reçel, kuruyemiş gibi bozulmayan ürünlerde 14 günlük cayma
+  hakkınız vardır</b> — ambalajı açılmamış olmak kaydıyla.
+  Ayrıntılar: <a href="{% url 'yasal_on_bilgilendirme' %}#cayma">Ön Bilgilendirme
+  Formu, madde 8</a>.
+</p>
+
+<h2>Param ne zaman geri gelir?</h2>
+<p>
+  İade işlemini biz aynı gün başlatırız. Kartınıza yansıma süresi bankanıza
+  bağlıdır; genellikle birkaç iş günü sürer, bu süre bizim elimizde değildir.
+</p>
+
+<h2>Nasıl ulaşırım?</h2>
+<table class="bilgi">
+  <tr><th>Telefon</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>E-posta</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Adres</th><td><span class="xxx">xxx</span></td></tr>
+</table>
+
+<p class="dipnot">
+  Bu sayfa kolay okunsun diye sadeleştirilmiştir. Bağlayıcı hükümler
+  <a href="{% url 'yasal_on_bilgilendirme' %}">Ön Bilgilendirme Formu</a> ve
+  <a href="{% url 'yasal_mesafeli_satis' %}">Mesafeli Satış Sözleşmesi</a>'ndedir.
+</p>
+
+</article>
+{% endblock %}

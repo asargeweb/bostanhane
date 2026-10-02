@@ -1,0 +1,187 @@
+{% comment %}
+  Ön Bilgilendirme Formu — `templates/yasal/on_bilgilendirme.html`
+
+  Mesafeli Sözleşmeler Yönetmeliği m.5 uyarınca, sözleşme kurulmadan ÖNCE
+  gösterilmesi zorunlu. Sepet onay ekranında "Ön Bilgilendirme Formu'nu okudum"
+  kutusunun bağlantısı buraya gider.
+
+  Bostanhane'ye özgü en kritik bölüm: PROVİZYON. Tartılı üründe bloke edilen
+  tutar ile çekilen tutarın farklı olması, açıklanmazsa en çok şikâyet ve
+  kart itirazı doğuracak nokta. O yüzden kendi başlığı var ve sayılarla anlatılıyor.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}Ön Bilgilendirme Formu{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>Ön Bilgilendirme Formu</h1>
+<p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+
+<p>
+  Bu form, 6502 sayılı Tüketicinin Korunması Hakkında Kanun ve Mesafeli
+  Sözleşmeler Yönetmeliği uyarınca, siparişinizi onaylamadan önce bilmeniz
+  gerekenleri anlatır.
+</p>
+
+<h2>1. Satıcı</h2>
+<table class="bilgi">
+  <tr><th>Unvan</th><td><span class="xxx">xxx</span> Ltd. Şti.</td></tr>
+  <tr><th>MERSİS numarası</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Vergi dairesi / numarası</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Adres</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Telefon</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>E-posta</th><td><span class="xxx">xxx</span></td></tr>
+</table>
+
+<h2>2. Alıcı ve teslimat</h2>
+<p>
+  Alıcının adı, teslimat adresi ve iletişim bilgileri sipariş sırasında
+  seçtiğiniz adres kaydından alınır ve sipariş özetinizde görünür.
+  Teslimatı sizin adınıza başka biri teslim alacaksa, o kişinin adını ve
+  telefonunu adres kaydına yazabilirsiniz.
+</p>
+
+<h2>3. Ürünün temel nitelikleri ve fiyat</h2>
+<p>
+  Sipariş ettiğiniz ürünlerin adı, miktarı, birim fiyatı ve toplam tutarı
+  sepet ekranında ve sipariş özetinde ayrı ayrı gösterilir. Fiyatlara KDV
+  dâhildir. Fiyatlar siparişi verdiğiniz anda <b>dondurulur</b>; sonradan
+  fiyat değişse bile siparişiniz verdiğiniz andaki fiyatlarla işlenir.
+</p>
+
+<h2 class="onemli">4. Tartılı ürünler ve provizyon — lütfen okuyun</h2>
+<p>
+  Bostanhane taze ürün satar. Domates, biber, elma gibi ürünler <b>tartıyla</b>
+  satılır ve tam olarak istediğiniz gramajda çıkmaz. Bu yüzden ödeme şu şekilde
+  işler:
+</p>
+<ol class="adimlar">
+  <li>
+    <b>Sipariş verdiğinizde</b> kartınızdan para çekilmez; tahmini tutarın üzerine
+    küçük bir pay eklenerek bir tutar <b>bloke edilir</b> (provizyon). Bloke
+    edilen tutar sipariş özetinizde açıkça yazar.
+  </li>
+  <li>
+    <b>Teslimat günü ürünler tartılır</b> ve siparişinizin kesin tutarı belirlenir.
+  </li>
+  <li>
+    <b>Kartınızdan yalnızca kesin tutar çekilir.</b> Bloke edilen fazla kısım
+    serbest bırakılır.
+  </li>
+</ol>
+<p class="ornek-kutu">
+  <b>Örnek:</b> 1,5 kg domates sipariş ettiniz, kilosu 32,90 ₺. Tahmini tutar
+  49,35 ₺, bloke edilen tutar 54,29 ₺ olur. Tartıda 1,43 kg çıktı: kesin tutar
+  47,05 ₺'dir ve kartınızdan <b>47,05 ₺</b> çekilir. Aradaki fark kartınızda
+  serbest kalır.
+</p>
+<p>
+  Bloke edilen tutarın kartınızda serbest kalma süresi bankanıza göre değişir;
+  genellikle birkaç iş günü içinde hesabınıza yansır. Bu süre bankanızın
+  uygulamasıdır, bizim elimizde değildir.
+</p>
+
+<h2>5. Bulunamayan veya eksik ürün</h2>
+<p>
+  Pazardan o gün bulamadığımız bir ürün olursa siparişinizden <b>çıkarılır</b>
+  ve bedeli tahsil edilmez. Siparişlerim sayfanızda hangi ürünün çıkarıldığını
+  ve ne kadar düşüldüğünü görürsünüz. Bulunamayan ürünün yerine başka bir ürün
+  koymayız; onayınız olmadan siparişinizi değiştirmiyoruz.
+</p>
+
+<h2>6. Teslimat</h2>
+<ul>
+  <li>
+    Teslimat, mahallenizin <b>teslim gününde</b> ve kendi kuryemizle yapılır.
+    Teslim günleri ana sayfada ve sipariş ekranında gösterilir.
+  </li>
+  <li>
+    <b>Kesim saati:</b> Her teslim günü için, teslimattan bir gün önce bir kesim
+    saati vardır (varsayılan 18.00). Kesim saatine kadar verilen siparişler o güne
+    yetişir. Kesim saatinden sonra sipariş değiştirilemez ve iptal edilemez,
+    çünkü ürünler o siparişe göre satın alınır.
+  </li>
+  <li>
+    Teslimat ücreti ve ücretsiz teslimat eşiği sepet ekranında gösterilir.
+  </li>
+  <li>
+    Kargo ile gönderime uygun ürünlerde teslimat kargo firması aracılığıyla
+    yapılır; bu ürünler için kesim saati uygulanmaz.
+  </li>
+  <li>
+    Teslim sırasında adreste bulunamazsanız kurye sizi telefonla arar. Ulaşılamazsa
+    siparişiniz mağazaya döner ve sizinle iletişime geçeriz.
+  </li>
+</ul>
+
+<h2>7. Ödeme</h2>
+<p>
+  Ödeme yalnızca <b>kredi/banka kartı ile, sanal POS üzerinden</b> alınır.
+  <b>Kapıda ödeme yoktur.</b> Kart bilgileriniz Bostanhane'de saklanmaz; ödeme
+  kuruluşu <span class="xxx">xxx</span> tarafından işlenir.
+</p>
+
+<h2 id="cayma">8. Cayma hakkı</h2>
+<p>
+  Mesafeli satışlarda tüketicinin, malı teslim aldığı tarihten itibaren
+  <b>14 gün</b> içinde hiçbir gerekçe göstermeden sözleşmeden cayma hakkı vardır.
+  Ancak Mesafeli Sözleşmeler Yönetmeliği'nin 15. maddesi bazı ürünleri bu hakkın
+  dışında bırakır.
+</p>
+<p class="uyari-kutu">
+  <b>Taze ürünlerde cayma hakkı yoktur.</b> Meyve, sebze, yeşillik, süt ürünleri
+  ve benzeri <b>çabuk bozulabilen veya son kullanma tarihi geçebilecek</b> ürünler
+  Yönetmelik m.15/1-(ç) uyarınca cayma hakkının istisnasıdır. Bu, Bostanhane'nin
+  koyduğu bir kural değil, kanunun belirlediği bir istisnadır.
+</p>
+<p>
+  Cayma hakkı <b>kullanılabilecek</b> ürünler: ambalajı açılmamış, bozulmayan
+  kuru gıda ve yöresel ürünler (bal, bakliyat, reçel, kuruyemiş gibi).
+  Bu ürünlerde ambalaj açılmışsa, sağlık ve hijyen açısından iadesi uygun
+  olmayan ürünler bakımından cayma hakkı kullanılamaz (m.15/1-(d)).
+</p>
+<p>
+  Cayma hakkınızı kullanmak için 14 gün içinde
+  <b><span class="xxx">xxx</span></b> adresine yazılı olarak veya
+  <b><span class="xxx">xxx</span></b> e-posta adresine bildirim göndermeniz
+  yeterlidir. Bildiriminiz bize ulaştıktan sonra ödemeniz <b>14 gün</b> içinde
+  iade edilir. Ürünü, cayma bildiriminden itibaren 10 gün içinde bize geri
+  göndermeniz gerekir; iade kargo bedeli <span class="xxx">xxx</span> tarafından
+  karşılanır.
+</p>
+
+<h2>9. Kusurlu ürün</h2>
+<p>
+  Cayma hakkı olmayan taze ürünlerde de haklarınız ortadan kalkmaz. Teslim
+  aldığınız üründe bozukluk, ezilme veya beklenenden düşük kalite varsa, teslim
+  gününden itibaren <b>24 saat içinde</b> siparişlerim sayfanızdan fotoğraflı
+  bildirim yapabilirsiniz. Bildiriminiz incelenir; haklı bulunması hâlinde ilgili
+  ürünün bedeli iade edilir veya bir sonraki siparişinizde mahsup edilir.
+  Bu, 6502 sayılı Kanun'un ayıplı mala ilişkin hükümlerinden doğan haklarınıza
+  ek bir kolaylıktır, onların yerine geçmez.
+</p>
+
+<h2>10. Teslim onayı</h2>
+<p>
+  Teslimattan sonra siparişlerim sayfanızda "eksiksiz teslim aldım" onayı
+  verebilirsiniz. Onay vermezseniz, teslimden <b>24 saat</b> sonra sipariş
+  otomatik olarak onaylanmış sayılır. Bu otomatik onay, yukarıdaki kusurlu ürün
+  bildirimi ve kanundan doğan haklarınızı ortadan kaldırmaz.
+</p>
+
+<h2>11. Şikâyet ve itiraz</h2>
+<p>
+  Uyuşmazlık hâlinde, parasal sınırlara göre bulunduğunuz yerdeki
+  <b>Tüketici Hakem Heyeti</b>'ne veya <b>Tüketici Mahkemesi</b>'ne
+  başvurabilirsiniz. Parasal sınırlar her yıl Ticaret Bakanlığı tarafından
+  güncellenir ve bakanlığın internet sitesinde yayımlanır.
+</p>
+
+<p class="dipnot">
+  Bu form <a href="{% url 'yasal_mesafeli_satis' %}">Mesafeli Satış Sözleşmesi</a>
+  ile birlikte okunur. Siparişinizi onayladığınızda her ikisini de okuduğunuzu
+  ve kabul ettiğinizi beyan etmiş olursunuz.
+</p>
+
+</article>
+{% endblock %}

@@ -17,6 +17,275 @@
 
 ---
 
+## 2 Ekim 2026 (3) — Yasal metinler hazır
+
+Altı sayfa yazdım, `hazir/` içinde. Hepsi `{% extends "taban.html" %}` ile senin taban
+şablonunu kullanıyor; içerik bloğunun adı `icerik`, farklıysa düzelt.
+
+| Dosya | Sayfa | Adres adı (`name=`) | Nerede gösterilecek |
+|---|---|---|---|
+| `yasal_aydinlatma.html` | KVKK Aydınlatma Metni | `yasal_aydinlatma` | Kayıt ekranı, KVKK kutusunun bağlantısı |
+| `yasal_kullanim.html` | Üyelik ve Kullanım Koşulları | `yasal_kullanim` | Kayıt ekranı, üyelik kutusunun bağlantısı |
+| `yasal_gizlilik.html` | Gizlilik ve Çerez Politikası | `yasal_gizlilik` | Alt bilgi |
+| `yasal_on_bilgilendirme.html` | Ön Bilgilendirme Formu | `yasal_on_bilgilendirme` | **Sepet onay ekranı**, birinci kutu |
+| `yasal_mesafeli_satis.html` | Mesafeli Satış Sözleşmesi | `yasal_mesafeli_satis` | **Sepet onay ekranı**, ikinci kutu |
+| `yasal_iade.html` | İptal ve İade | `yasal_iade` | Alt bilgi |
+
+`yasal.css` → `static/css/site.css` dosyasının **sonuna** eklenecek (üzerine yazma).
+
+```powershell
+New-Item -ItemType Directory -Force templates\yasal | Out-Null
+Copy-Item hazir\yasal_aydinlatma.html       templates\yasal\aydinlatma.html       -Force
+Copy-Item hazir\yasal_kullanim.html         templates\yasal\kullanim.html         -Force
+Copy-Item hazir\yasal_gizlilik.html         templates\yasal\gizlilik.html         -Force
+Copy-Item hazir\yasal_on_bilgilendirme.html templates\yasal\on_bilgilendirme.html -Force
+Copy-Item hazir\yasal_mesafeli_satis.html   templates\yasal\mesafeli_satis.html   -Force
+Copy-Item hazir\yasal_iade.html             templates\yasal\iade.html             -Force
+```
+
+Görünümler basit (`TemplateView` yeter), `core/urls.py` ya da `bostanhane/urls.py`'ye
+yukarıdaki `name` değerleriyle ekle. Hepsi **girişsiz açılabilmeli** — `vitrin_gerekli`
+sarmalını koyma; sözleşmeyi okumak için üye olmak gerekmez.
+
+### Bostanhane'ye özgü noktalar — bunları değiştirme
+
+- **Provizyon maddesi** (Ön Bilgilendirme m.4) sayı sayı anlatılıyor: 1,5 kg domates →
+  bloke 54,29 ₺ → tartıda 1,43 kg → çekilen 47,05 ₺. Müşteri kartında bloke görüp
+  bankayı arayınca ortaya çıkacak soru bu; metin önden cevaplıyor. Kısaltma.
+- **Taze üründe cayma hakkı yok** — Mesafeli Sözleşmeler Yönetmeliği m.15/1-(ç),
+  çabuk bozulan mallar istisnası. Bal, bakliyat gibi dayanıklı üründe **var**.
+  Kargo kanalı açılınca bu ayrım işleyecek.
+- **Kesim saatinden sonra iptal yok** ve sebebi yazılı: ürün o sipariş için alınıyor.
+- Yurt dışına veri aktarımı maddesi var — sunucu yurt dışındaysa (Railway ABD'de)
+  KVKK m.9 gereği yazılması zorunlu. Ülke `xxx` bıraktım.
+
+### Mesafeli Satış Sözleşmesi iki biçimde çalışıyor
+
+Şablon `siparis` değişkenini kontrol ediyor:
+
+- **Boş hâli** (`/mesafeli-satis-sozlesmesi/`) — herkes okur, genel ifadeler.
+- **Dolu hâli** — görünüme `siparis` gönderirsen madde 1 ve 3 gerçek sipariş
+  bilgileriyle (alıcı, ürün satırları, tutarlar) dolar.
+
+Siparişlerim detay sayfasına *"Bu siparişin sözleşmesi"* bağlantısı ekle; dolu hâli
+göstersin. Sebebi hukuki: müşteri hangi sözleşmeyi kabul ettiğini sonradan görebilmeli.
+
+`{{ ...|para }}` filtresini kullanıyor, sende var.
+
+### `xxx` koruması — bunu mutlaka yap
+
+Metinlerde resmî bilgiler `<span class="xxx">xxx</span>` olarak duruyor; sayfada kırmızı
+ve altı çizgili görünüyor, gözden kaçmaz. Ersin şirket bilgilerini verince hepsi tek
+seferde doldurulacak.
+
+**Buna bir de kod koruması ekle.** `bostanhane/checks.py` içindeki `W001` deseninin aynısı:
+
+```python
+# bostanhane.W002 — DEBUG=False iken yasal metinlerde doldurulmamış xxx varsa uyar
+```
+
+`templates/yasal/*.html` dosyalarını okusun, `class="xxx"` geçiyorsa uyarı versin.
+Gerekçe: şirket bilgileri olmadan canlıya çıkarsak sözleşme hükümsüz, KVKK aydınlatması
+eksik olur. İnsan hafızasına güvenmeyelim.
+
+### Bir de şunu düşünelim (şimdi yapma, karar gerekiyor)
+
+Sözleşme metni değişirse, müşterinin **hangi sürümü kabul ettiği** kanıtlanabilmeli.
+Şu an metinler şablonda sabit; yarın bir maddeyi değiştirince dünkü siparişin hangi
+metne dayandığını gösteremeyiz.
+
+Çözüm bir `YasalMetin` modeli (ad, sürüm, içerik, yürürlük tarihi) ve `Siparis`'te
+kabul edilen sürümün numarası. Ama bugün gerçek satış yok, vitrin test modunda —
+acil değil. **Sanal POS açılmadan önce** yapılacak işler listesine koyuyorum, Ersin'e
+de söyledim. Sen şimdi sabit şablonlarla devam et.
+
+### Raporda görmek istediklerim
+
+- `okuduğum talimat: 2 Ekim (3)` satırı
+- Altı sayfanın da **girişsiz** açıldığı
+- Kayıt ve sepet onay ekranındaki kutuların doğru sayfalara bağlandığı
+- Siparişlerim detayından açılan sözleşmenin sipariş bilgileriyle **dolu** geldiği
+- `bostanhane.W002` uyarısının çalıştığı (`DEBUG=False` ile `manage.py check` çıktısı)
+- Telefon genişliğinde tabloların taşmadığı
+
+### Bunları yapma
+
+- Yasal metinlerin **içeriğini değiştirme.** Dizgi hatası görürsen rapora yaz, ben düzeltirim.
+  Bu metinler avukat onayına gidecek; ikimizin ayrı ayrı düzenlemesi sürümü karıştırır.
+- `xxx` yerlerini tahminle doldurma.
+- Canlıda `vitrin_modu = acik` yapma — metinler hazır ama şirket bilgileri ve POS yok.
+
+---
+
+---
+
+## 2 Ekim 2026 (2) — Alım listesi ekranı geldi; ilgi kaydı modeli düzeldi
+
+Raporunu okudum. Paketleme ekranı iyi çıkmış — özellikle **kesilmemiş günde toplamayı
+açmaman** doğru karar: yarım toplanmış sipariş değişirse tartım boşa giderdi, bunu
+talimatta tek cümleyle geçmiştim, sen gerekçesini de yazmışsın.
+
+Erken kesimi yöneticiye bağlaman da benim yazmadığım bir ayrım, ama doğru: kapasite
+doldu diye günü erken kapatmak ticari karar, paketleme elemanının işi değil.
+
+---
+
+### 1. Alım listesi — hazır, bir tasarım hatamı düzelttim
+
+**Talimatta `/depo/alim/<takvim>/` yazmıştım, yanlıştı.** `TeslimTakvimi` bir mahallenin
+bir günü. Ama hale **günde bir kez** gidiliyor; o gün Avşar ve Evsat'a teslimat varsa
+ikisinin talebi tek sepette toplanmalı. Mahalle başına liste, mahalle başına hal
+yolculuğu demek olurdu. `alim_listesi()` işlevi de zaten tarih alıyor.
+
+Adres tarihe bağlandı:
+
+```powershell
+Copy-Item hazir\depo_alim.py   depo\alim.py            -Force
+Copy-Item hazir\depo_alim.html templates\depo\alim.html -Force
+```
+
+`static/css/depo.css` dosyasının **sonuna** `hazir/depo_alim.css` içeriğini ekle
+(üzerine yazma — senin stillerin duruyor, bu ek bölüm).
+
+`depo/urls.py`'ye iki satır:
+
+```python
+from . import alim as alim_gorunumleri
+...
+    path("depo/alim/<str:tarih>/", alim_gorunumleri.alim, name="depo_alim"),
+    path("depo/alim/takvim/<int:pk>/", alim_gorunumleri.alim_takvimden, name="depo_alim_takvim"),
+```
+
+`depo/views.py`'ye dokunmadım; ekran ayrı dosyada (`depo/alim.py`), senin
+`depo_gerekli` sarmalını kullanıyor.
+
+**Bağlantı ekle** — ekran kurulduğunda ona giden yol olmalı:
+- `depo/gunler.html` → her tarih başlığının yanına *"Alım listesi"*
+  (`{% url 'depo_alim' tarih|date:'Y-m-d' %}`)
+- `depo/gun.html` → kesildiyse *"Günün alım listesi"*
+  (`{% url 'depo_alim_takvim' takvim.pk %}` — takvimden tarihe kendi yönlendiriyor)
+
+**Ne yapıyor:**
+
+| | |
+|---|---|
+| Gruplama | Kategoriye göre — haldeki yürüyüş sırası bu. Alfabetik liste mağazayı hal içinde ileri geri yürütürdü |
+| Miktar | Sayfanın en büyük yazısı; `12,5 kg`, `1.234 adet`. Kilogramı grama çevirmiyorum — tezgâhta konuşulan birim kilogram |
+| Deneme siparişleri | Listeye **girmiyor**, ama "1 deneme siparişi dahil edilmedi" diye yazıyor ki eksik sanılmasın |
+| Kesilmemiş gün | Turuncu uyarı: "Bu liste henüz kesin değil, {n} mahallenin kesimi yapılmadı" + ilk kesim saati |
+| Tartılı ürün | "tartılacak" rozeti + altta not: *"Hale biraz fazlasıyla gidin"* |
+| İşaretleme | Satıra dokununca üstü çizilir. **localStorage**'da, sunucuya gitmiyor — alım kaydı değil, kişinin kendi işareti |
+| Yazdır | `@media print` var: üst şerit, düğmeler ve bilgi kutuları kâğıda gitmiyor |
+| Gezinme | Önceki/sonraki gün düğmeleri |
+
+**Denediklerim (sandbox, hepsi geçti):** sayfa 200 · kategori gruplaması · miktar biçimi
+(`2 kg`, `1,5 kg`, `2 kavanoz`, `1.234 adet`) · deneme siparişi sayılmıyor (2 sipariş
+verdim, listede 1 göründü) · iptal edilen sipariş listeden düşüyor · kesimden sonra
+uyarı kalkıyor · takvim adresi tarihe yönlendiriyor · **üye giremiyor** · bozuk tarih ve
+teslimatı olmayan gün 404. Ayrıca 820 px ve 390 px'te ekran görüntüsüne baktım, taşma yok;
+telefonda miktar ürün adının içine giriyordu, dar ekranda alta aldım.
+
+---
+
+### 2. `IlgiKaydi` — önerin doğruydu, modeli düzelttim
+
+Haklıydın: `eposta` zorunluydu ama sen boş kaydediyordun (veritabanı kabul eder, panel
+formu etmez) ve `__str__` e-postaya bağlıydı. "Yenişehir, Meram/Konya"yı tek metin alanına
+sıkıştırman da mecburiyettendi.
+
+```powershell
+Copy-Item hazir\core_models.py core\models.py -Force
+python manage.py makemigrations core
+python manage.py migrate
+```
+
+Beklenen: `core/migrations/0005_…` — `uye` ve `ilce` eklenir, `eposta` artık boş olabilir.
+(Yerelde 0004 çıktı; sende numara farklı olabilir, önemli değil.)
+
+Değişenler:
+
+- `eposta` → `blank=True`. Zorunlu tutarsak adres ekranından gelen kayıt hiç yazılamaz.
+- `uye` → FK, boş olabilir. Ziyaretçide boş, üyeden gelende dolu.
+- `ilce` → FK. **Listeyi ilçeye göre süzeceğiz** — "nereye talep var" sorusunun cevabı bu.
+- `clean()` → e-posta, telefon ve üye'nin **üçü birden boşsa** reddediyor. Ulaşılamayan
+  kayıt listeyi kalabalıklaştırır.
+- `kime_ulasilir` ve `yer` özellikleri: `__str__` artık e-posta yoksa telefona, o da yoksa
+  üyeye düşüyor.
+
+**Senden:**
+
+1. `hesaplar` içindeki `haber-ver` görünümünü güncelle: `mahalle_adi`'na yalnızca kişinin
+   yazdığı mahalle adı gitsin; ilçe `ilce=` alanına, kullanıcı `uye=` alanına.
+   `get_or_create` anahtarın da `(uye, ilce, mahalle_adi)` olsun.
+2. `core/admin.py` → `IlgiKaydiAdmin`: sütunlara `ilce` ve `uye`, yan süzgece `ilce`.
+   Dosya sende, `hazir/` eşine de uygula.
+
+---
+
+### 3. Sıradaki iş — kurye ekranı (Adım 6b)
+
+Paketleme bitti, mal hazır. Sırada kapıya çıkması var. Telefon için, tek elle:
+
+| Adres | Ne |
+|---|---|
+| `/kurye/` | Bugün kendisine düşen teslimatlar; mahalle başına kaç paket |
+| `/kurye/rota/<takvim>/` | **Güzergâh sırasıyla** sipariş listesi — `hizmet_mahallesi.sira` zaten bu iş için |
+| `/kurye/teslim/<numara>/` | Ad, telefon, adres, tarif, harita bağlantısı, tutar; **Teslim ettim** / **Ulaşılamadı** |
+
+- Erişim: `Rol.KURYE` + mağaza yöneticisi + süper admin. Kurye `/yonetim/`'e giremez.
+- Yalnızca `HAZIRLANIYOR` ve `YOLDA` durumundaki siparişler. `KESILDI` olan henüz toplanmamış.
+- **Teslim ettim** → `siparis.teslim_edildi_isaretle()`. Kendi alan yazma, o işlev
+  `teslim_zamani`'nı ve durumu birlikte ayarlıyor.
+- **Ulaşılamadı** → durum `YOLDA` kalsın, `ic_not`'a saat ve "ulaşılamadı" yazılsın.
+  Yeni durum **ekleme** — iade/yeniden deneme akışına karar vermedik.
+- Tutar ekranda **görünsün** ama ödeme yok: kapıda ödeme almıyoruz, kart önceden çekiliyor.
+  Kurye tutarı yalnızca müşteri sorarsa söylesin diye görüyor.
+- Adres tarifi ve telefon büyük yazılsın; telefon numarası `tel:` bağlantısı olsun,
+  adres `https://www.google.com/maps/search/?api=1&query=<enlem>,<boylam>` — enlem/boylam
+  boşsa açık adresi arat.
+- Depo ekranının `taban.html` ve `depo.css`'ini örnek al ama **ayrı** kur
+  (`templates/kurye/`, `static/css/kurye.css`): depo tablet, kurye telefon.
+
+---
+
+### 4. Durum
+
+**Bitti ve canlıda:** coğrafya · hizmet alanı · hesaplar · katalog (birim, fiyat, stok defteri) ·
+satış ayarları + vitrin modu · sipariş motoru ve paneli · üyelik · vitrin · sepet · siparişlerim.
+
+**Bitti, canlıya gidecek:** paketleme ekranı · alım listesi · ilgi kaydı düzeltmesi.
+
+**Şu anda:** kurye ekranı (sende) · yasal metinler (bende, şirket bilgisi bekliyor).
+
+**Sonra:** sanal POS · kargo kanalı · kampanya · abonelik · mobil uygulama.
+
+**Bekleyen kararlar:** Beyşehir gün gruplaması (Ersin'de) · ödeme sağlayıcısı · Cloudflare R2 anahtarları.
+
+---
+
+### 5. Raporda görmek istediklerim
+
+- `okuduğum talimat: 2 Ekim (2)` satırı
+- Alım listesinin açıldığı ve gün sayfalarından bağlantının göründüğü
+- `core` migration'ının temiz geçtiği, ilgi kaydının `ilce` ve `uye` ile yazıldığı
+- Kurye ekranında bir siparişin teslim edildiği ve durumunun değiştiği
+- "Ulaşılamadı" sonrası siparişin **kaybolmadığı** (hâlâ listede, not düşülmüş)
+
+---
+
+### 6. Bunları yapma
+
+- `depo/alim.py` ve `templates/depo/alim.html` — bende. Hata bulursan rapora yaz.
+- Sepet/sipariş modeline dokunma.
+- Yeni `Siparis.Durum` ekleme — iade akışı konuşulmadı.
+- Yasal metin yazma — bende, Ersin şirket bilgilerini veriyor.
+- Canlıda `ornek_veri --rotalari_esitle` — Ersin'in gün gruplaması bekleniyor.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 2 Ekim 2026 (1) — Kayıp talimat benim hatam; para biçimi düzeltildi
 
 ### Önce: haklısın, hata bende
@@ -176,7 +445,7 @@ yazıp `hazir/` içine koyacağım. `/depo/alim/<takvim>/` adresini bana bırak,
 
 ---
 
-## Durum
+## Durum (2 Ekim (1) itibarıyla — güncel durum en üstteki talimatta)
 
 **Bitti:** coğrafya · hizmet alanı · hesaplar · katalog (birim, fiyat, stok defteri) ·
 satış ayarları + vitrin modu · sipariş motoru ve paneli · üyelik · vitrin · sepet ·

@@ -7,6 +7,10 @@
   {% if kesildi %}Kesildi — siparişler toplamaya açık.
   {% else %}Sipariş alınıyor. Kesim: <b>{{ takvim.kesim_zamani|date:"j F H.i" }}</b>.{% endif %}</p>
 
+{% if kesildi %}
+  <a class="btn ikincil blok" href="{% url 'depo_alim_takvim' takvim.pk %}" style="margin-bottom:16px">Günün alım listesi</a>
+{% endif %}
+
 {% if kesebilir %}
   <form method="post" action="{% url 'depo_gunu_kes' takvim.pk %}" style="margin-bottom:16px"
         onsubmit="return confirm('{% if kesim_gecti %}Gün kesilsin mi? Kesimden sonra müşteriler siparişi değiştiremez.{% else %}Kesim saati gelmedi. Erken kesilsin mi? Müşteriler artık sipariş veremez.{% endif %}')">

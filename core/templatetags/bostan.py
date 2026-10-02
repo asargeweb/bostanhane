@@ -69,3 +69,10 @@ def mutlak(deger):
     """-15.00 → 15.00 · "düşüldü" cümlesinde eksi işareti olmasın."""
     sayisal = _decimal(deger)
     return abs(sayisal) if sayisal is not None else deger
+
+
+@register.filter
+def telefon(deger):
+    """'5321112233' → '0532 111 22 33'. Biçim hesaplar.models'teki tek yardımcıdan."""
+    from hesaplar.models import telefon_okunur_yaz
+    return telefon_okunur_yaz(deger)

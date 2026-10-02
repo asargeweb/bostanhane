@@ -92,12 +92,6 @@ adim-*.md              ← adım adım kurulum ve geliştirme notları
 | `ilk_veri` | Coğrafyayı kontrol eder; veritabanı boşsa Beyşehir mağazasını da kurar |
 | `ornek_veri` | Mağaza, pilot hizmet mahalleleri, teslim günleri, 8 haftalık takvim |
 | `ornek_hesaplar` | Örnek personel ve üye (şifresiz — giriş yapamazlar) |
-| `urun_yukle` | `..\icerik\urunler.xlsx`'ten kategori ve ürünleri aktarır; `--kuru_prova` kaydetmeden gösterir. Panelden girilen fiyatı silmez |
-
-`ornek_veri --rotalari_esitle`: merkez mahallelerinde rotada olmayan teslim günlerini
-ve onların gelecekteki takvim kayıtlarını siler. Rotalar (`ROTA_GUNLERI`,
-`MERKEZ_ROTALARI`) değiştiğinde yerelde ve canlıda bir kez elle çalıştırılır.
-Procfile'a konmaz: panelden elle eklenen teslim günlerini silerdi.
 
 Canlı ortamda bu komutlar `Procfile` içinde her dağıtımda kendiliğinden çalışır.
 **Dikkat:** Railway'de web servisinin *Start Command* ayarı boş kalmalı; doluysa `Procfile`'ı
@@ -237,32 +231,48 @@ Yoksa Cowork'ün sonraki sürümü düzeltmenin üzerine yazar.
 
 ---
 
-## 9. Şu anki durum (30 Eylül 2026)
+## 9. Şu anki durum (2 Ekim 2026)
 
-**Yapıldı:** Marka adı ve logo kesinleşti, alan adı alındı (bostanhane.com), iş planı ve yol
-haritası yazıldı, ana sayfa ve teslim günü akışı tasarlandı, yatırımcı dokümanı hazırlandı,
-Instagram görselleri hazırlandı. Adım 1–2 tamam: `core` uygulaması, dört model, yönetim paneli,
-"yakında" sayfası, GitHub + Railway + bostanhane.com canlıda.
+**Canlıda çalışıyor** (bostanhane.com, Railway + PostgreSQL):
+`core` · `hesaplar` · `katalog` · `siparis` — ve müşteri tarafı: kayıt, giriş, hesabım,
+adreslerim, ürün vitrini, ürün sayfası, sepet, siparişlerim, sipariş iptali.
 
-**Şu anda:** Adım 3 (`hesaplar`) yerelde kuruldu. Adım 3B (`il/ilçe/mahalle`) dosyaları
-`hazir/` klasöründe, talimat `adim-3b-cografya.md`. İkisi birlikte canlıya gidecek;
-kullanıcı modeli ve mahalle tablosu değiştiği için veritabanı sıfırdan kuruluyor
-(sitede henüz gerçek kayıt yok, kayıp yok).
+**Vitrin `test` modunda.** Giriş yapmayan ziyaretçi "yakında" sayfasını görür; giriş yapan
+ürünleri görür ve **deneme siparişi** verebilir. Gerçek satışa geçmek için sanal POS ve
+yasal metinler gerekiyor — o zamana kadar `SatisAyarlari.vitrin_modu` test kalacak.
 
-**Sonraki adımlar:**
-1. Adım 4: `katalog` — kategori, ürün, birim, tartılı mı, kanal bayrakları, fiyat, stok
-   (önce Ersin'le ilk 30–40 ürün listesi ve hangilerinin kargoya uygun olduğu konuşulacak)
-2. Adım 5: `siparis` — sepet, sipariş, kesim işlemi, alım listesi
-3. Adım 6: üye girişi ve kayıt ekranları (SMS doğrulama), paketleme ve kurye ekranları
+**Yerelde bitti, canlıya gidecek:** paketleme (depo) ekranları, alım listesi,
+`IlgiKaydi` düzeltmesi.
+
+**Yazılıyor:** kurye ekranı (Claude Code) · yasal metinler (Cowork).
+
+### Kurulan veri modeli — kısa harita
+
+| Uygulama | Modeller |
+|---|---|
+| `core` | `Il` · `Ilce` · `Mahalle` · `Magaza` · `HizmetMahallesi` · `HaftalikTeslimGunu` · `TeslimTakvimi` · `SatisAyarlari` · `IlgiKaydi` |
+| `hesaplar` | `Kullanici` · `Adres` |
+| `katalog` | `Birim` · `Kategori` · `Urun` · `MagazaUrun` · `StokHareketi` |
+| `siparis` | `Sepet` · `SepetKalemi` · `Siparis` · `SiparisKalemi` + `alim_listesi()` · `gunu_kes()` |
+| `depo` | modeli yok — paketleme ve alım listesi ekranları |
+
+**Sipariş motorunun kuralları** (değiştirmeden önce sor):
+
+- Stok **sipariş onaylanınca** düşer, kesim saatinde değil. Kargo kanalında kesim yok.
+- Sipariş satırında ürün adı, birim ve fiyat **kopyalanır** (dondurma). Şablonda
+  `kalem.urun_adi` kullanılır, ürüne gidilmez.
+- Tartım `kalem.tartim_gir(miktar)` ile girilir; fark stok defterine `TARTI_FARKI` yazılır.
+  `miktar=0` → bulunamadı.
+- Alım listesi **saklanmaz**, her açılışta hesaplanır. Test siparişleri sayılmaz.
+- Para her yerde `core.araclar.para_yaz()` ile yazılır: `1.250,50 ₺`.
 
 **Bekleyen işler (Ersin tarafı):**
-- Apex alan adı: `bostanhane.com` → `https://www.bostanhane.com` yönlendirmesi
-  (Squarespace 301) ve SSL doğrulaması
-- @bostanhane.tr Instagram hesabının açılması
-- Sanal POS başvurusu (iyzico / PayTR): provizyon + sonradan çekim, kart saklama (token),
-  kısmi iade, provizyon geçerlilik süresi sorulacak
-- Kurumsal e-posta sağlayıcısı kararı
-- Pilot mahalleler ve teslim günlerinin kesinleşmesi, ilk 30–40 ürünün listesi
+- Beyşehir merkez mahallelerinin **doğru gün gruplaması** (canlıdaki düzen eski)
+- Şirket bilgileri (unvan, vergi no, MERSİS, adres) — yasal metinler için
+- Sanal POS başvurusu (iyzico / PayTR): provizyon + sonradan çekim, token, kısmi iade
+- Cloudflare R2 `bostanhane` kovası ve anahtarları
+- Panelden ürün fiyatlarının girilmesi
+- @bostanhane.tr Instagram hesabı · kurumsal e-posta · apex alan adı yönlendirmesi
 
-**Henüz karar verilmedi:** sunucu (Railway mi kendi sunucu mu), ödeme sağlayıcısı
-(iyzico / PayTR), kurumsal e-posta sağlayıcısı, tedarikçi rolünün sisteme girip girmeyeceği.
+**Henüz karar verilmedi:** ödeme sağlayıcısı, kurumsal e-posta sağlayıcısı, iade ve
+"ulaşılamadı" akışı, tedarikçi rolünün sisteme girip girmeyeceği, kargo için mahalle verisi.

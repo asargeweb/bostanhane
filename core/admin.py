@@ -222,9 +222,14 @@ class IlgiKaydiAdmin(admin.ModelAdmin):
     aksi halde her mağaza yöneticisi bütün şehirlerin e-postalarını görürdü.
     """
 
-    list_display = ("eposta", "mahalle_adi", "telefon", "olusturuldu", "haber_verildi")
-    list_filter = ("haber_verildi", "olusturuldu")
-    search_fields = ("eposta", "telefon", "mahalle_adi")
+    list_display = ("eposta", "telefon", "uye", "mahalle_adi", "ilce", "kaynak",
+                    "olusturuldu", "haber_verildi")
+    # İlçe süzgeci "nereye talep var" sorusunun cevabı: kargo ve yeni mağaza sırası buradan okunur.
+    list_filter = ("ilce", "haber_verildi", "olusturuldu")
+    search_fields = ("eposta", "telefon", "mahalle_adi", "uye__ad_soyad", "ilce__ad")
+    list_select_related = ("uye", "ilce__il")
+    autocomplete_fields = ("uye",)
+    raw_id_fields = ("ilce",)
     list_editable = ("haber_verildi",)
     date_hierarchy = "olusturuldu"
 

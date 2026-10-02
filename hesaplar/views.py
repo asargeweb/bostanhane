@@ -58,9 +58,9 @@ def giris(request):
         eski_anahtar = request.session.session_key
         login(request, form.kullanici)
         ziyaretci_sepetini_kat(request, eski_anahtar)
-        # Paketleme elemanı ve mağaza yöneticisi işe depo ekranından başlar.
-        depocu = form.kullanici.rol in (Rol.PAKETLEME, Rol.MAGAZA_YONETICISI)
-        return redirect(_sonraki(request, "depo" if depocu else "vitrin"))
+        # Personel işe kendi ekranından başlar: paketleme ve yönetici depodan, kurye rotadan.
+        ilk_ekran = {Rol.PAKETLEME: "depo", Rol.MAGAZA_YONETICISI: "depo", Rol.KURYE: "kurye"}
+        return redirect(_sonraki(request, ilk_ekran.get(form.kullanici.rol, "vitrin")))
     return render(request, "hesaplar/giris.html", {"form": form, "next": _sonraki(request, "")})
 
 
@@ -146,11 +146,11 @@ def adres_ilgi(request):
     if not mahalle_adi:
         messages.error(request, "Mahallenizin adını yazın.")
         return redirect(f"{reverse('adres_ekle')}?ilce={ilce.pk}")
-    # Model e-postayı ve kullanıcıyı ayrı tutmuyor; üyeyi telefonundan tanıyoruz.
+    # Aynı üye aynı yeri iki kez yazarsa liste çoğalmasın.
     IlgiKaydi.objects.get_or_create(
-        telefon=request.user.telefon,
-        mahalle_adi=f"{mahalle_adi}, {ilce.ad}/{ilce.il.ad}",
-        defaults={"eposta": request.user.eposta, "kaynak": "adres formu · kargo talebi"})
+        uye=request.user, ilce=ilce, mahalle_adi=mahalle_adi,
+        defaults={"eposta": request.user.eposta, "telefon": request.user.telefon,
+                  "kaynak": "adres formu · kargo talebi"})
     messages.success(request, "Teşekkürler, haber vereceğiz. Bölgenize gönderim açıldığında "
                               "ilk sizi arayacağız.")
     return redirect("adresler")

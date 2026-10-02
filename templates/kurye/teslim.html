@@ -1,0 +1,45 @@
+{% extends "kurye/taban.html" %}
+{% load bostan %}
+{% block baslik %}{{ siparis.teslim_ad_soyad }}{% endblock %}
+{% block icerik %}
+{% if siparis.teslim_takvimi %}<a class="geri" href="{% url 'kurye_rota' siparis.teslim_takvimi_id %}">‹ {{ siparis.teslim_mahalle }}</a>{% endif %}
+<h1>{{ siparis.teslim_ad_soyad }}</h1>
+<p class="alt-yazi">{{ siparis.numara }} · <b>{{ siparis.get_durum_display }}</b>
+  {% if siparis.test_siparisi %}<span class="rozet deneme">DENEME</span>{% endif %}</p>
+
+<div class="blok">
+  <div class="etiket">Telefon</div>
+  <a class="telefon" href="tel:+90{{ siparis.teslim_telefon }}">📞 {{ siparis.teslim_telefon|telefon }}</a>
+</div>
+
+<div class="blok">
+  <div class="etiket">Adres</div>
+  <div class="adres">{{ siparis.teslim_acik_adres }}<br>{{ siparis.teslim_mahalle }} Mahallesi, {{ siparis.teslim_ilce }}</div>
+  {% if siparis.teslim_tarif %}<div class="tarif">💬 {{ siparis.teslim_tarif }}</div>{% endif %}
+  <a class="btn ikincil" style="margin:12px 0 0" target="_blank" rel="noopener"
+     href="https://www.google.com/maps/search/?api=1&query={{ harita|urlencode }}">🗺 Haritada aç</a>
+</div>
+
+{% for not_satiri in ulasilamadi_notlari %}<div class="not">⚠ {{ not_satiri }}</div>{% endfor %}
+
+<div class="blok">
+  {# Kapıda ödeme yok, kart önceden çekiliyor. Tutar yalnızca müşteri sorarsa söylensin. #}
+  <div class="satir"><span>Tutar (kartından çekilecek)</span><b>{{ siparis.toplam|para }}</b></div>
+  <div class="satir" style="color:#4E5A4D;font-size:15px"><span>Kapıda ödeme alınmaz</span><span></span></div>
+  {% for kalem in eksikler %}<div class="not">{{ kalem.urun_adi }}: {% if kalem.bulunamadi_mi %}bulunamadı{% else %}eksik{% endif %} — müşteriye söyleyin</div>{% endfor %}
+</div>
+
+{% if teslim_edilebilir %}
+  <form method="post" action="{% url 'kurye_teslim_et' siparis.numara %}">
+    {% csrf_token %}
+    <button class="btn" type="submit">✓ Teslim ettim</button>
+  </form>
+  <form method="post" action="{% url 'kurye_ulasilamadi' siparis.numara %}"
+        onsubmit="return confirm('Ulaşılamadı olarak not düşülsün mü? Sipariş listede kalır.')">
+    {% csrf_token %}
+    <button class="btn uyari" type="submit">Ulaşılamadı</button>
+  </form>
+{% elif siparis.durum == 'teslim_edildi' %}
+  <div class="mesaj success">Teslim edildi · {{ siparis.teslim_zamani|date:"H.i" }}</div>
+{% endif %}
+{% endblock %}

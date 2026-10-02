@@ -1,0 +1,109 @@
+{% extends "depo/taban.html" %}
+{% comment %}
+  Alım listesi — `templates/depo/alim.html`.
+
+  Hale bu sayfayla gidiliyor. Tasarım kararları:
+  - Miktar en büyük yazı. Hal tezgâhında bakılan tek şey o.
+  - Satıra dokununca üstü çizilir ("aldım"). Tarayıcıda saklanıyor, sunucuya
+    gitmiyor: alım kaydı değil, kişinin kendi işaretlemesi. Telefon değişirse
+    kaybolur, önemli değil.
+  - Yazdır düğmesi var: hale telefonla değil kâğıtla giden olur.
+{% endcomment %}
+{% block baslik %}Alım listesi · {{ gun|date:"j F" }}{% endblock %}
+{% block icerik %}
+<a class="geri" href="{% url 'depo' %}">‹ Günler</a>
+
+<div class="alim-bas">
+  <div>
+    <h1>Alım listesi</h1>
+    <p class="alt">{{ gun|date:"j F Y, l" }} teslimatı için</p>
+  </div>
+  <button class="btn ikincil" type="button" onclick="window.print()">Yazdır</button>
+</div>
+
+<div class="alim-ozet">
+  <div><b>{{ siparis_adedi }}</b><span>sipariş</span></div>
+  <div><b>{{ kalem_sayisi }}</b><span>çeşit</span></div>
+  <div><b>{{ genel_toplam }}</b><span>tahmini maliyet</span></div>
+</div>
+
+<p class="mahalleler">
+  Teslimat:
+  {% for takvim in takvimler %}{{ takvim.hizmet_mahallesi.mahalle.ad }}{% if not forloop.last %} · {% endif %}{% endfor %}
+</p>
+
+{% if kesilmemis %}
+  <div class="mesaj warning">
+    <b>Bu liste henüz kesin değil.</b>
+    {{ kesilmemis|length }} mahallenin kesimi yapılmadı, müşteriler hâlâ ürün ekleyebilir.
+    {% if en_erken_kesim %}İlk kesim: <b>{{ en_erken_kesim|date:"j F H.i" }}</b>.{% endif %}
+    Hale gitmeden önce kesimin yapıldığından emin olun.
+  </div>
+{% endif %}
+
+{% if deneme_adedi %}
+  <div class="mesaj info">
+    {{ deneme_adedi }} deneme siparişi bu listeye <b>dahil edilmedi</b> — vitrin test modunda
+    verilmiş siparişler gerçek talep sayılmıyor.
+  </div>
+{% endif %}
+
+{% for kategori, kalemler in gruplar %}
+  <h2 class="tarih-bas">{{ kategori }}</h2>
+  <div class="liste alim">
+    {% for kalem in kalemler %}
+      <div class="satir alim-satir" data-anahtar="{{ kalem.anahtar }}">
+        <span class="kutu" aria-hidden="true"></span>
+        <div class="ana">
+          <b>{{ kalem.ad }}</b>
+          <div>
+            {{ kalem.siparis_sayisi }} siparişte · tahmini {{ kalem.tutar }}
+            {% if kalem.tartili %} · <span class="tarti">tartılacak</span>{% endif %}
+          </div>
+          {% if kalem.uyari %}<div class="uyari">{{ kalem.uyari }}</div>{% endif %}
+        </div>
+        <span class="alim-miktar">{{ kalem.miktar }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% empty %}
+  <div class="bos">
+    Bu güne sipariş yok, alınacak bir şey de yok.
+    {% if deneme_adedi %}<br>({{ deneme_adedi }} deneme siparişi var ama onlar sayılmıyor.){% endif %}
+  </div>
+{% endfor %}
+
+{% if tartili_var %}
+  <p class="dipnot">
+    <b>Tartılacak</b> yazan ürünlerde miktar siparişte yazılan tahmini miktardır.
+    Hale biraz fazlasıyla gidin: müşteri 1,5 kg domates istediyse tartıda 1,43 kg
+    çıkabilir, ama 1,58 kg da çıkabilir.
+  </p>
+{% endif %}
+
+<div class="alim-gezinme">
+  <a class="btn ikincil" href="{% url 'depo_alim' onceki|date:'Y-m-d' %}">‹ {{ onceki|date:"j F" }}</a>
+  <a class="btn ikincil" href="{% url 'depo_alim' sonraki|date:'Y-m-d' %}">{{ sonraki|date:"j F" }} ›</a>
+</div>
+
+<script>
+// Satıra dokun → "aldım". Yalnızca bu tarayıcıda saklanıyor; sunucuya gitmiyor.
+(function () {
+  var anahtar = "alim-" + "{{ gun|date:'Y-m-d' }}";
+  var alinan = {};
+  try { alinan = JSON.parse(localStorage.getItem(anahtar) || "{}"); } catch (e) { alinan = {}; }
+  function yaz() {
+    try { localStorage.setItem(anahtar, JSON.stringify(alinan)); } catch (e) {}
+  }
+  document.querySelectorAll(".alim-satir").forEach(function (satir) {
+    var id = satir.dataset.anahtar;
+    if (alinan[id]) satir.classList.add("alindi");
+    satir.addEventListener("click", function () {
+      satir.classList.toggle("alindi");
+      if (satir.classList.contains("alindi")) { alinan[id] = 1; } else { delete alinan[id]; }
+      yaz();
+    });
+  });
+})();
+</script>
+{% endblock %}

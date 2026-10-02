@@ -1,0 +1,30 @@
+{% extends "kurye/taban.html" %}
+{% block baslik %}{{ takvim.hizmet_mahallesi.mahalle.ad }}{% endblock %}
+{% block icerik %}
+<a class="geri" href="{% url 'kurye' %}">‹ Bugün</a>
+<h1>{{ takvim.hizmet_mahallesi.mahalle.ad }}</h1>
+<p class="alt-yazi">{{ takvim.tarih|date:"j F l" }} · {{ siparisler|length }} sipariş</p>
+
+{% if yola_cikacak %}
+  <form method="post" action="{% url 'kurye_yola_cik' takvim.pk %}">
+    {% csrf_token %}
+    <button class="btn" type="submit">Yola çıktım ({{ yola_cikacak }} paket)</button>
+  </form>
+{% endif %}
+
+{% for siparis in siparisler %}
+  <a class="kart {% if siparis.durum == 'teslim_edildi' %}bitti{% elif siparis.ulasilamadi %}uyari{% endif %}" href="{% url 'kurye_teslim' siparis.numara %}">
+    <span class="ana"><b>{{ siparis.teslim_ad_soyad }}</b>
+      <span>{{ siparis.teslim_acik_adres|truncatechars:42 }}</span><br>
+      {% if siparis.durum == 'teslim_edildi' %}<span class="rozet teslim">Teslim edildi</span>
+      {% elif siparis.durum == 'yolda' %}<span class="rozet yolda">Yolda</span>
+      {% else %}<span class="rozet hazir">Paketlendi</span>{% endif %}
+      {% if siparis.ulasilamadi and siparis.durum != 'teslim_edildi' %}<span class="rozet ulasilamadi">Ulaşılamadı</span>{% endif %}
+      {% if siparis.test_siparisi %}<span class="rozet deneme">DENEME</span>{% endif %}
+    </span>
+    <span class="ok">›</span>
+  </a>
+{% empty %}
+  <div class="bos">Bu mahallede teslime hazır sipariş yok.</div>
+{% endfor %}
+{% endblock %}

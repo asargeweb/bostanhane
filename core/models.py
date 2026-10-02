@@ -339,14 +339,32 @@ class IlgiKaydi(ZamanDamgali):
     """
     Site yayına hazırlanırken bırakılan ilgi kayıtları.
     Açılışta ilk haber verilecek kitle burada birikir.
+
+    İki yerden besleniyor:
+
+    1. Ana sayfadaki "yakında" formu — ziyaretçi, üyeliği yok, e-posta bırakır.
+    2. Adres ekranı — **üye**, kargo göndermediğimiz bir ilçeyi seçmiş.
+       Kayıt olmuş biri olduğu için e-postası olmayabilir (e-posta isteğe bağlı),
+       ama `uye` ve `ilce` biliniyor.
+
+    Bu yüzden `eposta` zorunlu değil; onun yerine *"hiç iletişim bilgisi yok"*
+    durumu `clean()` ile engelleniyor. Zorunlu tutsaydık ikinci kaynak hiç
+    kaydedilemezdi.
     """
 
-    eposta = models.EmailField("e-posta")
+    eposta = models.EmailField("e-posta", blank=True)
     telefon = models.CharField("telefon", max_length=20, blank=True)
+    uye = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="üye",
+                            on_delete=models.SET_NULL, null=True, blank=True,
+                            related_name="ilgi_kayitlari",
+                            help_text="Kayıt bir üyeden geldiyse. Ziyaretçide boş.")
+    ilce = models.ForeignKey(Ilce, verbose_name="ilçe", on_delete=models.SET_NULL,
+                             null=True, blank=True, related_name="ilgi_kayitlari",
+                             help_text="Hangi ilçeye talep var. Listeyi buna göre süzüyoruz.")
     mahalle_adi = models.CharField("mahalle", max_length=120, blank=True,
-                                   help_text="Ziyaretçinin yazdığı mahalle adı.")
+                                   help_text="Kişinin yazdığı mahalle adı.")
     kaynak = models.CharField("kaynak", max_length=60, blank=True,
-                              help_text="Örnek: instagram, tanıdık, arama")
+                              help_text="Örnek: instagram, tanıdık, arama, adres formu")
     haber_verildi = models.BooleanField("haber verildi", default=False)
 
     class Meta:
@@ -355,7 +373,30 @@ class IlgiKaydi(ZamanDamgali):
         ordering = ["-olusturuldu"]
 
     def __str__(self):
-        return self.eposta
+        return self.kime_ulasilir or self.yer or "ilgi kaydı"
+
+    @property
+    def kime_ulasilir(self):
+        """Elimizdeki iletişim yolu. Haber verme listesi bunu kullanacak."""
+        if self.eposta:
+            return self.eposta
+        if self.telefon:
+            return self.telefon
+        if self.uye_id:
+            return str(self.uye)
+        return ""
+
+    @property
+    def yer(self):
+        """'Yenişehir · Meram / Konya' — mahalle yazılmamışsa yalnızca ilçe."""
+        parcalar = [p for p in (self.mahalle_adi, str(self.ilce) if self.ilce_id else "") if p]
+        return " · ".join(parcalar)
+
+    def clean(self):
+        # Ulaşılamayacak kayıt listeyi kalabalıklaştırır, işe yaramaz.
+        if not (self.eposta or self.telefon or self.uye_id):
+            raise ValidationError(
+                {"eposta": "E-posta, telefon ya da üye — en az biri gerekli."})
 
 
 # ==========================================================================

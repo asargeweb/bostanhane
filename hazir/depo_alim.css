@@ -1,0 +1,61 @@
+/*
+  Alım listesi — `static/css/depo.css` dosyasının SONUNA eklenecek.
+  Değişken adları ve .btn / .liste / .satir sınıfları CC'nin depo.css'inden geliyor.
+*/
+
+.alim-bas{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.alim-bas .alt{color:var(--ink2);margin:4px 0 0}
+.alim-bas .btn{margin-left:auto}
+
+.alim-ozet{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.alim-ozet>div{flex:1;min-width:140px;background:#fff;border:1px solid var(--line);border-radius:14px;
+               padding:12px 16px}
+.alim-ozet b{display:block;font-family:Fraunces,Georgia,serif;font-size:26px;line-height:1.2}
+.alim-ozet span{color:var(--ink2);font-size:15px}
+
+.mahalleler{color:var(--ink2);font-size:16px;margin:0 0 14px}
+
+/* Miktar sayfanın en büyük yazısı: hal tezgâhında bakılan tek şey o. */
+.alim-miktar{font-family:Fraunces,Georgia,serif;font-size:26px;font-weight:600;
+             font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:110px}
+
+.liste.alim .satir{cursor:pointer;min-height:72px;align-items:center}
+.liste.alim .satir:active{background:var(--krem)}
+.satir .kutu{width:26px;height:26px;border:2px solid var(--ink3);border-radius:8px;flex:none}
+.satir.alindi{background:#F8FBF6}
+.satir.alindi .kutu{background:var(--filiz);border-color:var(--filiz);position:relative}
+.satir.alindi .kutu::after{content:"";position:absolute;left:7px;top:2px;width:8px;height:14px;
+                           border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.satir.alindi .ana b,.satir.alindi .alim-miktar{text-decoration:line-through;color:var(--ink3)}
+
+.satir .tarti{color:var(--harman);font-weight:700}
+
+/* Dar ekranda miktar ürün adının yanına sığmıyor, adın altına geçiyor —
+   sağa dayalı ve büyük kalsın, bakılan tek sayı o. */
+@media (max-width:520px){
+  .liste.alim .satir{flex-wrap:wrap}
+  .liste.alim .satir .ana{flex-basis:calc(100% - 38px)}
+  .alim-miktar{width:100%;text-align:right;min-width:0;margin-top:4px}
+  .alim-ozet>div{min-width:0;padding:10px 12px}
+  /* "747,80 ₺" üç kutuya sığmayıp ₺'yi alt satıra atıyordu. */
+  .alim-ozet b{font-size:21px;white-space:nowrap}
+}
+.satir .uyari{color:#8A5A12;font-size:15px;margin-top:2px}
+
+.bos{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px 18px;
+     text-align:center;color:var(--ink2)}
+.dipnot{color:var(--ink2);font-size:16px;background:#fff;border:1px solid var(--line);
+        border-radius:14px;padding:14px 18px;margin-top:16px}
+.alim-gezinme{display:flex;gap:10px;justify-content:space-between;margin-top:22px}
+
+/* Kâğıda basan olur: renk zemini, düğmeler ve üst şerit kâğıda gitmesin. */
+@media print{
+  .ust,.geri,.btn,.alim-gezinme,.mesaj.info{display:none}
+  body{background:#fff;font-size:14px}
+  .sayfa{max-width:none;padding:0}
+  .liste,.alim-ozet>div,.dipnot{border-color:#999;break-inside:avoid}
+  .satir{break-inside:avoid;min-height:0;padding:8px 10px}
+  .alim-miktar{font-size:20px}
+  .satir .kutu{border-color:#333}
+  .tarih-bas{margin:14px 0 6px;color:#000}
+}

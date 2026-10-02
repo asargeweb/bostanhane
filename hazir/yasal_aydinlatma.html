@@ -1,0 +1,185 @@
+{% comment %}
+  KVKK Aydınlatma Metni — `templates/yasal/aydinlatma.html`
+
+  Kayıt ekranındaki "Kişisel verilerin işlenmesine ilişkin aydınlatma metnini
+  okudum" bağlantısı buraya gider.
+
+  xxx işaretli yerler şirket bilgileri gelince doldurulacak. `.xxx` sınıfı
+  turuncu gösteriyor; sayfada gözden kaçmasın diye.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}Aydınlatma Metni{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>Kişisel Verilerin Korunması Hakkında Aydınlatma Metni</h1>
+<p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+
+<h2>1. Veri sorumlusu kim?</h2>
+<p>
+  Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu'nun (KVKK) 10. maddesi
+  uyarınca hazırlanmıştır. Kişisel verileriniz, veri sorumlusu sıfatıyla
+  <b><span class="xxx">xxx</span> Ltd. Şti.</b> ("Bostanhane", "biz") tarafından
+  aşağıda açıklandığı şekilde işlenmektedir.
+</p>
+<table class="bilgi">
+  <tr><th>Unvan</th><td><span class="xxx">xxx</span> Ltd. Şti.</td></tr>
+  <tr><th>MERSİS numarası</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Vergi dairesi / numarası</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Adres</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Telefon</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>E-posta</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>İnternet sitesi</th><td>www.bostanhane.com</td></tr>
+</table>
+
+<h2>2. Hangi verilerinizi işliyoruz?</h2>
+<p>Yalnızca hizmeti verebilmek için gereken verileri topluyoruz:</p>
+<table class="bilgi">
+  <tr>
+    <th>Kimlik ve iletişim</th>
+    <td>Ad soyad, cep telefonu numarası, varsa e-posta adresi. Telefon numarası
+        aynı zamanda <b>giriş anahtarınızdır</b>; sisteme kullanıcı adıyla değil
+        telefon numaranızla giriyorsunuz.</td>
+  </tr>
+  <tr>
+    <th>Teslimat</th>
+    <td>Teslimat adresiniz (il, ilçe, mahalle, açık adres, bina/kat/daire),
+        adres tarifi, teslimatı alacak kişinin adı ve telefonu, haritada
+        işaretlediyseniz adresin konum bilgisi (enlem/boylam).</td>
+  </tr>
+  <tr>
+    <th>Sipariş ve ödeme</th>
+    <td>Sipariş içeriği, tutar, teslim günü, sipariş notunuz, ödeme işleminin
+        sonucu ve ödeme kuruluşundan dönen işlem numarası.
+        <b>Kart bilgileriniz bizde tutulmaz.</b> Kart numaranız, son kullanma
+        tarihi ve güvenlik kodu doğrudan ödeme kuruluşuna gider; biz yalnızca
+        işlemin başarılı olup olmadığını görürüz.</td>
+  </tr>
+  <tr>
+    <th>İşlem güvenliği</th>
+    <td>Giriş kayıtları, IP adresi, işlem zamanları.</td>
+  </tr>
+  <tr>
+    <th>Talep ve şikâyetler</th>
+    <td>Bize ilettiğiniz mesajlar, kusurlu ürün bildirimi için yüklediğiniz
+        fotoğraflar.</td>
+  </tr>
+</table>
+<p>
+  Özel nitelikli kişisel veri (sağlık, din, siyasi görüş vb.) toplamıyoruz.
+  Böyle bir veriyi sipariş notuna yazmamanızı rica ederiz.
+</p>
+
+<h2>3. Neden işliyoruz, hukuki sebebi ne?</h2>
+<table class="bilgi">
+  <tr><th>Amaç</th><th>Hukuki sebep (KVKK m.5)</th></tr>
+  <tr>
+    <td>Üyelik hesabınızın açılması ve sürdürülmesi</td>
+    <td>Sözleşmenin kurulması ve ifası (m.5/2-c)</td>
+  </tr>
+  <tr>
+    <td>Siparişin alınması, hazırlanması, tartılması ve adresinize teslimi</td>
+    <td>Sözleşmenin ifası (m.5/2-c)</td>
+  </tr>
+  <tr>
+    <td>Ödemenin alınması, provizyon ve kesin çekim, iade işlemleri</td>
+    <td>Sözleşmenin ifası (m.5/2-c)</td>
+  </tr>
+  <tr>
+    <td>Fatura düzenlenmesi, muhasebe ve yasal saklama</td>
+    <td>Hukuki yükümlülüğün yerine getirilmesi (m.5/2-ç)</td>
+  </tr>
+  <tr>
+    <td>Talep ve şikâyetlerin karşılanması, iade kararı</td>
+    <td>Sözleşmenin ifası (m.5/2-c) ve meşru menfaat (m.5/2-f)</td>
+  </tr>
+  <tr>
+    <td>Sahteciliğin önlenmesi, sistem güvenliği</td>
+    <td>Meşru menfaat (m.5/2-f)</td>
+  </tr>
+  <tr>
+    <td>Kampanya, indirim ve yeni ürün duyurusu gönderilmesi</td>
+    <td><b>Açık rızanız</b> (m.5/1) — vermezseniz hizmetimiz aynen devam eder</td>
+  </tr>
+</table>
+
+<h2>4. Kimlerle paylaşıyoruz?</h2>
+<p>Kişisel verilerinizi satmıyoruz. Yalnızca hizmetin yürümesi için gerekli olanlarla paylaşıyoruz:</p>
+<ul>
+  <li><b>Ödeme kuruluşu</b> (<span class="xxx">xxx</span>) — ödemenin alınması için.</li>
+  <li><b>Kargo firması</b> (<span class="xxx">xxx</span>) — yalnızca kargoyla gönderilen
+      siparişlerde, teslimat için gereken ad, adres ve telefon.</li>
+  <li><b>Kendi kuryemiz ve paketleme personelimiz</b> — teslimat için gereken ad,
+      adres, telefon ve sipariş içeriği.</li>
+  <li><b>Muhasebeci / mali müşavir</b> — fatura ve yasal kayıtlar için.</li>
+  <li><b>Barındırma (hosting) sağlayıcımız</b> (<span class="xxx">xxx</span>) —
+      sistemin çalışması için.</li>
+  <li><b>Yetkili kamu kurumları</b> — kanunen istenmesi hâlinde.</li>
+</ul>
+<p class="uyari-kutu">
+  <b>Yurt dışına aktarım:</b> Sitemizin barındırıldığı sunucular
+  <span class="xxx">xxx</span> ülkesinde bulunmaktadır. Bu nedenle verileriniz
+  KVKK'nın 9. maddesi kapsamında yurt dışına aktarılmaktadır. Aktarım, Kanun'un
+  öngördüğü güvenceler sağlanarak yapılmaktadır.
+</p>
+
+<h2>5. Nasıl topluyoruz?</h2>
+<p>
+  Verilerinizi, siteye kendiniz girdiğiniz bilgiler (kayıt formu, adres formu,
+  sipariş) ve sistemin otomatik kayıtları (giriş kayıtları, çerezler) yoluyla,
+  elektronik ortamda topluyoruz.
+</p>
+
+<h2>6. Ne kadar süre saklıyoruz?</h2>
+<ul>
+  <li><b>Üyelik bilgileri:</b> Üyeliğiniz sürdüğü sürece; üyeliğinizi silerseniz,
+      yasal saklama süreleri saklı kalmak kaydıyla silinir.</li>
+  <li><b>Sipariş, fatura ve muhasebe kayıtları:</b> Vergi Usul Kanunu uyarınca
+      5 yıl, Türk Ticaret Kanunu uyarınca 10 yıl.</li>
+  <li><b>İşlem güvenliği kayıtları:</b> İlgili mevzuatın öngördüğü süre boyunca.</li>
+  <li><b>Pazarlama izni:</b> İzninizi geri alana kadar.</li>
+</ul>
+<p>Süre dolduğunda veriler silinir, yok edilir veya anonim hâle getirilir.</p>
+
+<h2>7. Haklarınız</h2>
+<p>KVKK'nın 11. maddesi uyarınca bize başvurarak şunları isteyebilirsiniz:</p>
+<ul>
+  <li>Kişisel verinizin işlenip işlenmediğini öğrenmek, işlendiyse bilgi istemek</li>
+  <li>İşlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenmek</li>
+  <li>Yurt içinde veya dışında aktarıldığı üçüncü kişileri öğrenmek</li>
+  <li>Eksik veya yanlış işlenmişse düzeltilmesini istemek</li>
+  <li>Kanundaki şartlar çerçevesinde silinmesini veya yok edilmesini istemek</li>
+  <li>Düzeltme, silme ve yok etme işlemlerinin aktarılan üçüncü kişilere
+      bildirilmesini istemek</li>
+  <li>Yalnızca otomatik sistemlerle analiz edilmesi sonucu aleyhinize bir sonuç
+      çıkmasına itiraz etmek</li>
+  <li>Kanuna aykırı işleme sebebiyle zarara uğradıysanız zararın giderilmesini istemek</li>
+</ul>
+<p>
+  Başvurunuzu <b><span class="xxx">xxx</span></b> adresine yazılı olarak,
+  <b><span class="xxx">xxx</span></b> e-posta adresine kayıtlı e-posta adresinizden
+  veya Veri Sorumlusuna Başvuru Usul ve Esasları Hakkında Tebliğ'de sayılan diğer
+  yöntemlerle iletebilirsiniz. Başvurunuz en geç <b>30 gün</b> içinde sonuçlandırılır.
+</p>
+
+<h2>8. Ticari elektronik ileti (kampanya izni)</h2>
+<p>
+  Kayıt sırasındaki <i>"Kampanya ve yeni ürün duyurularından haberdar olmak
+  istiyorum"</i> kutusu <b>isteğe bağlıdır ve işaretsiz gelir</b>. İşaretlerseniz,
+  6563 sayılı Kanun kapsamında verdiğiniz bu onay İleti Yönetim Sistemi'ne (İYS)
+  kaydedilir ve size SMS veya e-posta ile kampanya duyurusu gönderebiliriz.
+</p>
+<p>
+  İzninizi dilediğiniz zaman geri alabilirsiniz: hesap ayarlarınızdan kutunun
+  işaretini kaldırmanız, gelen iletideki ret bağlantısını kullanmanız ya da
+  İYS üzerinden ret bildirmeniz yeterlidir. İzin vermemeniz veya geri almanız
+  siparişlerinizi ve üyeliğinizi hiçbir şekilde etkilemez.
+</p>
+
+<p class="dipnot">
+  Bu metin <a href="{% url 'yasal_gizlilik' %}">Gizlilik ve Çerez Politikası</a> ile
+  birlikte okunur.
+</p>
+
+</article>
+{% endblock %}

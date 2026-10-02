@@ -20,7 +20,10 @@
 {% endif %}
 
 {% if user.super_admin_mi or user.rol == "paketleme" or user.rol == "magaza_yoneticisi" %}
-  <a class="menu-k" href="{% url 'depo' %}" style="border-color:#1F5132"><span><b>Depo ekranı</b><small>Teslim günleri, toplama ve tartım</small></span><span>›</span></a>
+  <a class="menu-k" href="{% url 'depo' %}" style="border-color:#1F5132"><span><b>Depo ekranı</b><small>Teslim günleri, toplama, tartım, alım listesi</small></span><span>›</span></a>
+{% endif %}
+{% if user.super_admin_mi or user.rol == "kurye" or user.rol == "magaza_yoneticisi" %}
+  <a class="menu-k" href="{% url 'kurye' %}" style="border-color:#1F5132"><span><b>Kurye ekranı</b><small>Bugünün rotası ve teslim kaydı</small></span><span>›</span></a>
 {% endif %}
 <a class="menu-k" href="{% url 'adresler' %}"><span><b>Adreslerim</b><small>{{ adres_sayisi }} adres kayıtlı</small></span><span>›</span></a>
 <a class="menu-k" href="{% url 'siparislerim' %}"><span><b>Siparişlerim</b>

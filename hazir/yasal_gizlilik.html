@@ -1,0 +1,99 @@
+{% comment %}
+  Gizlilik ve Çerez Politikası — `templates/yasal/gizlilik.html`
+  xxx işaretli yerler şirket bilgileri gelince doldurulacak.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}Gizlilik ve Çerez Politikası{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>Gizlilik ve Çerez Politikası</h1>
+<p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+
+<p>
+  Bu politika, www.bostanhane.com adresini kullandığınızda bilgilerinizin nasıl
+  korunduğunu anlatır. Kişisel verilerin hangi hukuki sebeple işlendiği ve
+  haklarınız ayrıca
+  <a href="{% url 'yasal_aydinlatma' %}">Aydınlatma Metni</a>'nde açıklanmıştır.
+</p>
+
+<h2>Kısaca</h2>
+<ul>
+  <li>Verilerinizi <b>satmıyoruz</b>, reklam şirketleriyle paylaşmıyoruz.</li>
+  <li><b>Kart bilgileriniz bizde durmaz.</b> Ödeme sayfası ödeme kuruluşuna aittir.</li>
+  <li>Sitede <b>reklam ve takip çerezi yok.</b> Yalnızca sitenin çalışması için
+      gereken çerezleri kullanıyoruz.</li>
+  <li>Adres bilgilerinizi yalnızca siparişinizi getirebilmek için kullanıyoruz.</li>
+</ul>
+
+<h2>Bilgilerinizi nasıl koruyoruz?</h2>
+<ul>
+  <li>Site ile tarayıcınız arasındaki tüm trafik <b>HTTPS</b> ile şifrelenir.</li>
+  <li>Şifreniz veritabanında açık hâliyle tutulmaz; geri döndürülemeyen bir
+      özet (hash) olarak saklanır. Şifrenizi biz de göremeyiz.</li>
+  <li>Sipariş ve adres bilgilerinize yalnızca görevli personel erişir; her
+      personel <b>yalnızca kendi mağazasının</b> kayıtlarını görür.</li>
+  <li>Kurye yalnızca o günkü teslimat için gereken ad, adres ve telefonu görür.</li>
+</ul>
+
+<h2>Çerezler</h2>
+<p>
+  Çerez, sitenin tarayıcınıza bıraktığı küçük bir dosyadır. Bostanhane'de
+  kullanılan çerezler şunlardır:
+</p>
+<table class="bilgi">
+  <tr><th>Çerez</th><th>Ne işe yarar</th><th>Süre</th></tr>
+  <tr>
+    <td>Oturum çerezi</td>
+    <td>Giriş yaptığınızda sizi tanır; her sayfada yeniden şifre sormamızı önler.
+        Bu çerez olmadan siteye giriş yapılamaz.</td>
+    <td>Oturum süresince</td>
+  </tr>
+  <tr>
+    <td>Güvenlik çerezi (CSRF)</td>
+    <td>Form gönderimlerinin gerçekten sizin tarafınızdan yapıldığını doğrular;
+        sahte istekleri engeller.</td>
+    <td>Oturum süresince</td>
+  </tr>
+  <tr>
+    <td>Sepet çerezi</td>
+    <td>Üye değilken sepetinize eklediğiniz ürünleri hatırlar. Giriş yaptığınızda
+        sepetiniz hesabınıza aktarılır.</td>
+    <td>En fazla <span class="xxx">xxx</span> gün</td>
+  </tr>
+</table>
+<p>
+  Bu çerezlerin hepsi <b>zorunlu</b> çerezlerdir; sitenin çalışması için gereklidir
+  ve kapatılamaz. Reklam, profilleme veya üçüncü taraf takip çerezi kullanmıyoruz.
+  Dilerseniz tarayıcı ayarlarınızdan çerezleri silebilir veya engelleyebilirsiniz;
+  ancak bu durumda siteye giriş yapamaz ve sipariş veremezsiniz.
+</p>
+
+<h2>Dış bağlantılar ve yüklenen içerikler</h2>
+<p>
+  Sayfalarımızda yazı tipleri ve harita bağlantıları gibi dış kaynaklar
+  kullanılabilir. Bu bağlantıları kullandığınızda ilgili sağlayıcının kendi
+  gizlilik politikası geçerli olur.
+</p>
+
+<h2>Çocuklar</h2>
+<p>
+  Bostanhane 18 yaşından küçüklere yönelik değildir ve bilerek 18 yaşından küçük
+  kişilerden veri toplamaz. Böyle bir kayıt tespit edilirse silinir.
+</p>
+
+<h2>Değişiklikler</h2>
+<p>
+  Bu politika zaman zaman güncellenebilir. Güncel sürüm her zaman bu sayfada
+  yayımlanır; yukarıdaki "son güncelleme" tarihinden hangi sürümü okuduğunuzu
+  görebilirsiniz. Önemli bir değişiklik olursa siteden ayrıca duyururuz.
+</p>
+
+<h2>İletişim</h2>
+<p>
+  Sorularınız için: <b><span class="xxx">xxx</span></b> ·
+  <b><span class="xxx">xxx</span></b>
+</p>
+
+</article>
+{% endblock %}

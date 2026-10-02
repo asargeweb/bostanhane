@@ -1,0 +1,110 @@
+{% comment %}
+  Üyelik ve Kullanım Koşulları — `templates/yasal/kullanim.html`
+  Kayıt ekranındaki "Üyelik koşullarını kabul ediyorum" bağlantısı buraya gider.
+{% endcomment %}
+{% extends "taban.html" %}
+{% block baslik %}Üyelik ve Kullanım Koşulları{% endblock %}
+{% block icerik %}
+<article class="yasal">
+
+<h1>Üyelik ve Kullanım Koşulları</h1>
+<p class="tarih">Son güncelleme: <span class="xxx">xxx</span></p>
+
+<h2>1. Taraflar ve kapsam</h2>
+<p>
+  Bu koşullar, <b><span class="xxx">xxx</span> Ltd. Şti.</b>'ye ait
+  www.bostanhane.com sitesini kullanan ve siteye üye olan kişiler için geçerlidir.
+  Üye olarak bu koşulları kabul etmiş olursunuz.
+</p>
+
+<h2>2. Üyelik</h2>
+<ul>
+  <li>Üyelik ücretsizdir ve 18 yaşını doldurmuş kişiler üye olabilir.</li>
+  <li>Giriş anahtarınız <b>cep telefonu numaranızdır</b>. Bir telefon numarasıyla
+      yalnızca bir hesap açılabilir.</li>
+  <li>Verdiğiniz bilgilerin doğru ve güncel olmasından siz sorumlusunuz. Yanlış
+      adres yüzünden teslim edilemeyen siparişlerde ürün bedeli iade edilmeyebilir.</li>
+  <li>Şifrenizin gizliliğinden siz sorumlusunuz. Hesabınızın izinsiz kullanıldığını
+      fark ederseniz derhal bize bildirin.</li>
+</ul>
+
+<h2>3. Sipariş ve teslimat</h2>
+<ul>
+  <li>Teslimat yalnızca hizmet verdiğimiz mahallelerde, o mahallenin
+      <b>teslim gününde</b> yapılır. Hizmet verilen mahalleler ve günler ana
+      sayfada yayımlanır ve zaman zaman değişebilir.</li>
+  <li>Her teslim gününün bir <b>kesim saati</b> vardır. Kesim saatinden sonra
+      sipariş değiştirilemez, iptal edilemez.</li>
+  <li>Minimum sepet tutarı, teslimat ücreti ve ücretsiz teslimat eşiği sepet
+      ekranında gösterilir; bu tutarlar değişebilir, siparişinize sipariş
+      anındaki tutarlar uygulanır.</li>
+  <li>Satıcı, stok veya tedarik sebebiyle bir siparişi kabul etmeme hakkını
+      saklı tutar. Bu durumda tahsilat yapılmaz, bloke edilen tutar serbest
+      bırakılır ve size bilgi verilir.</li>
+</ul>
+
+<h2>4. Fiyatlar ve içerik</h2>
+<p>
+  Sitedeki fiyatlara KDV dâhildir. Taze ürünlerde fiyatlar mevsime ve pazara
+  göre sık değişir; geçerli fiyat siparişi verdiğiniz andaki fiyattır.
+  Ürün görselleri tanıtım amaçlıdır; taze üründe renk, boy ve görünüm
+  farklılıkları doğaldır ve ayıp sayılmaz.
+</p>
+<p>
+  Açık bir maddi hata sonucu (örneğin bir ürünün sıfıra yakın bir fiyatla
+  görünmesi) verilen siparişlerde Satıcı siparişi iptal etme ve bedeli iade
+  etme hakkını saklı tutar.
+</p>
+
+<h2>5. Kullanım kuralları</h2>
+<p>Siteyi kullanırken şunları yapmamayı kabul edersiniz:</p>
+<ul>
+  <li>Başkasının adına veya izinsiz olarak hesap açmak, sipariş vermek</li>
+  <li>Siteye otomatik araçlarla toplu istek göndermek, veri kazımak</li>
+  <li>Sitenin güvenliğini test etmek, zafiyet aramak veya sistemi engellemek</li>
+  <li>Sipariş notuna veya diğer alanlara hakaret içeren ya da hukuka aykırı
+      içerik yazmak</li>
+</ul>
+<p>
+  Bu kurallara aykırı davranan üyelerin hesapları askıya alınabilir veya
+  kapatılabilir.
+</p>
+
+<h2>6. Fikri mülkiyet</h2>
+<p>
+  Sitedeki "Bostanhane" adı ve logosu, tasarım, metinler ve görseller
+  <span class="xxx">xxx</span> Ltd. Şti.'ye aittir; izinsiz kullanılamaz,
+  kopyalanamaz.
+</p>
+
+<h2>7. Üyeliğin sona ermesi</h2>
+<p>
+  Üyeliğinizi dilediğiniz zaman sonlandırabilirsiniz; bunun için
+  <b><span class="xxx">xxx</span></b> adresine bildirim göndermeniz yeterlidir.
+  Üyeliğiniz sona erse de, yasal saklama yükümlülüğü bulunan sipariş ve fatura
+  kayıtları mevzuatın öngördüğü süre boyunca saklanır
+  (bkz. <a href="{% url 'yasal_aydinlatma' %}">Aydınlatma Metni</a>).
+</p>
+
+<h2>8. Değişiklikler</h2>
+<p>
+  Bu koşullar güncellenebilir. Güncel sürüm bu sayfada yayımlanır; önemli
+  değişikliklerde siteden ayrıca duyurulur.
+</p>
+
+<h2>9. Uygulanacak hukuk</h2>
+<p>
+  Bu koşullara Türk hukuku uygulanır. Uyuşmazlıklarda Tüketici Hakem Heyetleri
+  ve Tüketici Mahkemeleri yetkilidir.
+</p>
+
+<h2>10. İletişim</h2>
+<table class="bilgi">
+  <tr><th>Unvan</th><td><span class="xxx">xxx</span> Ltd. Şti.</td></tr>
+  <tr><th>Adres</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>Telefon</th><td><span class="xxx">xxx</span></td></tr>
+  <tr><th>E-posta</th><td><span class="xxx">xxx</span></td></tr>
+</table>
+
+</article>
+{% endblock %}

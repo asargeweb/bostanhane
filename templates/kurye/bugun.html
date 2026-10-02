@@ -1,0 +1,16 @@
+{% extends "kurye/taban.html" %}
+{% block baslik %}Bugün{% endblock %}
+{% block icerik %}
+<h1>Bugün · {{ bugun|date:"j F l" }}</h1>
+<p class="alt-yazi">Mahalleler güzergâh sırasıyla.</p>
+{% for takvim in takvimler %}
+  <a class="kart {% if not takvim.bekleyen and not takvim.toplanmadi %}bitti{% endif %}" href="{% url 'kurye_rota' takvim.pk %}">
+    <span class="sira">{{ forloop.counter }}</span>
+    <span class="ana"><b>{{ takvim.hizmet_mahallesi.mahalle.ad }}</b>
+      <span>{{ takvim.bekleyen }} paket bekliyor{% if takvim.teslim %} · {{ takvim.teslim }} teslim edildi{% endif %}{% if takvim.toplanmadi %} · {{ takvim.toplanmadi }} henüz paketlenmedi{% endif %}</span></span>
+    <span class="ok">›</span>
+  </a>
+{% empty %}
+  <div class="bos">Bugün teslimat yok.</div>
+{% endfor %}
+{% endblock %}

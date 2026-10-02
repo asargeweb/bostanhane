@@ -4,15 +4,13 @@ Paketleme ekranları (Adım 6a): teslim günleri, günün siparişleri, toplama 
 Tablette parmakla kullanılır: büyük düğme, büyük yazı, az seçenek.
 Tartım hesabı modelde (`SiparisKalemi.tartim_gir`); burada yalnızca çağrılıyor.
 
-`/depo/alim/<takvim>/` (alım listesi) Cowork'te — bu dosyada o adres yok.
+Alım listesi ayrı dosyada: `depo/alim.py` (Cowork).
 """
 
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
-from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,7 +19,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.araclar import para_yaz
-from core.models import Magaza, TeslimTakvimi
+from core.models import TeslimTakvimi
+from hesaplar.erisim import personel_gerekli
 from hesaplar.models import Rol
 from siparis.models import Siparis, SiparisKalemi, gunu_kes
 
@@ -31,33 +30,9 @@ DEPO_ROLLERI = {Rol.PAKETLEME, Rol.MAGAZA_YONETICISI}
 TOPLANABILIR = {Siparis.Durum.KESILDI, Siparis.Durum.HAZIRLANIYOR}
 
 
-def depo_gerekli(gorunum):
-    """
-    Paketleme elemanı, mağaza yöneticisi ve süper admin girebilir.
-    Personel yalnızca kendi mağazasını görür; süper admin `?magaza=` ile seçer.
-    """
-    @wraps(gorunum)
-    @login_required
-    def sarmal(request, *args, **kwargs):
-        kullanici = request.user
-        if kullanici.super_admin_mi:
-            magazalar = Magaza.objects.filter(aktif=True).order_by("pk")
-            secilen = request.GET.get("magaza") or request.session.get("depo_magaza")
-            magaza = magazalar.filter(pk=secilen).first() if str(secilen or "").isdigit() else None
-            magaza = magaza or magazalar.first()
-            if magaza:
-                request.session["depo_magaza"] = magaza.pk
-        elif kullanici.rol in DEPO_ROLLERI:
-            magaza = kullanici.magaza
-        else:
-            messages.error(request, "Depo ekranı yalnızca mağaza personeli içindir.")
-            return redirect("ana_sayfa")
-        if magaza is None:
-            messages.error(request, "Hesabınız bir mağazaya bağlı değil.")
-            return redirect("ana_sayfa")
-        request.magaza = magaza
-        return gorunum(request, *args, **kwargs)
-    return sarmal
+# Paketleme elemanı, mağaza yöneticisi ve süper admin girer; personel yalnızca kendi
+# mağazasını görür. (Alım listesi ekranı da bu adla kullanıyor.)
+depo_gerekli = personel_gerekli(DEPO_ROLLERI, "Depo ekranı")
 
 
 def _miktar(metin):
