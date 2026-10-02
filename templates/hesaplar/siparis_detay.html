@@ -14,7 +14,7 @@
 {% if siparis.odeme_durumu == "provizyon" %}
   <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Kartınızda <b>{{ siparis.provizyon_tutari|para }}</b> bloke edildi. Tartımdan sonra yalnızca kesin tutar çekilecek.</span></div>
 {% elif siparis.odeme_durumu == "cekildi" %}
-  <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Kartınızdan <b>{{ siparis.cekilen_tutar|para }}</b> çekildi.{% if siparis.cekilen_tutar < siparis.provizyon_tutari %} Kalan blokaj serbest bırakıldı.{% endif %}</span></div>
+  <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Kartınızdan <b>{{ odeme.cekilen|para }}</b> çekildi{% if odeme.cozulen_fark %}, <b>{{ odeme.cozulen_fark|para }}</b> kartınızda serbest kaldı{% endif %}.</span></div>
 {% elif siparis.durum == "iptal" and siparis.odeme_durumu == "bekliyor" %}
   <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Sipariş iptal edildi; kartınızdaki bloke çözüldü.</span></div>
 {% endif %}

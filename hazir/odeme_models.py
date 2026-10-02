@@ -157,11 +157,22 @@ def siparis_ozeti(siparis):
     for islem in islemler:
         toplam[islem.tur] += islem.tutar
     cekilen = toplam[OdemeIslemi.Tur.CEKIM] - toplam[OdemeIslemi.Tur.IADE]
+
+    # Blokeyi iki şey kapatır: çekim yapmak ya da blokeyi çözmek. Çekimde
+    # sağlayıcı kalan farkı kendiliğinden serbest bırakır — biz ayrıca bir
+    # "bloke çözüldü" isteği göndermeyiz, o yüzden defterde de böyle bir satır
+    # olmaz. Yalnızca BLOKE_COZ'a bakarsak, çekim yapılmış siparişte kartta hâlâ
+    # para bloke görünür; yanlış olur.
+    kapandi = (toplam[OdemeIslemi.Tur.BLOKE_COZ] > SIFIR
+               or toplam[OdemeIslemi.Tur.CEKIM] > SIFIR)
     return {
         "bloke": toplam[OdemeIslemi.Tur.PROVIZYON],
         "cekilen": cekilen,
         "iade": toplam[OdemeIslemi.Tur.IADE],
         "bloke_cozuldu": toplam[OdemeIslemi.Tur.BLOKE_COZ] > SIFIR,
-        "acik_bloke": (toplam[OdemeIslemi.Tur.PROVIZYON]
-                       if not toplam[OdemeIslemi.Tur.BLOKE_COZ] else SIFIR),
+        "acik_bloke": SIFIR if kapandi else toplam[OdemeIslemi.Tur.PROVIZYON],
+        # Çekimde serbest kalan fark: müşteriye "şu kadarı kartınızda serbest
+        # kaldı" demek için. Defterde satırı yok, hesaplanıyor.
+        "cozulen_fark": (toplam[OdemeIslemi.Tur.PROVIZYON] - toplam[OdemeIslemi.Tur.CEKIM]
+                         if toplam[OdemeIslemi.Tur.CEKIM] > SIFIR else SIFIR),
     }

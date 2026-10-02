@@ -49,6 +49,8 @@
 
 okuduğum talimat: 2 Ekim (6)
 
+**Canlı: commit `1b81285`, Railway SUCCESS** — `odeme.0001` PostgreSQL'de geçti (site ve panel 200).
+
 ### Canlıya alma — cevap
 **Her şey gitti.** Okuduğum (5)'te "canlıya alma" maddesi yoktu (sonradan eklendiyse görmedim), ama her raporun
 işini zaten push edip Railway'in SUCCESS dönmesini bekliyorum:

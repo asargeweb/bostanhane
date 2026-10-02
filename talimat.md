@@ -17,6 +17,120 @@
 
 ---
 
+## 2 Ekim 2026 (7) — İki notun da haklıydı; Railway kesim servisi onaylandı
+
+### Önce: canlıya alma konusunda yanılan bendim
+
+"Canlıya alma raporda yok" diye sormuştum. Cevabın net: hepsi gitmiş, beş commit,
+hepsi SUCCESS. Raporlarında o satırı görmediğim için **gitmediğini varsaydım** —
+varsaymak yerine sorsaydım Ersin'e de yanlış bilgi vermezdim. Ona da düzelttim.
+
+"Bundan sonra her raporda `Canlı: commit X, SUCCESS` yazacağım" demişsin; tam da
+gereken şey. Teşekkürler.
+
+---
+
+### 1. "Defterde üç satır" — sen haklısın, talimatım yanlıştı
+
+Raporda yazmışsın: normal akışta defterde **iki** satır çıkıyor (provizyon + çekim),
+üçüncüsü yok. Doğrusu bu. Ben talimatta "üç satır" demişim, hatalı.
+
+Gerekçen de doğru: çekimde sağlayıcı kalan farkı kendiliğinden serbest bırakıyor,
+biz ayrıca bir "bloke çözme" isteği **göndermiyoruz**. Defter gönderdiğimiz
+istekleri tutar; göndermediğimiz bir isteği deftere yazmak uydurma kayıt olurdu.
+Üçüncü satırı eklememekle doğru olanı yapmışsın.
+
+**Ama senin notun bende bir hata ortaya çıkardı.** `siparis_ozeti()` açık blokeyi
+hesaplarken yalnızca "bloke çözüldü" satırına bakıyordu. Çekim yapılmış bir
+siparişte kartta hâlâ para bloke görünüyordu — yanlış. Düzelttim: blokeyi iki şey
+kapatıyor, çekim ya da çözme. Ayrıca `cozulen_fark` ekledim; müşteriye
+*"9,70 ₺ kartınızda serbest kaldı"* diyebilmek için.
+
+### 2. Hata yolunu denemek için artık kod değiştirmen gerekmiyor
+
+Haklısın: `provizyon_al` sıfır/negatif tutarı sağlayıcıya gitmeden reddediyor,
+deneme sağlayıcının negatif dalına ulaşılmıyor. Sen sağlayıcı yanıtını geçici
+değiştirerek sınamışsın — işe yaradı ama unutulup öyle kalabilecek bir yöntem.
+
+Ayar ekledim:
+
+```
+DENEME_ODEME_HATASI=51|Yetersiz bakiye
+```
+
+Doluyken bütün istekler o hatayla başarısız dönüyor, boşken hiçbir etkisi yok.
+`.env.ornek`'e de ekle, açıklamasıyla. Canlıda **boş kalacak**.
+
+### 3. `sepete_geri_koy` — iyi yakalama, yerinde çözüm
+
+`siparise_cevir` sepeti boşalttığı için provizyon başarısız olunca müşteri sepetini
+kaybediyordu. Benim gözümden kaçmış; sen fark edip telafi eylemi yazmışsın.
+
+Aklımdan geçen alternatifi de söyleyeyim ki aynı yoldan geçmeyelim: provizyonu
+`siparise_cevir` ile aynı işleme (transaction) koyup başarısızlıkta hepsini geri
+almak. **Yapmıyoruz** — çünkü veritabanı geri alınır ama sağlayıcıya giden istek
+geri alınmaz. Para gerçekten bloke edilip bizde hiç kayıt kalmaması, sepetin
+kaybolmasından çok daha kötü. Senin yaptığın doğru: önce kaydet, sonra telafi et.
+
+### 4. Kurulum
+
+```powershell
+Copy-Item hazir\odeme_models.py       odeme\models.py       -Force
+Copy-Item hazir\odeme_saglayicilar.py odeme\saglayicilar.py -Force
+```
+
+Migration gerekmiyor — `siparis_ozeti` ve sağlayıcı değişti, model alanı değişmedi
+(`makemigrations --check` → No changes detected).
+
+Sipariş detayındaki "Kalan blokaj serbest bırakıldı" metnini `cozulen_fark` ile
+sayıya çevirebilirsin: *"Kartınızdan 547,05 ₺ çekildi, 39,70 ₺ serbest kaldı."*
+Müşteri kart ekstresinde iki ayrı satır görecek; sayıyı önceden söylemek soru
+gelmesini engeller.
+
+---
+
+### 5. Railway kesim servisi — Ersin onay verdi, kur
+
+Bunu bir önceki talimata sonradan eklemiştim, sen okumadan önce gönderilmiş olabilir.
+Tekrarlıyorum:
+
+Senin önerdiğin düzenle kur: ayrı servis, aynı depodan, Start Command
+`python manage.py gunu_kes`, Cron Schedule `*/15 * * * *`, değişkenler web
+servisiyle ortak.
+
+Sıra önemli:
+
+1. **Önce canlıda `gunu_kes --kuru`.** Açık kalmış eski günler bir anda kesilecek;
+   listeyi **Ersin'e göstermeden gerçeğini çalıştırma.** Kuru çıktıyı rapora yaz,
+   onayını bekle.
+2. Onay gelince gerçeğini çalıştır, sonra servisi `*/15` zamanlamasıyla aç.
+3. İlk 24 saat sonunda Railway kullanım ekranından gerçek maliyete bak, rapora yaz —
+   tahminin $0,3/ay idi, doğrulayalım.
+
+Web servisinin **Start Command'ı boş kalmalı**; yalnızca yeni `kesim` servisinde
+dolu olacak. 30 Eylül'deki olay bu yüzden olmuştu.
+
+---
+
+### 6. Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- `gunu_kes --kuru` çıktısı (kaç gün, kaç sipariş) — **onay beklediğini yaz**
+- Çekim sonrası sipariş detayında serbest kalan tutarın göründüğü
+- `DENEME_ODEME_HATASI` ile başarısız ödeme akışının çalıştığı, ayar boşken normale döndüğü
+
+### 7. Bunları yapma
+
+- Kuru çalıştırmanın gerçeğini Ersin onaylamadan çalıştırma.
+- `odeme/` içindeki dosyaları değiştirme — hata bulursan rapora yaz, bu turda iki
+  bulgunun da işe yaradı.
+- Gerçek sağlayıcı yazma, canlıda `ODEME_SAGLAYICI`'yı değiştirme.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 2 Ekim 2026 (6) — `odeme` uygulaması hazır
 
 ### Önce: canlıya alma raporda yok
@@ -38,9 +152,21 @@ tutmaz; komut tekrar çalıştırılabilir olduğundan sık çalışmanın zarar
 çalıştırmayı sonraki telafi ediyor. Ayrı servis olması da doğru — web sürecinin
 içine zamanlayıcı koymanın iki işçide iki kez çalışacağını fark etmen ince bir nokta.
 
-Ersin onay verince kuracaksın. **Şimdi kurma.** Onay gelirse ilk iş canlıda
-`gunu_kes --kuru` — açık kalmış eski günler bir anda kesilecek, listeyi önceden
-görmek lazım.
+**Ersin onay verdi — kur.** Senin önerdiğin düzenle: ayrı servis, aynı depodan,
+Start Command `python manage.py gunu_kes`, Cron Schedule `*/15 * * * *`, değişkenler
+web servisiyle ortak.
+
+Sıra önemli:
+
+1. **Önce canlıda `gunu_kes --kuru`** (railway ssh ya da geçici olarak Start Command
+   ile). Açık kalmış eski günler bir anda kesilecek; listeyi **Ersin'e göstermeden
+   gerçeğini çalıştırma.** Kuru çıktıyı rapora yaz, onayını bekle.
+2. Onay gelince gerçeğini çalıştır, sonra servisi `*/15` zamanlamasıyla aç.
+3. İlk 24 saat sonunda Railway kullanım ekranından gerçek maliyete bak ve rapora yaz —
+   tahminin $0,3/ay idi, doğrulayalım.
+
+Web servisinin **Start Command'ı boş kalmalı**; yalnızca yeni `kesim` servisinde dolu
+olacak. 30 Eylül'deki olay bu yüzden oldu, tekrarlamasın.
 
 ---
 

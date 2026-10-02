@@ -165,6 +165,16 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 # --------------------------------------------------------------------------
+# Ödeme
+# --------------------------------------------------------------------------
+# Sanal POS seçilene kadar "deneme": gerçek para hareketi yok. Vitrin "acik"
+# moddayken deneme sağlayıcı kullanılamaz (odeme.saglayicilar.saglayici_sec).
+ODEME_SAGLAYICI = ayar("ODEME_SAGLAYICI", "deneme")
+# Doluysa deneme sağlayıcı her isteği bu hatayla reddeder ("51|Yetersiz bakiye").
+# Ödeme reddedilince akışı denemek için; canlıda boş kalır.
+DENEME_ODEME_HATASI = ayar("DENEME_ODEME_HATASI", "")
+
+# --------------------------------------------------------------------------
 # Parola kuralları
 # --------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [

@@ -91,6 +91,18 @@ TALEP_ACMA_SURESI_SAAT=24
 # YONETICI_AD=Ad Soyad
 # YONETICI_SIFRE=
 
+# --------------------------------------------------------------------------
+# Ödeme
+# --------------------------------------------------------------------------
+# Sanal POS seçilene kadar "deneme" (gerçek para hareketi yok). Canlıda da "deneme"
+# kalır; iyzico / PayTR bağlanınca değişecek.
+# ODEME_SAGLAYICI=deneme
+
+# Yalnızca deneme için: doluysa deneme sağlayıcı her ödeme isteğini bu hatayla
+# reddeder — "kod|mesaj". Ödeme reddedilince sipariş açılmıyor mu, stok geri
+# dönüyor mu, sepet duruyor mu, görmek için. CANLIDA BOŞ KALMALI.
+# DENEME_ODEME_HATASI=51|Yetersiz bakiye
+
 # Sonraki fazlarda doldurulacak
 # ODEME_SAGLAYICI_API_KEY=
 # EPOSTA_API_KEY=

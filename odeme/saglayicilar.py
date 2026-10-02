@@ -81,14 +81,34 @@ class DenemeSaglayici(Saglayici):
     """
     Gerçek para hareketi olmayan sağlayıcı. Test modu içindir.
 
-    Her istek başarılı döner. Tek istisna: tutar negatifse başarısız döner —
-    akışın hata yolunu da deneyebilelim diye.
+    Her istek başarılı döner.
+
+    **Hata yolunu denemek için:** `DENEME_ODEME_HATASI` ayarı doluysa bütün
+    istekler o hatayla başarısız döner. `.env`'e bir satır:
+
+        DENEME_ODEME_HATASI=51|Yetersiz bakiye
+
+    Niye ayar: ödeme reddedildiğinde ne olduğu (sipariş açılmıyor mu, stok geri
+    dönüyor mu, sepet duruyor mu) en az başarılı yol kadar önemli. Bunu denemek
+    için kodu geçici değiştirmek gerekmemeli — unutulup öyle kalabilir.
+    Boş bırakılırsa hiçbir etkisi yok; canlıda zaten boş.
     """
 
     ad = "deneme"
     gercek_para = False
 
+    def _zorlanan_hata(self):
+        ayar = str(getattr(settings, "DENEME_ODEME_HATASI", "") or "").strip()
+        if not ayar:
+            return None
+        kod, _, mesaj = ayar.partition("|")
+        return OdemeSonucu(False, hata_kodu=kod.strip() or "deneme_hata",
+                           hata_mesaji=mesaj.strip() or "Deneme hatası.")
+
     def _sonuc(self, tutar, etiket):
+        zorlanan = self._zorlanan_hata()
+        if zorlanan is not None:
+            return zorlanan
         if Decimal(str(tutar)) < 0:
             return OdemeSonucu(False, hata_kodu="negatif_tutar",
                                hata_mesaji="Tutar negatif olamaz.")

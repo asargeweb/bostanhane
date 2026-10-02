@@ -19,6 +19,7 @@ from django.views.decorators.http import require_POST
 from core.araclar import para_yaz
 from core.models import IlgiKaydi, Ilce, Mahalle
 from odeme.islemler import bloke_coz
+from odeme.models import siparis_ozeti
 from siparis.models import Siparis
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
@@ -237,7 +238,10 @@ def siparis_detay(request, numara):
     siparis = get_object_or_404(
         Siparis.objects.select_related("teslim_takvimi").prefetch_related("kalemler"),
         numara=numara, uye=request.user)
-    return render(request, "hesaplar/siparis_detay.html", {"siparis": siparis})
+    # Para durumu defterden: müşteri ekstresinde iki satır görecek (çekim + serbest kalan),
+    # sayıyı önceden söylemek "neden iki hareket var" sorusunu önlüyor.
+    return render(request, "hesaplar/siparis_detay.html",
+                  {"siparis": siparis, "odeme": siparis_ozeti(siparis)})
 
 
 @login_required
