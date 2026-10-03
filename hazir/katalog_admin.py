@@ -14,10 +14,11 @@ stok hareketiyle değişir; her hareket "Stok hareketleri" defterinde kalır.
 """
 
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
-from django.db.models import BooleanField, DecimalField, IntegerField, OuterRef, Subquery, Value
+from django.db.models import BooleanField, Count, DecimalField, IntegerField, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
@@ -279,7 +280,30 @@ class UrunAdmin(admin.ModelAdmin):
         if (request.method == "POST" and "_save" in request.POST
                 and request.user.has_perm("katalog.change_magazaurun")):
             self.satirlari_kaydet(request)
+        extra_context = {**(extra_context or {}),
+                         "kategori_sekmeleri": self.kategori_sekmeleri(request)}
         return super().changelist_view(request, extra_context)
+
+    def kategori_sekmeleri(self, request):
+        """
+        Listenin üstündeki "Tümü · Sebze · Meyve …" sekmeleri. 50 ürünlük liste uzun;
+        fiyat girerken kategori kategori gitmek kolay. Sağdaki süzgeçle aynı parametreyi
+        kullanıyor, diğer süzgeçler ve mağaza seçimi korunuyor.
+        """
+        anahtar = "kategori__id__exact"
+        secili = request.GET.get(anahtar, "")
+        temel = {k: v for k, v in request.GET.items() if k not in (anahtar, "p")}
+        sayilar = dict(Urun.objects.values_list("kategori").annotate(adet=Count("pk")))
+
+        def adres(deger):
+            return "?" + urlencode({**temel, anahtar: deger} if deger else temel)
+
+        sekmeler = [{"ad": "Tümü", "adet": sum(sayilar.values()), "adres": adres(""),
+                     "secili": not secili}]
+        for kategori in Kategori.objects.all():
+            sekmeler.append({"ad": kategori.ad, "adet": sayilar.get(kategori.pk, 0),
+                             "adres": adres(str(kategori.pk)), "secili": secili == str(kategori.pk)})
+        return sekmeler
 
     def satirlari_kaydet(self, request):
         magaza = self.fiyat_magazasi(request)

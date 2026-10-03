@@ -1,0 +1,30 @@
+{% extends "admin/change_list.html" %}
+{% comment %}
+  Ürünler listesi: üstte kategori sekmeleri. Liste uzun; fiyat girerken kategori
+  kategori gitmek için. Sekmeler sağdaki kategori süzgeciyle aynı adresi kullanıyor.
+{% endcomment %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .kategori-sekmeleri { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+  .kategori-sekmeleri a {
+    display: inline-block; padding: 7px 14px; border-radius: 999px; font-weight: 600;
+    border: 1px solid var(--hairline-color); color: var(--body-fg); text-decoration: none;
+  }
+  .kategori-sekmeleri a:hover { border-color: var(--link-fg); color: var(--link-fg); }
+  .kategori-sekmeleri a.secili { background: #1F5132; border-color: #1F5132; color: #fff; }
+  .kategori-sekmeleri small { opacity: .7; font-weight: 400; margin-left: 3px; }
+</style>
+{% endblock %}
+
+{% block search %}
+{{ block.super }}
+{% if kategori_sekmeleri %}
+  <nav class="kategori-sekmeleri" aria-label="Kategoriler">
+    {% for sekme in kategori_sekmeleri %}
+      <a href="{{ sekme.adres }}" {% if sekme.secili %}class="secili"{% endif %}>{{ sekme.ad }}<small>{{ sekme.adet }}</small></a>
+    {% endfor %}
+  </nav>
+{% endif %}
+{% endblock %}
