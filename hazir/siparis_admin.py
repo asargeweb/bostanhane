@@ -75,6 +75,39 @@ class SepetAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
 # ==========================================================================
 # SİPARİŞ
 # ==========================================================================
+class TalepDurumu(admin.SimpleListFilter):
+    """
+    "Müşteri sorun bildirmiş mi?" süzgeci.
+
+    Açık talebi olan sipariş günün en acil işi: müşteri bekliyor, para kısmen
+    iade edilecek olabilir ve o sipariş otomatik onaylanmıyor. Listede
+    kaybolmasın diye süzgeçlerin başında.
+
+    `talep` uygulamasını içeri almıyoruz — `siparis` ondan önce geliyor;
+    ters yönde içe aktarma döngü yaratır. Ters ilişkiyi adıyla kullanıyoruz.
+    """
+
+    title = "müşteri bildirimi"
+    parameter_name = "talep"
+    ACIK_DURUMLAR = ["acik", "inceleniyor"]
+
+    def lookups(self, request, model_admin):
+        return [("acik", "Açık sorun bildirimi var"),
+                ("kapali", "Bildirimi karara bağlanmış"),
+                ("yok", "Bildirim yok")]
+
+    def queryset(self, request, sorgu):
+        deger = self.value()
+        if deger == "acik":
+            return sorgu.filter(talepler__durum__in=self.ACIK_DURUMLAR).distinct()
+        if deger == "kapali":
+            return (sorgu.filter(talepler__isnull=False)
+                    .exclude(talepler__durum__in=self.ACIK_DURUMLAR).distinct())
+        if deger == "yok":
+            return sorgu.filter(talepler__isnull=True)
+        return sorgu
+
+
 class SiparisKalemiSatiri(admin.TabularInline):
     """
     Tartım burada girilir. `teslim_miktari` dışındaki alanlar dondurulmuş
@@ -111,7 +144,7 @@ class SiparisAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
 
     list_display = ("numara", "uye_adi", "teslim_bilgisi", "kalem_adedi",
                     "toplam_gosterim", "durum", "odeme_durumu", "deneme")
-    list_filter = ("durum", "odeme_durumu", "kanal", "test_siparisi",
+    list_filter = (TalepDurumu, "durum", "odeme_durumu", "kanal", "test_siparisi",
                    "magaza", "teslim_takvimi__tarih")
     search_fields = ("numara", "uye__ad_soyad", "uye__telefon", "teslim_acik_adres")
     list_select_related = ("uye", "magaza", "teslim_takvimi",

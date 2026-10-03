@@ -6,6 +6,7 @@ gelince kayıt sonrasına bir kod ekranı girecek.
 """
 
 from django.contrib import messages
+from django.db import transaction
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
@@ -21,12 +22,12 @@ from core.models import IlgiKaydi, Ilce, Mahalle
 from odeme.islemler import bloke_coz
 from odeme.models import siparis_ozeti
 from siparis.models import Siparis
-from siparis.teslim_onayi import (
-    onay_bekliyor_mu, otomatik_onaylandi_mi, sorun_bildir, sorun_bildirildi_mi, teslimi_onayla,
-)
+from siparis.teslim_onayi import onay_bekliyor_mu, otomatik_onaylandi_mi, teslimi_onayla
+from talep.islemler import talep_ac
+from talep.models import Talep, TalepGorseli, gorsel_yuklenebilir_mi
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
-from .forms import AdresFormu, GirisFormu, HesapFormu, KayitFormu
+from .forms import AdresFormu, GirisFormu, HesapFormu, KayitFormu, TalepFormu
 from .models import Adres, Rol
 
 
@@ -241,31 +242,67 @@ def siparis_detay(request, numara):
     siparis = get_object_or_404(
         Siparis.objects.select_related("teslim_takvimi").prefetch_related("kalemler"),
         numara=numara, uye=request.user)
-    # Para durumu defterden: müşteri ekstresinde iki satır görecek (çekim + serbest kalan),
-    # sayıyı önceden söylemek "neden iki hareket var" sorusunu önlüyor.
-    return render(request, "hesaplar/siparis_detay.html", {
+    return render(request, "hesaplar/siparis_detay.html", _detay_baglami(siparis))
+
+
+def _detay_baglami(siparis, talep_formu=None):
+    # Sorun bildirme hakkı teslim onayından sonra da sürer (süre içinde): onay,
+    # kusurlu ürün bildirme hakkını kaldırmıyor.
+    acilabilir, sebep = Talep.acilabilir_mi(siparis)
+    fotograf = gorsel_yuklenebilir_mi()
+    return {
         "siparis": siparis,
+        # Para durumu defterden: müşteri ekstresinde iki satır görecek (çekim + serbest
+        # kalan), sayıyı önceden söylemek "neden iki hareket var" sorusunu önlüyor.
         "odeme": siparis_ozeti(siparis),
         "onay_bekliyor": onay_bekliyor_mu(siparis),
-        "sorun_bildirildi": sorun_bildirildi_mi(siparis),
         "otomatik_onaylandi": otomatik_onaylandi_mi(siparis),
-    })
+        "talepler": siparis.talepler.select_related("kalem").prefetch_related("gorseller"),
+        "talep_acilabilir": acilabilir,
+        "talep_formu": talep_formu or (TalepFormu(siparis=siparis, fotograf=fotograf)
+                                       if acilabilir else None),
+        "fotograf_acik": fotograf,
+    }
 
 
 @login_required
 @require_POST
 def teslim_onayi(request, numara):
-    """"Eksiksiz teslim aldım" ya da "Bir sorun var"."""
+    """"Eksiksiz teslim aldım"."""
     siparis = get_object_or_404(Siparis, numara=numara, uye=request.user)
     try:
-        if "sorun" in request.POST:
-            sorun_bildir(siparis, request.POST.get("aciklama", ""))
-            messages.success(request, "Bildiriminizi aldık. Mağaza sizinle iletişime geçecek.")
-        else:
-            teslimi_onayla(siparis)
-            messages.success(request, "Teşekkürler, teslim aldığınızı onayladınız.")
+        teslimi_onayla(siparis)
     except ValidationError as hata:
         messages.error(request, " ".join(hata.messages))
+    else:
+        messages.success(request, "Teşekkürler, teslim aldığınızı onayladınız.")
+    return redirect("siparis_detay", numara=numara)
+
+
+@login_required
+@require_POST
+def talep_bildir(request, numara):
+    """"Bir sorun var": talep açar, varsa fotoğrafları ekler."""
+    siparis = get_object_or_404(Siparis.objects.prefetch_related("kalemler"),
+                                numara=numara, uye=request.user)
+    form = TalepFormu(request.POST, request.FILES, siparis=siparis,
+                      fotograf=gorsel_yuklenebilir_mi())
+    if not form.is_valid():
+        messages.error(request, "Bildirim gönderilemedi; formdaki uyarılara bakın.")
+        return render(request, "hesaplar/siparis_detay.html",
+                      _detay_baglami(siparis, talep_formu=form), status=400)
+    veri = form.cleaned_data
+    try:
+        with transaction.atomic():
+            talep = talep_ac(siparis, request.user, veri["tur"], veri["aciklama"],
+                             kalem=veri["kalem"])
+            baslangic = talep.gorseller.count()
+            for sira, resim in enumerate(veri.get("fotograflar") or [], start=baslangic):
+                TalepGorseli.objects.create(talep=talep, gorsel=resim, sira=sira)
+    except ValidationError as hata:
+        messages.error(request, " ".join(hata.messages))
+    else:
+        messages.success(request, "Bildiriminiz mağazaya iletildi. İnceleyip size dönecekler.")
     return redirect("siparis_detay", numara=numara)
 
 

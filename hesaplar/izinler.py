@@ -47,6 +47,9 @@ MAGAZA_YONETICISI = {
     # Ödeme defteri yalnızca okunur — para hareketi panelden elle yazılmaz.
     # İade gibi işlemler sipariş ekranından, sağlayıcıya giden yoldan yapılır.
     "odeme.odemeislemi": SADECE_GOR,
+    # Talebi müşteri açar; yönetici karar verir (iade burada kararlaşır).
+    "talep.talep": ["view", "change"],
+    "talep.talepgorseli": SADECE_GOR,
     "hesaplar.kullanici": GOR_EKLE_DEGISTIR,  # personel ve üye ekler, silmez
     "hesaplar.adres": TUMU,
 }

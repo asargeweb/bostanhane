@@ -196,3 +196,68 @@ class AdresFormu(forms.ModelForm):
         if commit:
             adres.save()
         return adres
+
+
+class CokluResim(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class CokluResimAlani(forms.ImageField):
+    """Birden çok resim; her biri ImageField denetiminden (gerçekten resim mi) geçer."""
+
+    widget = CokluResim
+
+    def clean(self, veri, ilk=None):
+        tek = super().clean
+        if isinstance(veri, (list, tuple)):
+            return [tek(d, ilk) for d in veri if d]
+        return [tek(veri, ilk)] if veri else []
+
+
+class TalepFormu(forms.Form):
+    """
+    "Bir sorun var": hangi ürün, ne sorunu, açıklama, fotoğraf.
+
+    Fotoğraf alanı yalnızca nesne depolama varken eklenir (`gorsel_yuklenebilir_mi`):
+    canlıda disk kalıcı değil, kanıt sessizce kaybolmasın.
+    """
+
+    EN_FAZLA_FOTOGRAF = 3
+    EN_BUYUK_BOYUT = 5 * 1024 * 1024
+
+    kalem = forms.ChoiceField(label="Hangi ürün?", required=False)
+    tur = forms.ChoiceField(label="Sorun ne?", widget=forms.RadioSelect)
+    aciklama = forms.CharField(
+        label="Ne oldu?", max_length=1000,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Örnek: Domatesler ezilmiş, ikisi çürük."}))
+
+    def __init__(self, *args, siparis=None, fotograf=False, **kwargs):
+        from talep.models import Talep
+        super().__init__(*args, **kwargs)
+        self.siparis = siparis
+        self.fields["kalem"].choices = [("", "Siparişin geneli")] + [
+            (str(k.pk), k.urun_adi) for k in siparis.kalemler.all()]
+        self.fields["tur"].choices = Talep.Tur.choices
+        if fotograf:
+            self.fields["fotograflar"] = CokluResimAlani(
+                label="Fotoğraf", required=False,
+                help_text="En fazla 3 fotoğraf, her biri en fazla 5 MB.",
+                widget=CokluResim(attrs={"accept": "image/*", "multiple": True}))
+
+    def clean_kalem(self):
+        pk = self.cleaned_data.get("kalem")
+        if not pk:
+            return None
+        kalem = self.siparis.kalemler.filter(pk=pk).first()
+        if kalem is None:
+            raise forms.ValidationError("Seçilen ürün bu siparişte yok.")
+        return kalem
+
+    def clean_fotograflar(self):
+        resimler = self.cleaned_data.get("fotograflar") or []
+        if len(resimler) > self.EN_FAZLA_FOTOGRAF:
+            raise forms.ValidationError(f"En fazla {self.EN_FAZLA_FOTOGRAF} fotoğraf ekleyebilirsiniz.")
+        for resim in resimler:
+            if resim.size > self.EN_BUYUK_BOYUT:
+                raise forms.ValidationError(f"“{resim.name}” 5 MB'tan büyük.")
+        return resimler

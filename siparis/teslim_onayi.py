@@ -1,12 +1,11 @@
 """
-Teslim onayı (Adım 6c): üye "eksiksiz teslim aldım" der ya da sorun bildirir;
-cevap gelmezse belli bir süre sonra (SatisAyarlari.otomatik_teslim_onayi_saat)
-sipariş onaylanmış sayılır.
+Teslim onayı (Adım 6c): üye "eksiksiz teslim aldım" der; cevap gelmezse belli
+bir süre sonra (SatisAyarlari.otomatik_teslim_onayi_saat) sipariş onaylanmış sayılır.
 
-Sipariş modeline dokunmadan: onay `Siparis.onay_zamani`'na, sorun bildirimi ve
-otomatik onay notu `ic_not`'a yazılıyor. Sorun bildirimi için ayrı alan / model
-`talep` uygulamasıyla gelecek (fotoğraflı iade talebi); o gelene kadar iç nottaki
-sabit işaret kullanılıyor. Görünüm ve otomatik onay komutu aynı kuralı buradan okur.
+Sorun bildirimi `talep` uygulamasında (Talep modeli). **Açık talebi olan sipariş
+otomatik onaylanmaz:** müşteri cevap vermiş sayılır, mağaza karar verene kadar
+sipariş açık kalır. Bu karar artık iç nottaki bir metne değil talep kaydına bakıyor —
+iç not serbest metin, biri düzenlerken işareti silerse şikâyet kaybolurdu.
 """
 
 from django.core.exceptions import ValidationError
@@ -14,16 +13,14 @@ from django.utils import timezone
 
 from .models import Siparis
 
-SORUN_ISARETI = "MÜŞTERİ SORUN BİLDİRDİ"
+# Yalnızca müşteriye "otomatik onaylandı" demek için; karar mantığı buna bakmıyor.
 OTOMATIK_ISARETI = "otomatik teslim onayı"
 
 
-def _not_ekle(siparis, satir):
-    siparis.ic_not = f"{siparis.ic_not}\n{satir}".strip()
-
-
-def sorun_bildirildi_mi(siparis):
-    return SORUN_ISARETI in (siparis.ic_not or "")
+def acik_talebi_var_mi(siparis):
+    # talep, siparis'e bağlı; modül yüklenirken değil çağrılırken içeri alınıyor.
+    from talep.islemler import acik_talebi_var_mi as _acik
+    return _acik(siparis)
 
 
 def otomatik_onaylandi_mi(siparis):
@@ -31,9 +28,9 @@ def otomatik_onaylandi_mi(siparis):
 
 
 def onay_bekliyor_mu(siparis):
-    """Teslim edildi, onay yok, sorun bildirilmedi."""
+    """Teslim edildi, onay yok, açık sorun bildirimi yok."""
     return (siparis.durum == Siparis.Durum.TESLIM_EDILDI and siparis.onay_zamani is None
-            and not sorun_bildirildi_mi(siparis))
+            and not acik_talebi_var_mi(siparis))
 
 
 def teslimi_onayla(siparis):
@@ -44,32 +41,21 @@ def teslimi_onayla(siparis):
     siparis.save(update_fields=["onay_zamani", "guncellendi"])
 
 
-def sorun_bildir(siparis, aciklama):
-    """
-    Üye bir sorun bildirdi. Otomatik onay bu siparişe dokunmaz: sorun bildiren
-    üye cevap vermiş sayılır, mağaza karar verene kadar sipariş açık kalır.
-    """
-    if not onay_bekliyor_mu(siparis):
-        raise ValidationError("Bu sipariş için sorun bildirilemez.")
-    aciklama = " ".join((aciklama or "").split())[:500] or "(açıklama yazılmadı)"
-    _not_ekle(siparis, f"{timezone.localtime():%d.%m %H.%M} — {SORUN_ISARETI}: {aciklama}")
-    siparis.save(update_fields=["ic_not", "guncellendi"])
-
-
 def otomatik_onaylanacaklar(simdi=None):
-    """Süresi dolmuş, onaysız, sorunsuz teslim edilmiş siparişler."""
+    """Süresi dolmuş, onaysız, açık talebi olmayan teslim edilmiş siparişler."""
     simdi = simdi or timezone.now()
     adaylar = (Siparis.objects
                .filter(durum=Siparis.Durum.TESLIM_EDILDI, onay_zamani__isnull=True,
                        teslim_zamani__isnull=False)
-               .exclude(ic_not__contains=SORUN_ISARETI)
                .select_related("magaza"))
     # Süre mağaza başına panelden değişebilir; model özelliği onu okuyor.
-    return [s for s in adaylar if s.otomatik_onay_zamani and s.otomatik_onay_zamani <= simdi]
+    return [s for s in adaylar
+            if s.otomatik_onay_zamani and s.otomatik_onay_zamani <= simdi
+            and not acik_talebi_var_mi(s)]
 
 
 def otomatik_onayla(siparis):
     siparis.onay_zamani = timezone.now()
-    _not_ekle(siparis, f"{timezone.localtime():%d.%m %H.%M} — {OTOMATIK_ISARETI} "
-                       f"(süre içinde bildirim gelmedi)")
+    siparis.ic_not = (f"{siparis.ic_not}\n{timezone.localtime():%d.%m %H.%M} — "
+                      f"{OTOMATIK_ISARETI} (süre içinde bildirim gelmedi)").strip()
     siparis.save(update_fields=["onay_zamani", "ic_not", "guncellendi"])

@@ -45,6 +45,66 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 3 Ekim 2026 (2) — SQLite koruması kuruldu, teslim onayı, otomatik_onayla
+
+okuduğum talimat: 3 Ekim
+
+**Canlı: commit `5828a4d`, Railway SUCCESS (web + kesim).** Site ve panel 200 — SQLite koruması
+canlıyı ve kesim servisini durdurmadı (ikisinde de DATABASE_URL var).
+
+### 1. SQLite koruması
+`hazir/settings.py` kuruldu. Yerelde `DEBUG=True` etkilenmiyor; `DJANGO_DEBUG=False` + DATABASE_URL yok →
+`ImproperlyConfigured: Canlı ortamda (DJANGO_DEBUG=False) veritabanı SQLite'a düştü…`. Kesim servisinin 12.06 kaydında
+`veritabanı: postgresql · açık gün: 195` (önceki raporda), 12.15'teki zamanlanmış çalışma da SUCCESS bitti.
+
+### 2. gunu_kes susturuldu
+`requires_system_checks = []` (+ yeni `otomatik_onayla`'da da). Kayıtta artık yalnızca komutun kendi satırları.
+
+### 3. Teslim onayı (Adım 6c)
+**Model dokunulmadı.** Ortak kurallar `siparis/teslim_onayi.py`'de (görünüm ve komut ikisi de buradan okur):
+- `teslimi_onayla` → `onay_zamani = şimdi`; yalnızca `teslim_edildi` + onaysız + sorunsuzken (ikinci kez → hata).
+- `sorun_bildir` → `ic_not`'a `dd.mm ss.dd — MÜŞTERİ SORUN BİLDİRDİ: <açıklama>`. **Sorun bildirilen sipariş
+  otomatik onaylanmıyor** — üye cevap vermiş sayılıyor, mağaza karar verene kadar açık. Modelde alan olmadığından
+  iç nottaki sabit işarete bakılıyor; `talep` modeli gelince ona bağlanmalı (o zaman `SORUN_ISARETI` kalkar).
+- Müşteri ekranı (siparişlerim detayı): "Siparişinizi teslim aldınız mı?" kutusu — teslim saati, "{otomatik onay zamanı}'e
+  kadar bildirmezseniz sipariş onaylanmış sayılır. Bu, kusurlu ürün bildirme hakkınızı ortadan kaldırmaz." +
+  **✓ Eksiksiz teslim aldım** + açılır **Bir sorun var** (500 karakterlik açıklama, "Mağazaya bildir").
+  Onay sonrası "3 Ekim 12.17'de teslim aldığınızı onayladınız."; otomatikte "Süre içinde bildirim gelmediği için
+  sipariş … onaylanmış sayıldı."; sorunda "Sorun bildiriminiz mağazaya iletildi…".
+- Adres: `POST /hesabim/siparisler/<numara>/teslim-onayi/`.
+- **"Mağazaya görünsün":** şimdilik yalnızca siparişin panel sayfasındaki iç notta. Listede süzgeç yok
+  (`siparis/admin.py` senin) — "sorun bildirilenler" süzgeci istersen `ic_not__contains=SORUN_ISARETI` ile eklenebilir.
+
+### 4. otomatik_onayla
+`siparis/management/commands/otomatik_onayla.py`: `teslim_edildi`, onaysız, `teslim_zamani` var, sorun işareti yok ve
+`siparis.otomatik_onay_zamani <= şimdi` (mağazanın `otomatik_teslim_onayi_saat`'i). `--kuru`, veritabanı satırı,
+her sipariş kendi `atomic`'inde; `ic_not`'a "otomatik teslim onayı" yazıyor.
+```
+--kuru:   03.10.2026 12.17 · veritabanı: sqlite · onay bekleyen teslim: 2
+          KURU ÇALIŞMA — hiçbir şey değiştirilmeyecek.
+            onaylanacak: BH-2026-000003 · teslim 02.10 11.17 · süre doldu 03.10 11.17
+          Toplam: 1 sipariş onaylanacak.
+gerçek:   … onaylandı: BH-2026-000003 … Toplam: 1 sipariş onaylandı.
+ikinci:   03.10.2026 12.17 · veritabanı: sqlite · onay bekleyen teslim: 1
+          Otomatik onaylanacak sipariş yok.
+```
+(Bekleyen 2'den biri sorun bildirilen sipariş — dokunulmadı; yerel deneme, işlem geri alındı.)
+Müşteri: onay → "Teşekkürler…", ikinci kez → "Bu sipariş için teslim onayı verilemez."
+
+### 5. Kesim servisinin Start Command'ı
+Ersin panelden değiştirdi; `railway status`: `kesim` start
+`python manage.py gunu_kes && python manage.py otomatik_onayla`, cron `*/15 * * * *`, SUCCESS; `web` start `''`.
+Yeni komutla ilk zamanlanmış çalışma 13.00'te; kaydı (iki "veritabanı: postgresql" satırı) Ersin'le bir sonraki turda bakılacak.
+**Maliyet (ilk 24 saat):** servis 12.06'da açıldı; yarın Railway kullanım ekranından bakılacak.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `bostanhane/settings.py` | senin sürümün | zaten aynı |
+| `siparis/management/commands/gunu_kes.py` | `requires_system_checks = []` | `hazir/`'de eşi yok |
+| Yeni: `siparis/teslim_onayi.py`, `siparis/management/commands/otomatik_onayla.py` | | `hazir/`'de eşi yok |
+| `hesaplar/{views,urls}.py`, `templates/hesaplar/siparis_detay.html` | teslim onayı | `hazir/`'de eşi yok |
+
 ## 3 Ekim 2026 — Serbest kalan tutar, DENEME_ODEME_HATASI; kesim servisi kuruldu ve çalışıyor
 
 okuduğum talimat: 2 Ekim (7)

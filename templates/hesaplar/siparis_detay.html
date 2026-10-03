@@ -25,26 +25,44 @@
     <p style="margin:0 0 12px;font-size:14px;color:#5B675A">{{ siparis.teslim_zamani|date:"j F H.i" }}'de teslim edildi.
       {{ siparis.otomatik_onay_zamani|date:"j F H.i" }}'e kadar bildirmezseniz sipariş onaylanmış sayılır.
       Bu, kusurlu ürün bildirme hakkınızı ortadan kaldırmaz.</p>
-    <form method="post" action="{% url 'teslim_onayi' siparis.numara %}" style="margin-bottom:10px">
+    <form method="post" action="{% url 'teslim_onayi' siparis.numara %}">
       {% csrf_token %}
-      <button class="btn blok" type="submit" name="onay" value="1">✓ Eksiksiz teslim aldım</button>
+      <button class="btn blok" type="submit">✓ Eksiksiz teslim aldım</button>
     </form>
-    <details>
-      <summary style="cursor:pointer;font-size:14px;color:#8A5A12;font-weight:700">Bir sorun var</summary>
-      <form method="post" action="{% url 'teslim_onayi' siparis.numara %}" style="margin-top:10px">
-        {% csrf_token %}
-        <div class="alan"><label for="aciklama">Ne oldu?</label>
-          <textarea id="aciklama" name="aciklama" rows="3" maxlength="500" placeholder="Örnek: Domatesler ezilmiş, yumurtalardan ikisi kırık."></textarea></div>
-        <button class="btn ghost" type="submit" name="sorun" value="1">Mağazaya bildir</button>
-      </form>
-    </details>
   </div>
 {% elif siparis.onay_zamani %}
   <div class="bilgi" style="margin-bottom:14px"><span>✓</span><span>
     {% if otomatik_onaylandi %}Süre içinde bildirim gelmediği için sipariş {{ siparis.onay_zamani|date:"j F H.i" }}'de onaylanmış sayıldı.
     {% else %}{{ siparis.onay_zamani|date:"j F H.i" }}'de teslim aldığınızı onayladınız.{% endif %}</span></div>
-{% elif sorun_bildirildi %}
-  <div class="uyari" style="margin-bottom:14px"><span>⚠</span><span>Sorun bildiriminiz mağazaya iletildi; sizinle iletişime geçilecek.</span></div>
+{% endif %}
+
+{% for talep in talepler %}
+  <div class="{% if talep.acik_mi %}uyari{% else %}bilgi{% endif %}" style="margin-bottom:10px"><span>{% if talep.acik_mi %}⏳{% else %}✉{% endif %}</span>
+    <span><b>{% if talep.kalem %}{{ talep.kalem.urun_adi }}{% else %}Siparişin geneli{% endif %} · {{ talep.get_tur_display }}</b><br>
+      {% if talep.acik_mi %}Bildiriminiz mağazaya iletildi, inceleniyor.
+      {% else %}Mağazanın kararı: {{ talep.karar_notu }}{% if talep.iade_tutari %}<br><b>{{ talep.iade_tutari|para }}</b> kartınıza iade edildi.{% endif %}{% endif %}</span></div>
+{% endfor %}
+
+{% if talep_formu %}
+  <details class="blok" {% if talep_formu.errors %}open{% endif %}>
+    <summary style="color:#8A5A12">Bir sorun mu var?</summary>
+    <form method="post" action="{% url 'talep_bildir' siparis.numara %}" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      {% for hata in talep_formu.non_field_errors %}<div class="hata-k">{{ hata }}</div>{% endfor %}
+      {% include "parcalar/alan.html" with alan=talep_formu.kalem %}
+      <div class="alan"><label>{{ talep_formu.tur.label }}</label>
+        {% for secenek in talep_formu.tur %}<label class="onay" style="margin-bottom:6px">{{ secenek.tag }}<span>{{ secenek.choice_label }}</span></label>{% endfor %}
+        {% for hata in talep_formu.tur.errors %}<div class="hata">{{ hata }}</div>{% endfor %}</div>
+      {% include "parcalar/alan.html" with alan=talep_formu.aciklama %}
+      {% if fotograf_acik %}
+        {% include "parcalar/alan.html" with alan=talep_formu.fotograflar %}
+      {% else %}
+        {# Canlıda kalıcı depolama yokken fotoğraf alınmıyor: sonraki dağıtımda kaybolurdu. #}
+        <p style="font-size:13px;color:#5B675A;margin:0 0 12px">Fotoğraf eklemek şu anda kapalı; sorunu yazıyla anlatın, mağaza sizi arayacak.</p>
+      {% endif %}
+      <button class="btn ghost" type="submit">Mağazaya bildir</button>
+    </form>
+  </details>
 {% endif %}
 
 <div class="blok">

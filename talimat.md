@@ -17,6 +17,130 @@
 
 ---
 
+## 3 Ekim 2026 (2) — `talep` uygulaması: kusurlu ürün bildirimi
+
+Teslim onayı iyi olmuş. Özellikle **sorun bildirilen siparişi otomatik
+onaylamaman** doğru karar: müşteri cevap vermiş sayılır, mağaza karar verene
+kadar sipariş açık kalmalı. Ben talimatta bunu söylememiştim, sen düşünüp koymuşsun.
+
+Raporda yazdığın endişe de yerindeydi:
+
+> Modelde alan olmadığından iç nottaki sabit işarete bakılıyor; `talep` modeli
+> gelince ona bağlanmalı.
+
+Haklıydın. İç not serbest metin — yönetici bir cümle eklerken işareti silerse
+sipariş sessizce otomatik onaylanır ve şikâyet kaybolur. Model geldi.
+
+### 1. Kurulum
+
+```powershell
+python manage.py startapp talep
+Copy-Item hazir\talep_models.py    talep\models.py   -Force
+Copy-Item hazir\talep_islemler.py  talep\islemler.py -Force
+Copy-Item hazir\talep_admin.py     talep\admin.py    -Force
+Copy-Item hazir\talep_apps.py      talep\apps.py     -Force
+Copy-Item hazir\siparis_admin.py   siparis\admin.py  -Force
+Copy-Item hazir\hesaplar_izinler.py hesaplar\izinler.py -Force
+```
+
+`BOSTANHANE_APPS`'e `"talep"` (`odeme`'den sonra), sonra:
+
+```powershell
+python manage.py makemigrations talep
+python manage.py migrate
+python manage.py roller_kur
+```
+
+`roller_kur` çıktısı: Mağaza Yöneticisi **50 yetki**, `! atlandı` yok.
+`talep/views.py` ve `tests.py`'yi sil (startapp'in boş dosyaları).
+
+### 2. Ne yapıyor
+
+**`Talep`** — hangi sipariş, hangi kalem, müşteri ne diyor, mağaza ne karar verdi,
+ne kadar iade edildi. **`TalepGorseli`** — müşterinin fotoğrafı.
+
+Kalem bazında, çünkü kısmi iade kalem tutarına göre hesaplanıyor. Kalem boş
+bırakılabiliyor (teslimat hiç gelmediyse).
+
+**Korumalar — hepsini denedim:**
+
+- Teslim edilmemiş siparişe talep açılmıyor.
+- Süre `SatisAyarlari.talep_acma_suresi_saat`'ten okunuyor, koda gömülü değil.
+  Süre dolunca *"Bildirim süresi doldu"*.
+- Aynı kalem için ikinci açık talep açılmıyor (müşteri iki kez basarsa).
+- İade, kalem tutarını aşamıyor.
+- Karar verirken müşteriye açıklama yazmak zorunlu.
+- **İade başarısızsa talep açık kalıyor.** "Kabul edildi" yazıp parayı
+  göndermemek, hiç karar vermemekten kötü. Sırası: önce para gider, sonra talep
+  kapanır; para gitmezse işlem geri alınıyor.
+- Karara bağlanmış talep ikinci kez karara bağlanamıyor.
+
+### 3. Fotoğraf — depolama yoksa hiç alınmıyor
+
+`gorsel_yuklenebilir_mi()` nesne depolamanın yapılandırılıp yapılandırılmadığına
+bakıyor. Canlıda R2 anahtarları yoksa **fotoğraf alanı hiç gösterilmeyecek**.
+
+Sebebi: fotoğraf bir anlaşmazlığın kanıtı. Railway'in diski kalıcı değil;
+anahtarsız yüklenen fotoğraf sonraki dağıtımda kaybolur. Müşteri "fotoğraf
+gönderdim" der, elimizde hiçbir şey olmaz. Sessizce kaybolan kanıt, hiç
+alınmamış kanıttan kötüdür.
+
+Müşteri ekranında, kapalıyken: *"Fotoğraf eklemek şu anda kapalı; sorunu
+yazıyla anlatın, mağaza sizi arayacak."* Ersin R2 anahtarlarını verince
+kendiliğinden açılacak, kod değişmeyecek.
+
+### 4. Senden
+
+**a. `otomatik_onayla` komutunu bağla.** `SORUN_ISARETI` metin aramasını kaldır,
+yerine:
+
+```python
+from talep.islemler import acik_talebi_var_mi
+```
+
+Açık talebi olan sipariş otomatik onaylanmasın. Geçici çözümün yerini kalıcısı
+aldı; `siparis/teslim_onayi.py`'deki `SORUN_ISARETI` sabiti de kalkabilir.
+
+**b. "Bir sorun var" düğmesini talebe bağla.** Şimdi iç nota yazıyor; onun yerine
+`talep.islemler.talep_ac(siparis, request.user, tur, aciklama, kalem=...)`
+çağırsın. Müşteri **hangi ürün** olduğunu seçebilsin (siparişin kalemleri +
+"sipariş geneli" seçeneği) ve sorun türünü işaretlesin (kusurlu / eksik / yanlış
+ürün / diğer).
+
+Fotoğraf alanı yalnızca `gorsel_yuklenebilir_mi()` True ise görünsün; en fazla
+3 fotoğraf, her biri en fazla 5 MB, yalnızca resim dosyası.
+
+**c. Talep durumunu müşteriye göster.** Siparişlerim detayında: açıkken
+*"Bildiriminiz mağazaya iletildi, inceleniyor."*, karara bağlanınca mağazanın
+`karar_notu`'su ve iade varsa tutarı.
+
+**d. Sipariş panelinde süzgeç hazır.** `siparis/admin.py`'ye "müşteri bildirimi"
+süzgecini ekledim (açık / karara bağlanmış / bildirim yok), süzgeçlerin başında.
+Açık bildirimi olan sipariş günün en acil işi, listede kaybolmasın.
+
+### 5. Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- Kesim servisinin 13.00 kaydı (iki `veritabanı: postgresql` satırı) ve
+  ilk 24 saatlik gerçek maliyet
+- Müşteri sorun bildirdi → panelde talep göründü → yönetici kabul etti →
+  **para gerçekten iade edildi** (ödeme defterinde iade satırı) → müşteri
+  kararı gördü
+- Açık talebi olan siparişin `otomatik_onayla` tarafından **atlandığı**
+- Fotoğraf alanının depolama yokken görünmediği
+
+### 6. Bunları yapma
+
+- `talep/` ve `odeme/` dosyalarını değiştirme — hata bulursan rapora yaz.
+- Talebi panelden açılabilir yapma, şikâyet kaydını silinebilir yapma.
+- `durum` ve `iade_tutari` alanlarını panelde doğrudan düzenlenebilir yapma —
+  elle "kabul" yazılırsa para gönderilmeden talep kapanır.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 3 Ekim 2026 — Sessiz SQLite tuzağına koruma; sırada teslim onayı
 
 ### 1. Ayarın okunmaması benim hatamdı
