@@ -45,6 +45,85 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 3 Ekim 2026 (3) — talep kuruldu; sorun bildirimi talebe, otomatik onay açık talebe bağlandı
+
+okuduğum talimat: 3 Ekim (2)
+
+**Canlı: commit `3c224be`, Railway SUCCESS (web + kesim).** Site ve panel 200; `talep.0001` PostgreSQL'de geçti.
+
+### 1. Kurulum
+`startapp talep` + dört dosya + `siparis_admin.py` + `hesaplar_izinler.py`; `"talep"` `odeme`'den sonra
+(`hazir/settings.py` eşitlendi); `talep/views.py`, `tests.py` silindi.
+```
+talep/migrations/0001_initial.py  + Talep, TalepGorseli, index  → Applying talep.0001_initial... OK
+roller_kur: Mağaza Yöneticisi 50 yetki · Paketleme 13 · Kurye 8 — "! atlandı" yok
+```
+
+### 2. Bağlama
+**a. otomatik_onayla:** `siparis/teslim_onayi.py` artık `talep.islemler.acik_talebi_var_mi`'ye bakıyor
+(çağrı anında içeri alınıyor — `talep` → `siparis` yönündeki bağımlılık döngüye girmesin). `SORUN_ISARETI` ve
+`sorun_bildir` kaldırıldı; kodda kalıntı yok (`grep`). `OTOMATIK_ISARETI` yalnızca müşteriye "otomatik onaylandı"
+demek için duruyor, karar mantığı ona bakmıyor.
+**b. "Bir sorun var" → talep:** `POST /hesabim/siparisler/<numara>/sorun/` → `talep_ac(siparis, user, tur, aciklama, kalem=)`.
+Form (`hesaplar/forms.py` `TalepFormu`): ürün (siparişin kalemleri + "Siparişin geneli"), tür (4 seçenek, radyo),
+açıklama (1000), fotoğraf — **yalnızca `gorsel_yuklenebilir_mi()` True ise alan eklenir**; en fazla 3, her biri ≤5 MB,
+her dosya `ImageField` denetiminden geçer (gerçekten resim mi). Fotoğraflar talep ile aynı `atomic`'te `TalepGorseli`.
+Kapalıyken: "Fotoğraf eklemek şu anda kapalı; sorunu yazıyla anlatın, mağaza sizi arayacak."
+**Sorun bildirme hakkı teslim onayından sonra da açık** (süre içinde) — onay, kusurlu ürün bildirme hakkını kaldırmıyor;
+form `Talep.acilabilir_mi`'ye bağlı. "Eksiksiz teslim aldım" düğmesi ayrı bir form oldu (`teslim_onayi` yalnızca onay).
+**c. Müşteriye durum:** her talep için kutu — açıkken "Bildiriminiz mağazaya iletildi, inceleniyor.", karardan sonra
+"Mağazanın kararı: {karar_notu}" + iade varsa "{tutar} kartınıza iade edildi."
+**d.** Sipariş panelindeki "müşteri bildirimi" süzgeci senin `siparis_admin.py`'nle geldi; çalışıyor.
+
+### 3. Test (yerel, işlem geri alındı; deneme fotoğrafları silindi)
+```
+1) form: ürün seçenekleri ['Siparişin geneli', 'Domates', 'Maydanoz', 'Süzme çiçek balı (850 g)'] · fotoğraf alanı var (DEBUG)
+2) talep: 'Bildiriminiz mağazaya iletildi…' | BH-2026-000001 · Domates · Ürün kusurlu / bozuk | Açık | fotoğraf: 2
+   aynı ürün için ikinci kez → yine 1 talep
+3) 4 fotoğraf → 400 'En fazla 3 fotoğraf ekleyebilirsiniz.'
+   resim olmayan dosya → 400 'Geçerli bir resim yükleyin…'
+   açık talepken müşteride "inceleniyor" var, "Eksiksiz teslim aldım" düğmesi yok
+4) panel talep listesi 200 · sipariş listesi ?talep=acik → sipariş görünüyor
+   yönetici: kısmi kabul, 20,00 → 'Karar kaydedildi; müşterinin kartına 20,00 ₺ iade edildi.'
+   talep "Kısmen kabul edildi" 20.00 · sipariş odeme_durumu kismi_iade
+   defter: Provizyon 571,75 · Çekim 564,35 · İade 20,00 (üçü Başarılı)
+5) müşteri: 'Mağazanın kararı: Ezik domatesler için 20 TL iade ettik. 20,00 ₺ kartınıza iade edildi.'
+6) otomatik_onayla (iki sipariş 30 saat önce teslim; biri açık talepli):
+   onaylandı: yalnızca talepsiz olan · açık talepli onaylandı mı: False
+   süresi dolan siparişe bildirim → 'Bildirim süresi doldu. Teslimattan sonra 24 saat içinde bildirilmesi gerekiyor.'
+7) gorsel_yuklenebilir_mi: DEBUG=False + disk → False · S3Storage → True
+```
+
+### Bulgular (talep/ dosyalarına dokunmadım)
+1. **Başarısız iade defterden siliniyor.** `karara_bagla` `@transaction.atomic`; iade başarısız olunca `ValidationError`
+   fırlatılıyor → `iade_et`'in yazdığı **başarısız `OdemeIslemi` satırı da geri alınıyor**. Talep açık kalıyor (doğru),
+   ama "sağlayıcı reddetti" kaydı defterde kalmıyor — ödeme defterinin "her istek bir satır" ilkesine ters; gerçek
+   sağlayıcıda reddedilen istek de iz bırakmalı. Öneri: iadeyi atomic'in dışında (ya da savepoint'le) çağırıp sonucu
+   defterde bırakmak, yalnızca talebin kapanmasını koşula bağlamak.
+2. **Panelde hata + "başarılı" mesajı birlikte.** `save_model` iade hatasında `messages.error` basıp dönüyor, ama Django
+   ardından kendi "… başarılı olarak değiştirildi." mesajını da ekliyor; yönetici iki çelişkili mesaj görür.
+   `response_change`'i hata durumunda bastırmak gerekebilir.
+3. Canlıda R2 anahtarı yok → fotoğraf alanı canlıda görünmeyecek (beklenen).
+
+### Kesim servisi
+Ersin kayıtları yapıştırdı — yeni Start Command'la her tur iki satır, ikisi de PostgreSQL:
+```
+03.10.2026 14.01 · veritabanı: postgresql · açık gün: 195
+Kesilecek gün yok.
+03.10.2026 14.01 · veritabanı: postgresql · onay bekleyen teslim: 0
+Otomatik onaylanacak sipariş yok.
+03.10.2026 14.15 · … (aynı) · 03.10.2026 14.31 · … (aynı)
+```
+15 dakikalık tur düzenli işliyor (14.01 dağıtım sonrası, 14.15, 14.31); sistem uyarısı satırı yok (susturma çalışıyor).
+Servis 12.06'da açıldı — 24 saatlik maliyet yarın öğlen Railway kullanım ekranından.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `bostanhane/settings.py` | `"talep"` | **Evet** |
+| `siparis/teslim_onayi.py` | `acik_talebi_var_mi`, işaret kaldırıldı | `hazir/`'de eşi yok |
+| `hesaplar/{forms,views,urls}.py`, `templates/hesaplar/siparis_detay.html` | talep formu, fotoğraf, durum kutuları | `hazir/`'de eşi yok |
+
 ## 3 Ekim 2026 (2) — SQLite koruması kuruldu, teslim onayı, otomatik_onayla
 
 okuduğum talimat: 3 Ekim

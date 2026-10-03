@@ -15,6 +15,7 @@ aşağıdaki formdan veriliyor.
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.http import HttpResponseRedirect
 from django.utils.html import format_html, format_html_join
 from django.utils.safestring import mark_safe
 
@@ -181,12 +182,26 @@ class TalepAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
         except ValidationError as hata:
             # Hatayı yutmuyoruz: para gitmediyse yönetici bilmeli.
             messages.error(request, " ".join(hata.messages))
+            request._talep_karar_hatasi = True
             return
         if talep.iade_tutari:
             messages.success(request, f"Karar kaydedildi; müşterinin kartına "
                                       f"{para_yaz(talep.iade_tutari)} iade edildi.")
         else:
             messages.success(request, "Karar kaydedildi.")
+
+    def response_change(self, request, obj):
+        """
+        İade başarısızsa Django'nun "başarıyla değiştirildi" mesajını bastırır.
+
+        Django kaydetmeden sonra kendi başarı mesajını ekliyor; biz hata mesajı
+        basmışsak yönetici iki çelişkili cümle görüyordu — "iade yapılamadı" ve
+        "başarıyla değiştirildi" yan yana. Para işinde bu kabul edilemez.
+        (Claude Code 3 Ekim'de yakaladı.)
+        """
+        if getattr(request, "_talep_karar_hatasi", False):
+            return HttpResponseRedirect(request.get_full_path())
+        return super().response_change(request, obj)
 
     def has_add_permission(self, request):
         """Talebi müşteri açar; panelden açılmaz."""

@@ -13,7 +13,7 @@
 <h1>Teslim günleri</h1>
 {% for tarih, takvimler in gruplar %}
   <div class="tarih-bas" style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
-    <span>{% if tarih == bugun %}Bugün{% else %}Yarın{% endif %} · {{ tarih|date:"j F l" }}</span>
+    <span>{% if tarih == bugun %}Bugün · {% elif tarih == yarin %}Yarın · {% endif %}{{ tarih|date:"j F l" }}</span>
     <a href="{% url 'depo_alim' tarih|date:'Y-m-d' %}" style="text-transform:none;letter-spacing:0;font-size:16px;font-weight:700">Alım listesi ›</a>
   </div>
   <div class="kartlar">

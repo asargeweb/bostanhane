@@ -50,11 +50,15 @@ def erken_kesebilir_mi(kullanici):
 
 @depo_gerekli
 def gunler(request):
-    """Bugünün ve yarının teslim günleri. Yarının günü bugün 18.00'de kesilir."""
+    """
+    Bugünün ve yarının teslim günleri (yarının günü bugün 18.00'de kesilir), ayrıca
+    önümüzdeki iki haftada siparişi olan günler — Cumartesi alınan Pazartesi
+    siparişi depoda önceden görünsün.
+    """
     bugun = timezone.localdate()
     takvimler = (TeslimTakvimi.objects
                  .filter(hizmet_mahallesi__magaza=request.magaza,
-                         tarih__range=(bugun, bugun + timedelta(days=1)))
+                         tarih__range=(bugun, bugun + timedelta(days=14)))
                  .exclude(durum=TeslimTakvimi.Durum.IPTAL)
                  .select_related("hizmet_mahallesi__mahalle")
                  .annotate(
@@ -62,8 +66,11 @@ def gunler(request):
                      hazir_adet=Count("siparisler", filter=Q(siparisler__durum__in=[
                          Siparis.Durum.HAZIRLANIYOR, Siparis.Durum.YOLDA, Siparis.Durum.TESLIM_EDILDI])))
                  .order_by("tarih", "hizmet_mahallesi__sira"))
+    yarin = bugun + timedelta(days=1)
     gruplar = {}
     for takvim in takvimler:
+        if takvim.tarih > yarin and not takvim.siparis_adet:
+            continue
         gruplar.setdefault(takvim.tarih, []).append(takvim)
     # Kesim saati geçmiş ama kesilmemiş günler — tarihi ne olursa olsun. Zamanlanmış
     # `gunu_kes` kurulana kadar insan gözü yedek: kesilmeyen günde sipariş akmaya
@@ -76,6 +83,7 @@ def gunler(request):
     return render(request, "depo/gunler.html", {
         "gruplar": sorted(gruplar.items()),
         "bugun": bugun,
+        "yarin": yarin,
         "simdi": timezone.now(),
         "kesilmemis": kesilmemis,
     })

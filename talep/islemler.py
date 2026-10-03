@@ -50,7 +50,6 @@ def talep_ac(siparis, kullanici, tur, aciklama, kalem=None):
     return talep
 
 
-@transaction.atomic
 def karara_bagla(talep, durum, kullanici, karar_notu, iade_tutari=None):
     """
     Mağaza yöneticisinin kararını işler; gerekiyorsa parayı iade eder.
@@ -59,8 +58,17 @@ def karara_bagla(talep, durum, kullanici, karar_notu, iade_tutari=None):
     Red kararında iade yapılmaz.
 
     Sıra önemli: **önce para gider, sonra talep kapanır.** İade başarısız olursa
-    hata fırlatılıyor ve işlem geri alınıyor; talep açık kalıyor. Böylece
-    "kabul edildi ama para gitmedi" durumu oluşmuyor.
+    talep açık kalıyor; "kabul edildi ama para gitmedi" durumu oluşmuyor.
+
+    **Niye bu işlev `@transaction.atomic` değil:** öyleyken, iade başarısız olup
+    hata fırlattığımızda `iade_et`'in deftere yazdığı *"sağlayıcı reddetti"*
+    satırı da geri alınıyordu. Ödeme defterinin ilkesi "gönderilen her istek bir
+    satır"; reddedilen istek de iz bırakmalı, yoksa "neden iade edilmedi"
+    sorusunun cevabı hiçbir yerde kalmaz. (Claude Code 3 Ekim'de yakaladı.)
+
+    Şimdi iade kendi işleminde yürüyüp kaydını bırakıyor; talebin kapanması ayrı
+    bir adım. Para gidip kapanma adımı patlarsa, yönetici tekrar denediğinde
+    `talep.odeme_islemi` dolu olduğu için **ikinci kez para gönderilmiyor.**
     """
     if talep.karara_baglandi_mi:
         raise ValidationError("Bu talep zaten karara bağlanmış.")
@@ -81,21 +89,33 @@ def karara_bagla(talep, durum, kullanici, karar_notu, iade_tutari=None):
             raise ValidationError(
                 {"iade_tutari": f"En fazla {para_yaz(talep.en_fazla_iade)} iade edilebilir."})
 
-        islem = iade_et(talep.siparis, tutar, kullanici=kullanici,
-                        sebep=f"Talep #{talep.pk} · {talep.get_tur_display()}")
-        if not islem.basarili_mi:
-            # Para gitmediyse talebi kapatmıyoruz; mağaza tekrar deneyebilsin.
-            raise ValidationError(
-                f"İade yapılamadı: {islem.hata_mesaji or 'sağlayıcı reddetti'}. "
-                f"Talep açık bırakıldı.")
+        onceki = talep.odeme_islemi
+        if onceki is not None and onceki.basarili_mi:
+            # Para zaten gitmiş; yalnızca kapanma adımı eksik kalmış.
+            islem, tutar = onceki, onceki.tutar
+        else:
+            islem = iade_et(talep.siparis, tutar, kullanici=kullanici,
+                            sebep=f"Talep #{talep.pk} · {talep.get_tur_display()}")
+            if islem.basarili_mi:
+                # Kapanma adımından ÖNCE bağla: araya bir hata girerse bile
+                # ikinci denemede çift iade yapılmasın.
+                talep.odeme_islemi = islem
+                talep.save(update_fields=["odeme_islemi", "guncellendi"])
+            else:
+                # Para gitmediyse talebi kapatmıyoruz; mağaza tekrar deneyebilsin.
+                # Başarısız işlem defterde kalıyor — neden gitmediği belli olsun.
+                raise ValidationError(
+                    f"İade yapılamadı: {islem.hata_mesaji or 'sağlayıcı reddetti'}. "
+                    f"Talep açık bırakıldı.")
 
-    talep.durum = durum
-    talep.iade_tutari = tutar
-    talep.karar_notu = karar_notu
-    talep.karar_veren = kullanici
-    talep.karar_zamani = timezone.now()
-    talep.save(update_fields=["durum", "iade_tutari", "karar_notu", "karar_veren",
-                              "karar_zamani", "guncellendi"])
+    with transaction.atomic():
+        talep.durum = durum
+        talep.iade_tutari = tutar
+        talep.karar_notu = karar_notu
+        talep.karar_veren = kullanici
+        talep.karar_zamani = timezone.now()
+        talep.save(update_fields=["durum", "iade_tutari", "karar_notu", "karar_veren",
+                                  "karar_zamani", "guncellendi"])
     return talep
 
 

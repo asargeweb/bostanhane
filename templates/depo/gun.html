@@ -9,6 +9,10 @@
 
 {% if kesildi %}
   <a class="btn ikincil blok" href="{% url 'depo_alim_takvim' takvim.pk %}" style="margin-bottom:16px">Günün alım listesi</a>
+  {% if user.super_admin_mi or user.rol == "magaza_yoneticisi" %}
+    {# Kurye ekranı yalnızca bugünü listeliyor; yönetici başka günün rotasına buradan geçer. #}
+    <a class="btn ikincil blok" href="{% url 'kurye_rota' takvim.pk %}" style="margin-bottom:16px">Kurye ekranında aç</a>
+  {% endif %}
 {% endif %}
 
 {% if kesebilir %}

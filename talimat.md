@@ -17,6 +17,116 @@
 
 ---
 
+## 3 Ekim 2026 (3) — İki bulgunun da haklıydı, ikisini de düzelttim
+
+Talep akışını bağlaman temiz olmuş. Özellikle iki şey:
+
+- **Sorun bildirme hakkını teslim onayından sonra da açık bırakman.** Yasal
+  metinde "onay, kusurlu ürün bildirme hakkınızı ortadan kaldırmaz" yazıyor;
+  sen kodu metne uydurmuşsun. Ben talimatta bunu ayrıca söylememiştim.
+- **`acik_talebi_var_mi`'yi çağrı anında içeri alman.** `talep` → `siparis`
+  yönünde bağımlılık var; tersini dosya başında yazsaydık döngü olurdu.
+
+---
+
+### 1. Başarısız iade defterden siliniyordu — düzelttim
+
+Bulgun aynen doğru:
+
+> `karara_bagla` `@transaction.atomic`; iade başarısız olunca `ValidationError`
+> fırlatılıyor → `iade_et`'in yazdığı başarısız `OdemeIslemi` satırı da geri
+> alınıyor.
+
+Defterin ilkesi "gönderilen her istek bir satır". Reddedilen istek de iz
+bırakmalı, yoksa "neden iade edilmedi" sorusunun cevabı hiçbir yerde kalmaz.
+Benim `@transaction.atomic` dekoratörüm tam da kaydı korumak için koyduğum şeyi
+siliyormuş.
+
+**Önerini uyguladım** — iade artık kendi işleminde yürüyüp kaydını bırakıyor,
+talebin kapanması ayrı adım.
+
+Ama bu düzeltme yeni bir risk doğuruyordu: para gidip kapanma adımı patlarsa,
+yönetici tekrar denediğinde **ikinci kez para gider**. Kendi düzeltmemin
+açtığı deliği de kapatmam gerekti:
+
+`Talep.odeme_islemi` alanı ekledim (yeni migration). Para gittiği anda, talep
+kapanmadan **önce** bağlanıyor. İkinci denemede bu alan doluysa sağlayıcıya hiç
+gidilmiyor, yalnızca kapanma adımı tamamlanıyor.
+
+Denedim: başarısız iade defterde kalıyor (hata kodu dahil), talep açık kalıyor,
+ikinci deneme başarılı oluyor, defterde bir başarısız + bir başarılı satır
+duruyor, ve bağlı talep ikinci kez para göndermiyor.
+
+### 2. Çelişkili iki mesaj — düzelttim
+
+Bu da doğruydu: `messages.error` basıp dönüyordum, Django ardından kendi
+*"başarıyla değiştirildi"* mesajını ekliyordu. Yönetici "iade yapılamadı" ile
+"başarıyla değiştirildi"yi yan yana görüyordu. Para işinde kabul edilemez.
+
+`response_change`'i hata durumunda bastırdım. Denedim: artık yalnızca hata
+mesajı görünüyor, talep açık kalıyor.
+
+### 3. Kurulum
+
+```powershell
+Copy-Item hazir\talep_models.py   talep\models.py   -Force
+Copy-Item hazir\talep_islemler.py talep\islemler.py -Force
+Copy-Item hazir\talep_admin.py    talep\admin.py    -Force
+python manage.py makemigrations talep
+python manage.py migrate
+```
+
+Beklenen: `talep/migrations/0002_talep_odeme_islemi.py` — tek alan ekliyor,
+veri taşımıyor.
+
+### 4. Sırada — prova hazırlığı
+
+Yazılım tarafında benden ya da senden bekleyen iş kalmadı. Ersin'in üç işi
+(gün gruplaması, şirket bilgileri, sanal POS) ve R2 anahtarları bekliyor.
+
+Bu arada yapılabilecek, gerçekten işe yarayacak bir şey var: **Ersin'in uçtan
+uca prova yapması.** Kendine sipariş verip günü kesecek, depodan tartacak,
+kuryeden teslim edecek. Yazılımın çalıştığını biliyoruz; **onun elinde**
+çalıştığını bilmiyoruz.
+
+Senden istediğim: `PROVA.md` diye bir dosya yaz. Ersin'in yazılım bilgisi yok,
+adım adım ve ekran ekran olsun:
+
+1. Hangi adresten giriş yapacak, hangi hesapla (süper admin mi, mağaza
+   yöneticisi mi — her adımda hangi rol gerekiyorsa)
+2. Panelden birkaç ürüne fiyat girmesi (vitrinde ürün görünmesi için şart)
+3. Üye olarak sipariş vermesi — sepet, adres, teslim günü, deneme siparişi
+4. Günü kesmesi (depo ekranı) — ya da kesim servisinin kesmesini beklemesi
+5. Alım listesini görmesi
+6. Toplama ekranından tartması, bir ürüne "bulunamadı" demesi
+7. Kurye ekranından teslim etmesi
+8. Müşteri olarak teslim onayı vermesi, bir de sorun bildirmesi
+9. Yönetici olarak talebe karar verip iade etmesi
+10. Ödeme defterinde üç satırı görmesi
+
+Her adımda **ne görmesi gerektiğini** yaz — beklenen ekran, beklenen mesaj.
+Böyle olmazsa bir hata var demektir ve rapora yazılacak.
+
+Dosyayı `hazir/`'a değil doğrudan proje köküne koy; Ersin'in dosyası.
+
+### 5. Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- `0002` migration'ının temiz geçtiği
+- Başarısız iadenin defterde kaldığı (canlıda değil, yerelde denemen yeterli)
+- Panelde tek mesaj göründüğü
+- `PROVA.md` hazır
+
+### 6. Bunları yapma
+
+- `talep/` ve `odeme/` dosyalarını değiştirme.
+- Provayı sen çalıştırma — Ersin'in kendi eliyle yapması lazım, amaç o.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 3 Ekim 2026 (2) — `talep` uygulaması: kusurlu ürün bildirimi
 
 Teslim onayı iyi olmuş. Özellikle **sorun bildirilen siparişi otomatik

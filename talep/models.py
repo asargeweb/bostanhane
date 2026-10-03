@@ -96,6 +96,15 @@ class Talep(ZamanDamgali):
     iade_tutari = models.DecimalField("iade edilen", max_digits=10, decimal_places=2,
                                       default=SIFIR,
                                       validators=[MinValueValidator(SIFIR)])
+    # Bu talep için yapılan iade hangi ödeme işlemi.
+    #
+    # İki işe yarıyor: (1) "şu talebin parası şu işlemle gitti" diye izlenebilir
+    # olması, (2) **çift iade koruması** — para gittikten sonra talebi kapatma
+    # adımı bir sebeple başarısız olursa, yönetici tekrar denediğinde buraya
+    # bakılıyor ve ikinci kez para gönderilmiyor.
+    odeme_islemi = models.ForeignKey("odeme.OdemeIslemi", on_delete=models.SET_NULL,
+                                     null=True, blank=True, related_name="talepler",
+                                     verbose_name="iade işlemi")
 
     class Meta:
         verbose_name = "talep"
