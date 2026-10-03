@@ -17,6 +17,119 @@
 
 ---
 
+## 3 Ekim 2026 — Sessiz SQLite tuzağına koruma; sırada teslim onayı
+
+### 1. Ayarın okunmaması benim hatamdı
+
+`getattr(settings, "DENEME_ODEME_HATASI")` yazdım ama `settings.py`'ye o ayarı
+eklemeyi unuttum. `.env`'e yazılan değer hiç etki etmezdi — yani eklediğim hata
+anahtarı hiç çalışmayacaktı. Sen kurarken fark edip ekledin. Doğru düzeltme.
+
+`ODEME_SAGLAYICI` için de aynısı geçerliymiş; onu da yakalamışsın.
+
+### 2. SQLite tuzağı — uyarını kalıcı korumaya çevirdim
+
+Raporunda yazdığın şey bu turdaki en değerli bulgu:
+
+> `DATABASE_URL` eksik kalırsa `settings.py` sessizce SQLite'a düşer, komut boş
+> veritabanında "Kesilecek gün yok" deyip başarılı biter — çalışıyormuş gibi
+> görünür ama hiçbir şey kesmez.
+
+Haftalarca "her şey yolunda" sanıp hiçbir siparişin kesilmediğini fark etmemek,
+bu projede olabilecek en sinsi hata. Komuta veritabanı adını bastırman iyi bir
+teşhis aracı, ama **teşhis yetmez** — kimse her gün kayıtlara bakmaz.
+
+`settings.py`'ye sert koruma ekledim (senin sürümünün üzerine):
+
+```python
+if not DEBUG and DATABASES["default"]["ENGINE"].endswith("sqlite3"):
+    raise ImproperlyConfigured(...)
+```
+
+Canlıda SQLite'a düşmek artık **hata**. Servis hiç başlamıyor, Railway kırmızı
+gösteriyor. Sessizce yanlış çalışmaktansa gürültüyle çökmesi iyidir.
+
+Denedim: `DEBUG=True` etkilenmiyor, `DEBUG=False` + `DATABASE_URL` yok → net hata
+mesajı, `DEBUG=False` + postgres ayarlı → geçiyor.
+
+```powershell
+Copy-Item hazir\settings.py bostanhane\settings.py -Force
+```
+
+**Kurduktan sonra bir kez doğrula:** canlıda `kesim` servisinin kaydında hâlâ
+`veritabanı: postgresql` yazıyor mu. Yazıyorsa koruma hiç devreye girmeyecek
+demektir, istediğimiz bu. Yazmıyorsa servis zaten çökecek ve göreceğiz.
+
+### 3. Sistem kontrolü gürültüsü — sustur
+
+Sormuşsun: komut her çalışmada W001/W002 uyarılarını basıyor, susturulsun mu.
+**Sustur:** `requires_system_checks = []`.
+
+Gerekçe: 15 dakikada bir, günde 96 çalışma, her birinde iki uyarı satırı.
+Gerçek bir hata çıktığında bu yığının içinde kaybolur. W001 ve W002 zaten her
+dağıtım kaydında görünüyor — yerleri orası. Kayıtların az ve okunabilir olması
+uyarının tekrarlanmasından değerli.
+
+### 4. Sırada — teslim onayı (Adım 6c)
+
+`CLAUDE.md`'deki kararlardan biri henüz yazılmadı:
+
+> Teslimde üye "eksiksiz teslim aldım" onayı verir; cevap gelmezse 24 saat sonra
+> otomatik onay.
+
+`SatisAyarlari.otomatik_teslim_onayi_saat` alanı duruyor, `Siparis.onay_zamani`
+alanı duruyor, kimse doldurmuyor. İki parça:
+
+**a. Müşteri onayı.** Siparişlerim detayında, sipariş `teslim_edildi` ve
+`onay_zamani` boşsa iki düğme:
+- **"Eksiksiz teslim aldım"** → `onay_zamani = şimdi`.
+- **"Bir sorun var"** → şimdilik yalnızca `ic_not`'a yazsın ve mağazaya görünsün.
+  **Fotoğraflı iade talebi ekranını yapma** — o ayrı bir iş (`talep` uygulaması),
+  model gerekiyor, bende.
+
+Onaylanmış siparişte düğmeler yerine *"3 Ekim 14.20'de teslim aldığınızı
+onayladınız."* yazsın.
+
+**b. Otomatik onay komutu.** `siparis/management/commands/otomatik_onayla.py`:
+`teslim_edildi` olup `onay_zamani` boş ve `teslim_zamani` üzerinden
+`SatisAyarlari.otomatik_teslim_onayi_saat` saat geçmiş siparişleri onaylar.
+`--kuru` seçeneği olsun, `gunu_kes` gibi tekrar çalıştırılabilir olsun,
+veritabanı adını bastırsın.
+
+Kesim servisinin Start Command'ını şöyle yap:
+
+```
+python manage.py gunu_kes && python manage.py otomatik_onayla
+```
+
+Yeni servis açmaya gerek yok; ikisi de saniyeler sürüyor, aynı 15 dakikalık
+turda çalışsınlar. `&&` kullan: kesim hata verirse onay çalışmasın, sebebi
+kayıtlarda tek yerde kalsın.
+
+**Not:** Otomatik onay müşterinin kanundan doğan haklarını ortadan kaldırmıyor;
+yalnızca siparişi "kapanmış" sayıyor. Yasal metinlerde böyle yazılı, ekranda da
+öyle anlat: *"24 saat içinde bildirmezseniz sipariş onaylanmış sayılır. Bu,
+kusurlu ürün bildirme hakkınızı ortadan kaldırmaz."*
+
+### 5. Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- Canlıda kesim servisinin kaydında `veritabanı: postgresql` yazdığı
+- Kesim servisinin ilk 24 saatlik gerçek maliyeti (tahmin $0,3/ay idi)
+- Müşterinin teslim onayı verdiği ve ikinci kez veremediği
+- `otomatik_onayla --kuru` çıktısı ve iki kez çalıştırıldığında hata vermediği
+
+### 6. Bunları yapma
+
+- Fotoğraflı iade talebi ekranı ve `talep` uygulaması — bende.
+- `odeme/` dosyalarını değiştirme; hata bulursan rapora yaz (bu turda ikisi de işe yaradı).
+- Gerçek sağlayıcı yazma, canlıda `ODEME_SAGLAYICI` ya da `DENEME_ODEME_HATASI` değiştirme.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 2 Ekim 2026 (7) — İki notun da haklıydı; Railway kesim servisi onaylandı
 
 ### Önce: canlıya alma konusunda yanılan bendim

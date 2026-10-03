@@ -19,6 +19,34 @@
   <div class="bilgi" style="margin-bottom:14px"><span>💳</span><span>Sipariş iptal edildi; kartınızdaki bloke çözüldü.</span></div>
 {% endif %}
 
+{% if onay_bekliyor %}
+  <div class="blok" style="border-color:#1F5132">
+    <h2>Siparişinizi teslim aldınız mı?</h2>
+    <p style="margin:0 0 12px;font-size:14px;color:#5B675A">{{ siparis.teslim_zamani|date:"j F H.i" }}'de teslim edildi.
+      {{ siparis.otomatik_onay_zamani|date:"j F H.i" }}'e kadar bildirmezseniz sipariş onaylanmış sayılır.
+      Bu, kusurlu ürün bildirme hakkınızı ortadan kaldırmaz.</p>
+    <form method="post" action="{% url 'teslim_onayi' siparis.numara %}" style="margin-bottom:10px">
+      {% csrf_token %}
+      <button class="btn blok" type="submit" name="onay" value="1">✓ Eksiksiz teslim aldım</button>
+    </form>
+    <details>
+      <summary style="cursor:pointer;font-size:14px;color:#8A5A12;font-weight:700">Bir sorun var</summary>
+      <form method="post" action="{% url 'teslim_onayi' siparis.numara %}" style="margin-top:10px">
+        {% csrf_token %}
+        <div class="alan"><label for="aciklama">Ne oldu?</label>
+          <textarea id="aciklama" name="aciklama" rows="3" maxlength="500" placeholder="Örnek: Domatesler ezilmiş, yumurtalardan ikisi kırık."></textarea></div>
+        <button class="btn ghost" type="submit" name="sorun" value="1">Mağazaya bildir</button>
+      </form>
+    </details>
+  </div>
+{% elif siparis.onay_zamani %}
+  <div class="bilgi" style="margin-bottom:14px"><span>✓</span><span>
+    {% if otomatik_onaylandi %}Süre içinde bildirim gelmediği için sipariş {{ siparis.onay_zamani|date:"j F H.i" }}'de onaylanmış sayıldı.
+    {% else %}{{ siparis.onay_zamani|date:"j F H.i" }}'de teslim aldığınızı onayladınız.{% endif %}</span></div>
+{% elif sorun_bildirildi %}
+  <div class="uyari" style="margin-bottom:14px"><span>⚠</span><span>Sorun bildiriminiz mağazaya iletildi; sizinle iletişime geçilecek.</span></div>
+{% endif %}
+
 <div class="blok">
   <h2>Teslimat</h2>
   <p style="margin:0;font-size:14.5px">

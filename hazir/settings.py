@@ -148,6 +148,23 @@ else:
         }
     }
 
+# Canlıda sessizce SQLite'a düşmek, olabilecek en sinsi hatalardan biri:
+# `DATABASE_URL` unutulursa site ya da zamanlanmış komut **hata vermeden**
+# boş bir veritabanıyla çalışır. Kesim komutu "kesilecek gün yok" deyip
+# başarıyla biter; haftalarca çalışıyor sanırsın, hiçbir şey kesilmez.
+# (Claude Code 3 Ekim'de kesim servisini kurarken bu tuzağı fark etti.)
+#
+# Bu yüzden canlıda SQLite'a düşmek hata sayılıyor: erken ve gürültülü çöksün.
+if not DEBUG and DATABASES["default"]["ENGINE"].endswith("sqlite3"):
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "Canlı ortamda (DJANGO_DEBUG=False) veritabanı SQLite'a düştü. "
+        "DATABASE_URL tanımlı değil ya da DB_MOTOR=postgres değil. "
+        "Railway'de her servise DATABASE_URL=${{Postgres.DATABASE_URL}} verilmeli — "
+        "web servisine de, zamanlanmış kesim servisine de."
+    )
+
 # --------------------------------------------------------------------------
 # Kullanıcı modeli
 #

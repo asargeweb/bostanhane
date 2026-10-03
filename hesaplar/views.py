@@ -21,6 +21,9 @@ from core.models import IlgiKaydi, Ilce, Mahalle
 from odeme.islemler import bloke_coz
 from odeme.models import siparis_ozeti
 from siparis.models import Siparis
+from siparis.teslim_onayi import (
+    onay_bekliyor_mu, otomatik_onaylandi_mi, sorun_bildir, sorun_bildirildi_mi, teslimi_onayla,
+)
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
 from .forms import AdresFormu, GirisFormu, HesapFormu, KayitFormu
@@ -240,8 +243,30 @@ def siparis_detay(request, numara):
         numara=numara, uye=request.user)
     # Para durumu defterden: müşteri ekstresinde iki satır görecek (çekim + serbest kalan),
     # sayıyı önceden söylemek "neden iki hareket var" sorusunu önlüyor.
-    return render(request, "hesaplar/siparis_detay.html",
-                  {"siparis": siparis, "odeme": siparis_ozeti(siparis)})
+    return render(request, "hesaplar/siparis_detay.html", {
+        "siparis": siparis,
+        "odeme": siparis_ozeti(siparis),
+        "onay_bekliyor": onay_bekliyor_mu(siparis),
+        "sorun_bildirildi": sorun_bildirildi_mi(siparis),
+        "otomatik_onaylandi": otomatik_onaylandi_mi(siparis),
+    })
+
+
+@login_required
+@require_POST
+def teslim_onayi(request, numara):
+    """"Eksiksiz teslim aldım" ya da "Bir sorun var"."""
+    siparis = get_object_or_404(Siparis, numara=numara, uye=request.user)
+    try:
+        if "sorun" in request.POST:
+            sorun_bildir(siparis, request.POST.get("aciklama", ""))
+            messages.success(request, "Bildiriminizi aldık. Mağaza sizinle iletişime geçecek.")
+        else:
+            teslimi_onayla(siparis)
+            messages.success(request, "Teşekkürler, teslim aldığınızı onayladınız.")
+    except ValidationError as hata:
+        messages.error(request, " ".join(hata.messages))
+    return redirect("siparis_detay", numara=numara)
 
 
 @login_required

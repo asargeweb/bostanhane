@@ -25,6 +25,10 @@ from siparis.models import Siparis, gunu_kes
 class Command(BaseCommand):
     help = "Kesim saati geçmiş, hâlâ açık teslim günlerini keser."
 
+    # 15 dakikada bir çalışıyor; her seferinde W001/W002 basılırsa gerçek bir hata
+    # o yığında kaybolur. Sistem uyarıları zaten her dağıtım kaydında görünüyor.
+    requires_system_checks = []
+
     def add_arguments(self, ayristirici):
         ayristirici.add_argument("--kuru", action="store_true",
                                  help="Ne yapılacağını yazar, hiçbir şeyi değiştirmez.")

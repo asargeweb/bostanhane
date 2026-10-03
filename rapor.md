@@ -45,11 +45,11 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
-## 3 Ekim 2026 — Serbest kalan tutar, DENEME_ODEME_HATASI; kesim servisi kuru çalıştırma bekliyor
+## 3 Ekim 2026 — Serbest kalan tutar, DENEME_ODEME_HATASI; kesim servisi kuruldu ve çalışıyor
 
 okuduğum talimat: 2 Ekim (7)
 
-**Canlı: commit `db453c1`, Railway SUCCESS.**
+**Canlı: commit `db453c1` ve `9681c9c`, Railway SUCCESS (web + yeni `kesim` servisi).**
 
 ### 1. Kurulum
 `hazir/odeme_models.py`, `hazir/odeme_saglayicilar.py` kuruldu; `makemigrations --check` → No changes detected.
@@ -96,6 +96,16 @@ rota var: 2 Ekim Bahçelievler/Hacıakif/Hacıarmağan/Evsat = eski Salı-Cuma r
 Servis kurulumu: Ersin'e panel adımları verildi (yeni servis `kesim`, aynı depo, Start Command
 `python manage.py gunu_kes`, Cron `*/15 * * * *`, domain yok; değişkenler `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
 `DJANGO_SECRET_KEY=${{web.DJANGO_SECRET_KEY}}`, `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=${{web.DJANGO_ALLOWED_HOSTS}}`).
+**KURULDU (3 Ekim 12.06).** Ersin panelden kurdu; durum (railway status): `kesim` servisi, start
+`python manage.py gunu_kes`, cron `*/15 * * * *`, sonraki çalıştırma 09:15Z; `web` Start Command hâlâ boş (`''`).
+Yanlışlıkla eklenen başka bir depo (`secmennediyor`) "Apply" öncesi silindi, projeye girmedi.
+Komuta her çalışmada `veritabanı: <vendor> · açık gün: N` satırı eklendi (commit `9681c9c`, web + kesim SUCCESS) —
+aşağıdaki SQLite tuzağını kayıtlarda ayırt etmek için. İlk çalışma ("Run now") kaydı:
+```
+03.10.2026 12.06 · veritabanı: postgresql · açık gün: 195
+Kesilecek gün yok.
+```
+Doğru veritabanı, açık 195 gelecek gün, kesilecek yok (8 eski gün az önce kesilmişti). Maliyet ölçümü yarın (ilk 24 saat).
 **Dikkat:** `DATABASE_URL` eksik kalırsa `settings.py` sessizce SQLite'a düşer, komut boş veritabanında
 "Kesilecek gün yok" deyip başarılı biter — çalışıyormuş gibi görünür ama hiçbir şey kesmez. Kurulum sonrası doğrulanacak.
 Not: komut her çalışmada önce W001/W002 uyarılarını basıyor (Django'nun komut öncesi sistem kontrolü). Cron
