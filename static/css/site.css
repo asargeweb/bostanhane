@@ -110,6 +110,9 @@ h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:-.
 .form-yan{flex:1 1 240px;background:var(--krem-2);border-radius:14px;padding:16px;align-self:flex-start}
 .form-yan h3{font-size:15px;margin-bottom:8px}
 .form-yan ul{margin:0 0 12px;padding-left:16px;font-size:13px;color:var(--ink2)}
+.form-yan p{margin:0 0 12px;font-size:13px;color:var(--ink2)}
+/* display:flex verilen kutular (.bilgi, .uyari) hidden ile de gizlenebilsin. */
+[hidden]{display:none!important}
 
 /* --- vitrin ---------------------------------------------------------- */
 .vitrin{display:block}

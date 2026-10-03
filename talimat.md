@@ -17,6 +17,174 @@
 
 ---
 
+## 3 Ekim 2026 (4) — Mahalle nüfusu, talep haritası ve "mahalleme de gelin" sayfası
+
+Depoda ileri günleri bulup düzeltmen iyi oldu — prova rehberini yazarken
+yakalaman tam da rehberin işe yaradığını gösteriyor. "Kurye ekranında aç"
+bağlantısı da benim aklıma gelmemişti; yönetici başka günün rotasına başka
+türlü ulaşamıyordu.
+
+`PROVA.md` için teşekkürler, Ersin'e söyledim.
+
+---
+
+### 1. Gün düzenini Ersin panelden yapıyor — teyit ettim
+
+Gözlemin doğruymuş, sordum: **evet, teslim günlerini panelden kendisi
+düzenliyor.** Yani `ornek_veri.GUN_ROTALARI` tablosu artık canlıyla uyuşmuyor
+ve uyuşmayacak.
+
+Senin uyarın ("`--rotalari_esitle` canlıda çalıştırılmamalı") doğruydu, ama
+uyarı insan hafızasına güveniyor. Komuta koruma koydum: `--rotalari_esitle`
+artık tek başına çalışmıyor, `--eminim` da istiyor ve ne yapacağını önce
+anlatıyor.
+
+Ersin'in saatlerce yaptığı düzeni tek komutla geri almak, bu projede
+yapılabilecek en can sıkıcı hatalardan biri olurdu.
+
+### 2. Mahalle nüfusu — Ersin'in isteği
+
+`Mahalle.nufus`, `nufus_yili`, `nufus_kaynagi` eklendi. Üç alan, çünkü sayının
+kendisi kadar **nereden geldiği ve ne zamana ait olduğu** da önemli: nüfus her
+yıl değişiyor, bu sayılar bizim ölçümümüz değil.
+
+Veri: TÜİK ADNKS **2023**, atlasbig.com.tr üzerinden derlendi — yani TÜİK'ten
+doğrudan değil, aktaran bir siteden. `core/nufus_verisi.py`'nin başında bunu
+açıkça yazdım. 70 mahalleden **68'i** doldu; Yeşilyurt ve Akçabelen hiçbir
+listede yoktu, **boş bıraktım, uydurmadım.** Ali Akkanat'ı başka bir kaynaktan
+2025 verisiyle ekledim ve kendi yılıyla işaretledim — farklı yılları tek
+tabloya karıştırıp aynıymış gibi göstermek karşılaştırmayı bozar.
+
+Nüfus sütunu **Mahalleler** ve **Hizmet verilen mahalleler** listelerinde,
+sıralanabilir. İkincisi önemli: kapasite kararı orada veriliyor, nüfusu
+yanında görmek işe yarıyor.
+
+### 3. Talep haritası — Ersin'in yeni isteği
+
+Ersin şunu istedi: *"hizmet vermediğimiz yerlerdeki kişiler kayıt olsun,
+mahallemde Bostanhane istiyorum diye talep oluştursunlar; taleplere göre
+şubeleşmeye gideriz."*
+
+Mantıklı buldum ve ona söyledim: reklam bütçesi böylece "beğeni" yerine
+**isim, telefon ve konum** getiriyor; şube kararı tahminle değil listeyle
+veriliyor.
+
+Altyapı zaten vardı (`IlgiKaydi`). Eksik olan iki şey vardı, ikisini de yaptım:
+
+**a. `IlgiKaydi.mahalle` (resmî mahalle FK).** Serbest metinle gruplamak
+güvenilmez: "Müftü", "müftü mah.", "Müftü Mahallesi" üç ayrı satır olur ve
+talep sayısı üçe bölünür — tam da güvenmek istediğimiz sayı. `save()` artık
+yazılan adı slug'a çevirip resmî mahalleyi bulmaya çalışıyor.
+
+**b. Talep haritası sayfası** — `/yonetim/core/ilgikaydi/harita/`,
+İlgi kayıtları listesinin üstünde bağlantısı var.
+
+| Yer | Talep | Nüfus | Binde | Durum |
+|---|---|---|---|---|
+| Üzümlü | 37 | 4.855 | 7,6 ‰ | hizmet yok |
+| Adaköy | 6 | 319 | 18,8 ‰ | hizmet yok |
+| Yeni | 14 | 10.323 | 1,4 ‰ | hizmet veriyoruz |
+
+**Binde sütunu sayfanın asıl fikri.** Talep sayısı tek başına yanıltıcı:
+10.000 kişilik mahalleden gelen 37 talep zayıf, 400 kişilikten gelen 37 talep
+güçlüdür. Oran olmadan büyük mahalleler hep önde görünür ve yanlış yere şube
+açılır.
+
+Küçük sayı tuzağına da karşı önlem var: "en güçlü sinyal" özeti 200 kişiden az
+mahalleleri saymıyor. 24 kişilik Gönen'den gelen 3 talep binde 125 çıkıp bütün
+listeyi eziyordu.
+
+**Bulduğum ve düzelttiğim bir açık:** `admin_site.admin_view` yalnızca "panele
+girebilir mi" diye bakıyor, model yetkisine bakmıyor. Mağaza yöneticisi İlgi
+kayıtları listesini göremezken **özetini görebiliyordu** — oysa aynı veriyi
+taşıyor ve bilerek süper admine kısıtlamıştık. Yetki kontrolü ekledim; dört
+rolle de denedim.
+
+### 4. Kurulum
+
+```powershell
+Copy-Item hazir\core_models.py          core\models.py                             -Force
+Copy-Item hazir\core_admin.py           core\admin.py                              -Force
+Copy-Item hazir\core_nufus_verisi.py    core\nufus_verisi.py                       -Force
+Copy-Item hazir\core_talep_haritasi.py  core\talep_haritasi.py                     -Force
+Copy-Item hazir\nufus_yukle.py          core\management\commands\nufus_yukle.py    -Force
+Copy-Item hazir\ornek_veri.py           core\management\commands\ornek_veri.py     -Force
+
+New-Item -ItemType Directory -Force templates\admin\core\ilgikaydi | Out-Null
+Copy-Item hazir\admin_ilgikaydi_harita.html      templates\admin\core\ilgikaydi\harita.html      -Force
+Copy-Item hazir\admin_ilgikaydi_change_list.html templates\admin\core\ilgikaydi\change_list.html -Force
+
+python manage.py makemigrations core
+python manage.py migrate
+python manage.py nufus_yukle --kuru      # önce bak
+python manage.py nufus_yukle             # sonra yükle
+```
+
+Beklenen migration: `ilgikaydi.mahalle` + `mahalle.nufus/nufus_yili/nufus_kaynagi`.
+`nufus_yukle` çıktısı: **68 mahalle güncellendi**, 2 mahalle boş (Akçabelen,
+Yeşilyurt).
+
+**Canlıda `nufus_yukle`'yi çalıştırmayı unutma** — migration alanları ekliyor
+ama veriyi komut dolduruyor.
+
+### 5. Senden — "mahalleme de gelin" sayfası
+
+Şu an bu kayıt yalnızca adres formundan açılıyor (üye olup Beyşehir dışı ilçe
+seçen kişi). Ersin'in istediği **herkese açık bir sayfa**:
+
+| Adres | Ne |
+|---|---|
+| `/mahalleme-gelin/` | Herkese açık, **üyelik gerekmez** |
+
+- İl → ilçe → mahalle (adres formundaki JSON uçlarının aynısı). Mahalle listesi
+  boşsa serbest metin — o zaten var.
+- Ad soyad, telefon (zorunlu), e-posta (isteğe bağlı).
+- KVKK onayı zorunlu; aydınlatma metnine bağlantı. İzinsiz iletişim bilgisi
+  toplanmaz.
+- Kaydı `IlgiKaydi` olarak aç: `kaynak="mahalleme gelin sayfası"`,
+  giriş yapmışsa `uye=request.user`.
+- Aynı telefon + aynı mahalle ikinci kez gönderirse **yeni kayıt açma**, teşekkür
+  mesajı göster. Talep sayısı şişmesin.
+
+**Beklenti cümlesi şart, uydurmadan yaz:**
+
+> Ne zaman geleceğimize söz veremeyiz. Mahallenize geldiğimizde ilk size haber vereceğiz.
+
+Söz vermeyen ama ciddiye alan bir cümle. "Yakında geliyoruz" yazma — altı ay
+sonra bir şey olmazsa marka "söz verdiler, unuttular" diye hatırlanır. Ersin'e
+de bunu söyledim.
+
+- Ana sayfada, gün kartlarının altına bir satır: *"Mahalleniz listede yok mu?"*
+  → bu sayfa.
+- Zaten hizmet verdiğimiz bir mahalle seçilirse kayıt açma; *"Bu mahalleye
+  zaten geliyoruz!"* deyip vitrine yönlendir.
+- Hizmet vermediğimiz mahallelerde `Mahalle.yerel_hizmet()` None dönüyor,
+  kontrol için onu kullan.
+
+Ana sayfadaki eski "yakında" formunu da bu sayfaya bağlayabilirsin — şu an ilçe
+sormadığı için kayıtları haritada görünmüyor ("yer bilgisi yok" diye sayılıyor).
+
+### 6. Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- Canlıda `nufus_yukle` çıktısı
+- Talep haritasının canlıda açıldığı ve **mağaza yöneticisinin açamadığı**
+- `/mahalleme-gelin/` üyeliksiz çalıştığı, ikinci gönderimin yeni kayıt açmadığı
+- Hizmet verilen mahalle seçilince kayıt açılmayıp vitrine yönlendirdiği
+- Kesim servisinin ilk 24 saatlik maliyeti
+
+### 7. Bunları yapma
+
+- `--rotalari_esitle --eminim`'i canlıda çalıştırma. Ersin'in düzenini siler.
+- Nüfus sayılarını elle doldurma ya da tahmin etme — boş kalsın, kaynağı belli
+  olmayan sayı yanlış karar verdirir.
+- `talep/`, `odeme/`, `core/talep_haritasi.py` dosyalarını değiştirme.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 3 Ekim 2026 (3) — İki bulgunun da haklıydı, ikisini de düzelttim
 
 Talep akışını bağlaman temiz olmuş. Özellikle iki şey:

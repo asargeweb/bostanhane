@@ -27,7 +27,8 @@ from talep.islemler import talep_ac
 from talep.models import Talep, TalepGorseli, gorsel_yuklenebilir_mi
 from siparis.vitrin_araclari import ziyaretci_sepetini_kat
 
-from .forms import AdresFormu, GirisFormu, HesapFormu, KayitFormu, TalepFormu
+from .forms import (AdresFormu, GirisFormu, HesapFormu, KayitFormu, MahallemeGelinFormu,
+                    TalepFormu)
 from .models import Adres, Rol
 
 
@@ -226,6 +227,48 @@ def mahalle_bilgi(request, pk):
         kesim = f"{once} önce {kural.kesim_saati:%H.%M}"
     return JsonResponse({"yerel": True, "mahalle": mahalle.ad,
                          "gunler": hizmet.teslim_gunleri_metni(), "kesim": kesim})
+
+
+def mahalleme_gelin(request):
+    """
+    Herkese açık "mahallemde de Bostanhane olsun" sayfası.
+
+    Kayıtlar talep haritasında mahalle mahalle sayılıyor; şube kararı bu sayıdan
+    çıkacak. Bu yüzden aynı kişi aynı mahalleyi iki kez gönderirse yeni kayıt
+    açılmıyor, zaten gittiğimiz mahalle için de hiç açılmıyor — sayı şişmesin.
+    """
+    if request.method == "POST":
+        form = MahallemeGelinFormu(request.POST)
+        if form.is_valid():
+            veri = form.cleaned_data
+            mahalle, ilce = veri["mahalle"], veri["ilce"]
+            if mahalle and mahalle.yerel_hizmet():
+                messages.success(request, f"Bu mahalleye zaten geliyoruz! {mahalle.ad} için "
+                                          "teslim gününü adresinizi ekleyince görürsünüz.")
+                return redirect("vitrin")
+            ayni = IlgiKaydi.objects.filter(telefon=veri["telefon"])
+            ayni = (ayni.filter(mahalle=mahalle) if mahalle
+                    else ayni.filter(ilce=ilce, mahalle_adi__iexact=veri["mahalle_adi"]))
+            yer = mahalle.ad if mahalle else veri["mahalle_adi"]
+            if ayni.exists():
+                messages.success(request, f"Teşekkürler, {yer} için talebiniz zaten bizde. "
+                                          "Mahallenize geldiğimizde ilk size haber vereceğiz.")
+            else:
+                IlgiKaydi.objects.create(
+                    ad_soyad=veri["ad_soyad"], telefon=veri["telefon"], eposta=veri["eposta"],
+                    uye=request.user if request.user.is_authenticated else None,
+                    ilce=ilce, mahalle=mahalle, mahalle_adi=veri["mahalle_adi"],
+                    kaynak="mahalleme gelin sayfası")
+                messages.success(request, f"Teşekkürler, {yer} için talebinizi aldık. "
+                                          "Mahallenize geldiğimizde ilk size haber vereceğiz.")
+            return redirect("mahalleme_gelin")
+    else:
+        baslangic = {}
+        if request.user.is_authenticated:
+            baslangic = {"ad_soyad": request.user.ad_soyad, "telefon": request.user.telefon,
+                         "eposta": request.user.eposta}
+        form = MahallemeGelinFormu(initial=baslangic)
+    return render(request, "hesaplar/mahalleme_gelin.html", {"form": form})
 
 
 # -- siparişler ------------------------------------------------------------

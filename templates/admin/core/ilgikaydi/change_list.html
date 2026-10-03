@@ -1,0 +1,15 @@
+{% extends "admin/change_list.html" %}
+{% comment %}
+  `templates/admin/core/ilgikaydi/change_list.html`
+  Listenin üstüne talep haritası bağlantısı koyar. Sayfanın geri kalanı
+  Django'nun kendi liste ekranı.
+{% endcomment %}
+{% block object-tools %}
+  <ul class="object-tools">
+    <li>
+      <a href="{% url 'admin:core_ilgikaydi_harita' %}" class="addlink"
+         style="background-image:none">Talep haritası</a>
+    </li>
+    {{ block.super }}
+  </ul>
+{% endblock %}

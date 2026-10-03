@@ -1,0 +1,55 @@
+{% extends "taban.html" %}
+{% block baslik %}Mahallemize de gelin{% endblock %}
+{% block icerik %}
+<div class="form-sarma">
+  <div class="form-kol">
+    <h1 class="baslik">Mahallenize de gelelim mi?</h1>
+    <p class="alt-baslik">Henüz gitmediğimiz bir mahallede oturuyorsanız yazın. Yeni bir mahalleye
+      başlama kararını bu taleplere bakarak veriyoruz.</p>
+
+    <form method="post" novalidate data-gelin
+          data-ilceler="{% url 'adres_ilceler' %}" data-mahalleler="{% url 'adres_mahalleler' %}"
+          data-bilgi="{% url 'adres_mahalle_bilgi' 0 %}">
+      {% csrf_token %}
+      {% for hata in form.non_field_errors %}<div class="hata-k">{{ hata }}</div>{% endfor %}
+      <div class="ikili">
+        {% include "parcalar/alan.html" with alan=form.il %}
+        {% include "parcalar/alan.html" with alan=form.ilce %}
+      </div>
+      {# Mahalle listesi yüklü ilçede seçim, yüklü olmayanda serbest yazı. #}
+      <div data-mahalle-sec {% if not form.mahalle_listesi_var %}hidden{% endif %}>
+        {% include "parcalar/alan.html" with alan=form.mahalle %}
+      </div>
+      <div data-mahalle-yaz {% if form.mahalle_listesi_var %}hidden{% endif %}>
+        {% include "parcalar/alan.html" with alan=form.mahalle_adi %}
+      </div>
+      <div data-zaten hidden class="bilgi" style="margin:-2px 0 13px"><span>🌿</span>
+        <span><b>Bu mahalleye zaten geliyoruz!</b> <span data-zaten-gun></span>
+          {% if vitrin_gorunur %}<a href="{% url 'vitrin' %}">Ürünlere göz atın</a>{% else %}<a href="{% url 'ana_sayfa' %}">Teslim günlerine bakın</a>{% endif %}</span></div>
+
+      {% include "parcalar/alan.html" with alan=form.ad_soyad %}
+      <div class="ikili">
+        {% include "parcalar/alan.html" with alan=form.telefon %}
+        {% include "parcalar/alan.html" with alan=form.eposta %}
+      </div>
+
+      <label class="onay" style="margin-top:6px">{{ form.kvkk }}
+        <span><a href="{% url 'yasal_aydinlatma' %}" target="_blank">Aydınlatma metnini</a> okudum;
+          mahalleme gelindiğinde bana ulaşılmasını kabul ediyorum.</span></label>
+      {% for hata in form.kvkk.errors %}<div class="hata" style="margin:-4px 0 10px">{{ hata }}</div>{% endfor %}
+
+      <button class="btn blok" type="submit" style="margin-top:8px">Mahallemi yazın</button>
+    </form>
+  </div>
+
+  <aside class="form-yan">
+    <h3>Ne zaman gelirsiniz?</h3>
+    <p>Ne zaman geleceğimize söz veremeyiz. Mahallenize geldiğimizde ilk size haber vereceğiz.</p>
+    <h3>Bilgilerinizi ne yaparız?</h3>
+    <ul>
+      <li>Yalnızca mahallenize geldiğimizi haber vermek için kullanırız</li>
+      <li>Üçüncü kişilerle paylaşmayız, reklam göndermeyiz</li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}

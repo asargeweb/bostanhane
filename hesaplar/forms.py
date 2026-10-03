@@ -202,6 +202,81 @@ class CokluResim(forms.ClearableFileInput):
     allow_multiple_selected = True
 
 
+class MahallemeGelinFormu(forms.Form):
+    """
+    "Mahallemde de Bostanhane olsun" talebi. Üyelik istemez.
+
+    Mahalle listesi yüklü ilçede resmî mahalle seçilir; yüklü olmayanda adı
+    serbest yazılır. Seçim zorunlu: talep haritası mahalleye göre sayıyor,
+    ilçesiz/mahallesiz kayıt haritada "yer bilgisi yok" diye boşa düşer.
+    """
+
+    # Yalnızca ilçeleri yüklü iller: ilçesiz kayıt haritada bir yere oturmaz.
+    # Yeni il eklendikçe (cografya_yukle) listeye kendiliğinden girer.
+    il = forms.ModelChoiceField(label="İl", empty_label="İl seçin",
+                                queryset=Il.objects.filter(ilceler__isnull=False).distinct())
+    ilce = forms.ModelChoiceField(label="İlçe", queryset=Ilce.objects.none(),
+                                  empty_label="İlçe seçin")
+    mahalle = forms.ModelChoiceField(label="Mahalle", queryset=Mahalle.objects.none(),
+                                     empty_label="Mahalle seçin", required=False)
+    mahalle_adi = forms.CharField(label="Mahalleniz", max_length=80, required=False,
+                                  widget=forms.TextInput(attrs={"placeholder": "Örnek: Kızılay"}))
+    ad_soyad = forms.CharField(label="Ad soyad", max_length=120,
+                               widget=forms.TextInput(attrs={"autocomplete": "name"}))
+    telefon = forms.CharField(label="Telefon", max_length=20, widget=TELEFON_KUTUSU)
+    eposta = forms.EmailField(label="E-posta", required=False,
+                              widget=forms.EmailInput(attrs={"autocomplete": "email"}))
+    kvkk = forms.BooleanField(
+        label="Aydınlatma metnini okudum; mahalleme gelindiğinde bana ulaşılmasını kabul ediyorum.",
+        error_messages={"required": "Size haber verebilmemiz için aydınlatma metnini "
+                                    "onaylamanız gerekiyor."})
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Seçenekleri seçilen il/ilçeye göre daralt; yoksa sunucu binlerce
+        # mahalleyi tek listeye basar. Varsayılan Beyşehir (pilot).
+        il = ilce = None
+        if self.is_bound:
+            il = AdresFormu._sec(Il, self.data.get("il"))
+            ilce = AdresFormu._sec(Ilce, self.data.get("ilce"))
+        else:
+            ilce = Ilce.objects.filter(il__ad="Konya", slug="beysehir").first()
+            il = ilce.il if ilce else None
+        if il:
+            self.initial.setdefault("il", il.pk)
+            self.fields["ilce"].queryset = Ilce.objects.filter(il=il)
+        if ilce:
+            self.initial.setdefault("ilce", ilce.pk)
+            self.fields["mahalle"].queryset = Mahalle.objects.filter(ilce=ilce)
+        self.mahalle_listesi_var = bool(ilce and ilce.mahalleler.exists())
+        # Hangisi zorunlu ilçeye göre değişiyor; etiketteki "isteğe bağlı" yanıltmasın.
+        self.fields["mahalle"].required = self.mahalle_listesi_var
+        self.fields["mahalle_adi"].required = not self.mahalle_listesi_var
+        self.fields["mahalle"].error_messages["required"] = "Mahallenizi seçin."
+        self.fields["mahalle_adi"].error_messages["required"] = "Mahallenizin adını yazın."
+
+    def clean_telefon(self):
+        return telefon_temizle(self.cleaned_data["telefon"])
+
+    def clean_ad_soyad(self):
+        return self.cleaned_data["ad_soyad"].strip()
+
+    def clean(self):
+        veri = super().clean()
+        ilce = veri.get("ilce")
+        if ilce is None:
+            return veri
+        # Gizli kalan kutudan bir şey gelse de yalnızca geçerli olan saklanır.
+        if self.mahalle_listesi_var:
+            veri["mahalle_adi"] = ""
+        else:
+            veri["mahalle"] = None
+            veri["mahalle_adi"] = (veri.get("mahalle_adi") or "").strip()
+            if not veri["mahalle_adi"] and "mahalle_adi" not in self.errors:
+                self.add_error("mahalle_adi", "Mahallenizin adını yazın.")
+        return veri
+
+
 class CokluResimAlani(forms.ImageField):
     """Birden çok resim; her biri ImageField denetiminden (gerçekten resim mi) geçer."""
 

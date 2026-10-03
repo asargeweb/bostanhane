@@ -122,6 +122,18 @@ class Mahalle(models.Model):
     tip = models.CharField("tip", max_length=10, choices=Tip.choices, default=Tip.MERKEZ)
     posta_kodu = models.CharField("posta kodu", max_length=5, blank=True)
 
+    # Nüfus iki kararı besliyor: hangi mahalleye önce gidilecek ve günlük
+    # kapasite ne olmalı. 10.000 kişilik Yeni ile 300 kişilik Adaköy aynı
+    # kapasiteyle planlanamaz.
+    #
+    # Kaynak ve yıl alanları bilerek var: nüfus her yıl değişiyor ve bu sayılar
+    # bizim ölçümümüz değil. "Bu rakam nereden geldi" sorusunun cevabı kayıtta
+    # dursun ki eskidiğinde fark edilsin.
+    nufus = models.PositiveIntegerField("nüfus", null=True, blank=True)
+    nufus_yili = models.PositiveSmallIntegerField("nüfus yılı", null=True, blank=True)
+    nufus_kaynagi = models.CharField("nüfus kaynağı", max_length=120, blank=True,
+                                     help_text="Örnek: TÜİK ADNKS 2023")
+
     class Meta:
         verbose_name = "mahalle"
         verbose_name_plural = "mahalleler"
@@ -384,6 +396,9 @@ class IlgiKaydi(ZamanDamgali):
     kaydedilemezdi.
     """
 
+    # "Mahalleme de gelin" sayfası isim de soruyor: haber verirken kimi aradığımızı
+    # bilelim. Eski kayıtlarda (yakında formu, adres formu) boş kalır.
+    ad_soyad = models.CharField("ad soyad", max_length=120, blank=True)
     eposta = models.EmailField("e-posta", blank=True)
     telefon = models.CharField("telefon", max_length=20, blank=True)
     uye = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="üye",
@@ -393,8 +408,16 @@ class IlgiKaydi(ZamanDamgali):
     ilce = models.ForeignKey(Ilce, verbose_name="ilçe", on_delete=models.SET_NULL,
                              null=True, blank=True, related_name="ilgi_kayitlari",
                              help_text="Hangi ilçeye talep var. Listeyi buna göre süzüyoruz.")
-    mahalle_adi = models.CharField("mahalle", max_length=120, blank=True,
-                                   help_text="Kişinin yazdığı mahalle adı.")
+    # Resmî mahalle biliniyorsa buraya bağlanıyor. Serbest metinle gruplamak
+    # güvenilmez: "Müftü", "müftü mah.", "Müftü Mahallesi" üç ayrı satır olur
+    # ve talep sayısı üçe bölünür — tam da güvenmek istediğimiz sayı.
+    mahalle = models.ForeignKey(Mahalle, verbose_name="mahalle (resmî)",
+                                on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name="ilgi_kayitlari",
+                                help_text="Mahalle listede varsa seçilir; yoksa boş kalır.")
+    mahalle_adi = models.CharField("mahalle (yazılan)", max_length=120, blank=True,
+                                   help_text="Kişinin yazdığı mahalle adı. "
+                                             "Resmî mahalle seçilemediğinde buraya bakılır.")
     kaynak = models.CharField("kaynak", max_length=60, blank=True,
                               help_text="Örnek: instagram, tanıdık, arama, adres formu")
     haber_verildi = models.BooleanField("haber verildi", default=False)
@@ -421,8 +444,19 @@ class IlgiKaydi(ZamanDamgali):
     @property
     def yer(self):
         """'Yenişehir · Meram / Konya' — mahalle yazılmamışsa yalnızca ilçe."""
-        parcalar = [p for p in (self.mahalle_adi, str(self.ilce) if self.ilce_id else "") if p]
+        mahalle = self.mahalle.ad if self.mahalle_id else self.mahalle_adi
+        parcalar = [p for p in (mahalle, str(self.ilce) if self.ilce_id else "") if p]
         return " · ".join(parcalar)
+
+    def save(self, *args, **kwargs):
+        # Kişi mahalleyi serbest yazdıysa, resmî listede karşılığı varsa
+        # bağlayalım: talep sayıları yazım farkları yüzünden bölünmesin.
+        if self.mahalle_id is None and self.mahalle_adi and self.ilce_id:
+            from .araclar import turkce_slug
+
+            self.mahalle = self.ilce.mahalleler.filter(
+                slug=turkce_slug(self.mahalle_adi)).first()
+        super().save(*args, **kwargs)
 
     def clean(self):
         # Ulaşılamayacak kayıt listeyi kalabalıklaştırır, işe yaramaz.

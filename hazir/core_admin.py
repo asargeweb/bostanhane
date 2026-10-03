@@ -66,7 +66,8 @@ class IlceAdmin(admin.ModelAdmin):
 
 @admin.register(Mahalle)
 class MahalleAdmin(admin.ModelAdmin):
-    list_display = ("ad", "ilce", "il_adi", "tip", "posta_kodu", "hizmet_durumu")
+    list_display = ("ad", "ilce", "il_adi", "tip", "nufus_gosterim",
+                    "posta_kodu", "hizmet_durumu")
     list_filter = ("tip", "ilce__il", "ilce")
     search_fields = ("ad", "ilce__ad", "posta_kodu")
     autocomplete_fields = ("ilce",)
@@ -76,6 +77,14 @@ class MahalleAdmin(admin.ModelAdmin):
     @admin.display(description="il", ordering="ilce__il__ad")
     def il_adi(self, nesne):
         return nesne.ilce.il.ad
+
+    @admin.display(description="nüfus", ordering="nufus")
+    def nufus_gosterim(self, nesne):
+        """1.234 (2023) — yıl olmadan sayı yanıltıcı, nüfus her yıl değişiyor."""
+        if nesne.nufus is None:
+            return "—"
+        sayi = f"{nesne.nufus:,}".replace(",", ".")
+        return f"{sayi} ({nesne.nufus_yili})" if nesne.nufus_yili else sayi
 
     @admin.display(description="yerel teslimat")
     def hizmet_durumu(self, nesne):
@@ -141,12 +150,19 @@ class HizmetMahallesiAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
     magaza_yolu = "magaza"
     suzulecek_modeller = ("magaza", "mahalle")
 
-    list_display = ("mahalle", "magaza", "teslim_gunleri_metni", "gunluk_kapasite", "sira", "aktif")
+    list_display = ("mahalle", "magaza", "nufus_gosterim", "teslim_gunleri_metni",
+                    "gunluk_kapasite", "sira", "aktif")
     list_filter = ("magaza", "aktif", "mahalle__ilce")
     search_fields = ("mahalle__ad",)
     autocomplete_fields = ("mahalle",)
     list_select_related = ("mahalle", "magaza")
     list_editable = ("sira", "aktif")
+
+    @admin.display(description="nüfus", ordering="mahalle__nufus")
+    def nufus_gosterim(self, nesne):
+        """Kapasite kararı burada veriliyor; nüfusu yanında görmek işe yarar."""
+        nufus = nesne.mahalle.nufus
+        return f"{nufus:,}".replace(",", ".") if nufus else "—"
     inlines = [HaftalikTeslimGunuSatiri]
     actions = ["takvim_uret"]
 
@@ -237,16 +253,72 @@ class IlgiKaydiAdmin(admin.ModelAdmin):
     aksi halde her mağaza yöneticisi bütün şehirlerin e-postalarını görürdü.
     """
 
-    list_display = ("eposta", "telefon", "uye", "mahalle_adi", "ilce", "kaynak",
+    list_display = ("ad_soyad", "telefon", "eposta", "uye", "yer_gosterim", "kaynak",
                     "olusturuldu", "haber_verildi")
+    change_list_template = "admin/core/ilgikaydi/change_list.html"
     # İlçe süzgeci "nereye talep var" sorusunun cevabı: kargo ve yeni mağaza sırası buradan okunur.
     list_filter = ("ilce", "haber_verildi", "olusturuldu")
-    search_fields = ("eposta", "telefon", "mahalle_adi", "uye__ad_soyad", "ilce__ad")
+    search_fields = ("ad_soyad", "eposta", "telefon", "mahalle_adi", "uye__ad_soyad", "ilce__ad")
     list_select_related = ("uye", "ilce__il")
     autocomplete_fields = ("uye",)
     raw_id_fields = ("ilce",)
     list_editable = ("haber_verildi",)
     date_hierarchy = "olusturuldu"
+
+    @admin.display(description="yer", ordering="mahalle__ad")
+    def yer_gosterim(self, nesne):
+        return nesne.yer or "—"
+
+    # -- talep haritası ----------------------------------------------------
+    def get_urls(self):
+        """Liste ekranının yanına gruplanmış özet sayfası ekler."""
+        from django.urls import path
+
+        ekstra = [path("harita/", self.admin_site.admin_view(self.harita_gorunumu),
+                       name="core_ilgikaydi_harita")]
+        return ekstra + super().get_urls()
+
+    def harita_gorunumu(self, request):
+        """
+        "Nereye şube açalım?" sayfası.
+
+        Tek tek kayıtlara bakmak bu soruyu cevaplamıyor; gruplamak gerekiyor.
+        Nüfus yanında duruyor, çünkü 37 talep tek başına bir şey söylemiyor:
+        10.000 kişilik mahalleden gelirse zayıf, 400 kişilikten gelirse güçlü.
+        """
+        from django.core.exceptions import PermissionDenied
+        from django.shortcuts import render
+
+        from .talep_haritasi import ozet, talep_haritasi
+
+        # `admin_site.admin_view` yalnızca "panele girebilir mi" diye bakıyor;
+        # model yetkisine bakmıyor. Bu kontrol olmadan mağaza yöneticisi
+        # listeyi göremezken özetini görebiliyordu — ilgi kayıtlarını bilerek
+        # süper admine kısıtlamıştık, özet de aynı veriyi taşıyor.
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+
+        ilce_id = request.GET.get("ilce")
+        ilce = Ilce.objects.filter(pk=ilce_id).first() if str(ilce_id or "").isdigit() else None
+        try:
+            en_az = max(1, int(request.GET.get("en_az", 1)))
+        except (TypeError, ValueError):
+            en_az = 1
+
+        satirlar, yersiz = talep_haritasi(ilce=ilce, en_az=en_az)
+        baglam = {
+            **self.admin_site.each_context(request),
+            "title": "Talep haritası",
+            "satirlar": satirlar,
+            "yersiz": yersiz,
+            "ozet": ozet(satirlar),
+            "secili_ilce": ilce,
+            "en_az": en_az,
+            "ilceler": Ilce.objects.filter(ilgi_kayitlari__isnull=False)
+                       .distinct().select_related("il").order_by("il__ad", "ad"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/core/ilgikaydi/harita.html", baglam)
 
     def has_module_permission(self, request):
         return tum_magazalari_gorur(request)

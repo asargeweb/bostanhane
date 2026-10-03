@@ -77,9 +77,26 @@ class Command(BaseCommand):
             help="Merkez mahallelerini yukarıdaki GUN_ROTALARI tablosuna göre eşitler: "
                  "tabloda olmayan teslim günlerini ve gelecekteki takvim kayıtlarını siler, "
                  "güzergâh sırasını tabloya göre düzeltir.")
+        ayristirici.add_argument(
+            "--eminim", action="store_true",
+            help="--rotalari_esitle için ikinci onay. Elle yapılmış gün düzenini "
+                 "silebileceği için zorunlu.")
 
     def handle(self, *args, **secenekler):
         self.esitle = secenekler["rotalari_esitle"]
+        if self.esitle and not secenekler["eminim"]:
+            # Ersin teslim günlerini panelden elle düzenliyor (3 Ekim).
+            # Bu komut GUN_ROTALARI tablosunu "doğru" kabul edip farklı olan
+            # her şeyi siliyor — yani onun saatlerce yaptığı düzeni bir anda
+            # geri alabilir. Tablo artık canlıyla uyuşmuyor; bu yüzden
+            # eşitleme ikinci bir onay istiyor.
+            self.stdout.write(self.style.ERROR(
+                "DUR. --rotalari_esitle, GUN_ROTALARI tablosunda olmayan bütün teslim "
+                "günlerini ve gelecekteki takvim kayıtlarını siler.\n\n"
+                "Teslim günleri panelden elle düzenlenmiş olabilir; bu komut onları "
+                "geri alır. Önce panelden mevcut düzene bakın.\n\n"
+                "Yine de çalıştıracaksanız: --rotalari_esitle --eminim"))
+            return
         if self.esitle:
             self.stdout.write(self.style.WARNING(
                 "Rota eşitleme açık: rotada olmayan teslim günleri ve onların gelecekteki "

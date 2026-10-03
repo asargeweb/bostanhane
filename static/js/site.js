@@ -157,6 +157,58 @@
     kisiGoster();
   }
 
+  // -- mahallemize de gelin: il → ilçe → mahalle -----------------------------
+  var gelin = document.querySelector("form[data-gelin]");
+  if (gelin) {
+    var gIl = gelin.querySelector("[name=il]");
+    var gIlce = gelin.querySelector("[name=ilce]");
+    var gMahalle = gelin.querySelector("[name=mahalle]");
+    var gSec = gelin.querySelector("[data-mahalle-sec]");
+    var gYaz = gelin.querySelector("[data-mahalle-yaz]");
+    var gZaten = gelin.querySelector("[data-zaten]");
+    var gGun = gelin.querySelector("[data-zaten-gun]");
+
+    function gListe(secim, adres, bos) {
+      secim.innerHTML = "<option value=''>" + bos + "</option>";
+      return fetch(adres).then(function (c) { return c.json(); }).then(function (veri) {
+        veri.secenekler.forEach(function (s) {
+          var o = document.createElement("option");
+          o.value = s.pk; o.textContent = s.ad; secim.appendChild(o);
+        });
+        return veri.secenekler.length;
+      });
+    }
+    // Listesi olmayan ilçede mahalle adı elle yazılır.
+    function gMod(listeVar) { gSec.hidden = !listeVar; gYaz.hidden = listeVar; }
+    // Zaten gittiğimiz mahalle seçilirse göndermeden söyleyelim.
+    function gZatenMi() {
+      gZaten.hidden = true;
+      if (!gMahalle.value || gSec.hidden) return;
+      fetch(gelin.dataset.bilgi.replace("0", gMahalle.value))
+        .then(function (c) { return c.json(); })
+        .then(function (v) {
+          if (!v.yerel) return;
+          gGun.textContent = "Teslim günü: " + v.gunler + ".";
+          gZaten.hidden = false;
+        });
+    }
+    gIl.addEventListener("change", function () {
+      gMahalle.innerHTML = "<option value=''>Mahalle seçin</option>";
+      gZaten.hidden = true;
+      gIlce.innerHTML = "<option value=''>İlçe seçin</option>";
+      if (!gIl.value) return;
+      gListe(gIlce, gelin.dataset.ilceler + "?il=" + gIl.value, "İlçe seçin");
+    });
+    gIlce.addEventListener("change", function () {
+      gZaten.hidden = true;
+      if (!gIlce.value) return;
+      gListe(gMahalle, gelin.dataset.mahalleler + "?ilce=" + gIlce.value, "Mahalle seçin")
+        .then(function (adet) { gMod(adet > 0); });
+    });
+    gMahalle.addEventListener("change", gZatenMi);
+    gZatenMi();
+  }
+
   // Sepette adres/gün seçimi değişince kaydet.
   document.querySelectorAll("form[data-secim] input[type=radio]").forEach(function (r) {
     r.addEventListener("change", function () { r.form.submit(); });

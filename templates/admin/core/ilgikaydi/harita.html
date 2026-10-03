@@ -1,0 +1,124 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+  Talep haritası — `templates/admin/core/ilgikaydi/harita.html`
+
+  "Nereye şube açalım?" sayfası. Panelin kendi görünümünü kullanıyor;
+  ayrı bir stil dosyası yok, satır içi stil yeterli (tek sayfa).
+{% endcomment %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Ana sayfa</a> ›
+  <a href="{% url 'admin:app_list' app_label='core' %}">Çekirdek</a> ›
+  <a href="{% url 'admin:core_ilgikaydi_changelist' %}">İlgi kayıtları</a> ›
+  Talep haritası
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  .ozet{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+  .ozet>div{background:#fff;border:1px solid #e0ddd6;border-radius:10px;padding:12px 16px;min-width:150px}
+  .ozet b{display:block;font-size:24px;line-height:1.2}
+  .ozet span{color:#666;font-size:13px}
+  table.harita{width:100%;border-collapse:collapse;background:#fff}
+  table.harita th,table.harita td{border-bottom:1px solid #e8e5de;padding:8px 10px;text-align:left}
+  table.harita th{background:#f6f3ea;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  table.harita td.sayi{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cubuk{display:inline-block;height:10px;background:#79A548;border-radius:3px;vertical-align:middle}
+  .rozet{font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .rozet.var{background:#eef4ec;color:#2E6B2A}
+  .rozet.yok{background:#fdf3e6;color:#8A5A12}
+  .suzgec{margin:0 0 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .not{color:#666;font-size:13px;margin-top:16px;line-height:1.6}
+</style>
+
+<p style="color:#666;max-width:70ch">
+  Hizmet vermediğimiz yerlerden gelen <b>"bizim mahalleye de gelin"</b> kayıtları.
+  Yeni mahalle ve yeni şube kararı buradan okunur.
+</p>
+
+<div class="ozet">
+  <div><b>{{ ozet.toplam_talep }}</b><span>toplam talep</span></div>
+  <div><b>{{ ozet.yer_sayisi }}</b><span>farklı yer</span></div>
+  <div><b>{{ ozet.hizmetsiz_talep }}</b><span>hizmet vermediğimiz yerlerden</span></div>
+  {% if ozet.en_guclu %}
+    <div><b>{{ ozet.en_guclu.ad }}</b><span>en güçlü sinyal (nüfusa oranla, {{ ozet.en_kucuk_nufus }}+ kişi)</span></div>
+  {% endif %}
+</div>
+
+<form method="get" class="suzgec">
+  <label>İlçe:
+    <select name="ilce" onchange="this.form.submit()">
+      <option value="">— hepsi —</option>
+      {% for i in ilceler %}
+        <option value="{{ i.pk }}" {% if secili_ilce and secili_ilce.pk == i.pk %}selected{% endif %}>{{ i }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>En az
+    <input type="number" name="en_az" value="{{ en_az }}" min="1" style="width:60px">
+    talep</label>
+  <button type="submit" class="button">Süz</button>
+  <a href="{% url 'admin:core_ilgikaydi_changelist' %}" class="button" style="background:#eee;color:#333">Kayıtlara dön</a>
+</form>
+
+<table class="harita">
+  <tr>
+    <th>Yer</th>
+    <th class="sayi">Talep</th>
+    <th class="sayi">Nüfus</th>
+    <th class="sayi">Binde</th>
+    <th>Yoğunluk</th>
+    <th>Durum</th>
+    <th class="sayi">Haber verildi</th>
+  </tr>
+  {% for satir in satirlar %}
+    <tr>
+      <td>
+        <b>{{ satir.ad }}</b>
+        <div style="color:#777;font-size:12px">{{ satir.ilce }}</div>
+      </td>
+      <td class="sayi"><b style="font-size:16px">{{ satir.adet }}</b></td>
+      <td class="sayi">
+        {% if satir.nufus %}{{ satir.nufus_yazi }}
+          <span style="color:#999;font-size:11px">({{ satir.nufus_yili }})</span>
+        {% else %}—{% endif %}
+      </td>
+      <td class="sayi">
+        {% if satir.binde %}{{ satir.binde|floatformat:1 }} ‰{% else %}—{% endif %}
+      </td>
+      <td>
+        {% if satir.binde %}
+          <span class="cubuk" style="width:{% widthratio satir.binde 1 6 %}px"></span>
+        {% endif %}
+      </td>
+      <td>
+        {% if satir.hizmet_var %}
+          <span class="rozet var">hizmet veriyoruz</span>
+        {% else %}
+          <span class="rozet yok">hizmet yok</span>
+        {% endif %}
+      </td>
+      <td class="sayi">{{ satir.haber_verilen }} / {{ satir.adet }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" style="padding:30px;text-align:center;color:#777">
+      Henüz talep kaydı yok.
+    </td></tr>
+  {% endfor %}
+</table>
+
+<p class="not">
+  <b>Binde ne demek?</b> Her bin kişiden kaçının talep ettiği. Talep sayısı tek
+  başına yanıltıcı: 10.000 kişilik mahalleden gelen 37 talep zayıf, 400 kişilik
+  mahalleden gelen 37 talep güçlü sinyaldir. Şube kararında bu sütuna bakın.
+  {% if yersiz %}
+    <br><br><b>{{ yersiz }} kayıtta yer bilgisi yok</b> — ana sayfadaki eski
+    "yakında" formundan gelenler; ilçe sorulmuyordu, bu listede görünmüyorlar.
+  {% endif %}
+  <br><br>
+  Nüfuslar TÜİK ADNKS 2023 verisine dayanıyor ve <b>aktaran bir siteden</b>
+  derlendi. Yön göstermek için yeterli; resmî bir belgeye girecekse TÜİK'ten
+  doğrulanmalı.
+</p>
+{% endblock %}
