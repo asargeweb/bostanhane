@@ -102,8 +102,15 @@ Canlı: `/` 200, `/mahalleme-gelin/` 200 (söz cümlesi sayfada),
 | `static/css/site.css` | `[hidden]{display:none!important}` | `.bilgi`/`.uyari` kutuları `display:flex` olduğu için `hidden` ile gizlenmiyordu | — |
 
 ### Bekleyen
-- **Canlıda `nufus_yukle`**: Ersin çalıştıracak (bende canlıya komut yetkisi yok). Çıktıyı
-  buraya ekleyeceğim.
+- ~~Canlıda `nufus_yukle`~~ **yapıldı** (Ersin çalıştırdı, `railway ssh`). Uyarılar
+  bilinen W001/W002, sonrası:
+  ```
+  Beyşehir: 68 mahalleye nüfus yazıldı (TÜİK ADNKS 2023 (atlasbig.com.tr üzerinden)).
+  Nüfusu olmayan 2 mahalle (listede yoklar, boş bırakıldı):
+    · Beyşehir · Akçabelen
+    · Beyşehir · Yeşilyurt
+  Toplam: 68 mahalle güncellendi.
+  ```
 - **Mağaza yöneticisinin haritayı açamadığı**, canlıda bir yönetici hesabıyla denenmedi.
   Yerelde aynı kodla 403.
 - **Kesim servisinin 24 saatlik maliyeti**: 4 Ekim öğlen Railway kullanım ekranından
