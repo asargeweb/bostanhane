@@ -15,7 +15,7 @@ kendi işleminde kesilir; biri hata verirse ötekiler yine kesilir.
 
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from core.models import TeslimTakvimi
@@ -37,8 +37,14 @@ class Command(BaseCommand):
                   .select_related("hizmet_mahallesi__mahalle", "hizmet_mahallesi__magaza")
                   .order_by("kesim_zamani", "hizmet_mahallesi__sira"))
 
+        # Hangi veritabanına bağlı ve kaç açık gün görüyor: DATABASE_URL eksik kalırsa
+        # ayarlar sessizce boş SQLite'a düşer ve komut "kesilecek gün yok" deyip başarılı
+        # biter. Bu satır kayıtlarda o durumu ayırt ettiriyor.
+        acik = TeslimTakvimi.objects.filter(durum=TeslimTakvimi.Durum.ACIK).count()
+        self.stdout.write(f"{timezone.localtime(simdi):%d.%m.%Y %H.%M} · veritabanı: "
+                          f"{connection.vendor} · açık gün: {acik}")
         if not gunler:
-            self.stdout.write(f"{timezone.localtime(simdi):%d.%m.%Y %H.%M} · Kesilecek gün yok.")
+            self.stdout.write("Kesilecek gün yok.")
             return
 
         if kuru:

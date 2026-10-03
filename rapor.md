@@ -45,6 +45,70 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 3 Ekim 2026 — Serbest kalan tutar, DENEME_ODEME_HATASI; kesim servisi kuru çalıştırma bekliyor
+
+okuduğum talimat: 2 Ekim (7)
+
+**Canlı: commit `db453c1`, Railway SUCCESS.**
+
+### 1. Kurulum
+`hazir/odeme_models.py`, `hazir/odeme_saglayicilar.py` kuruldu; `makemigrations --check` → No changes detected.
+
+**Bulgu — ayar okunmuyordu:** `saglayici_sec` ve `_zorlanan_hata` `getattr(settings, "ODEME_SAGLAYICI" / "DENEME_ODEME_HATASI")`
+okuyor, ama `settings.py` ikisini de `.env`'den almıyordu — `.env`'e yazılan `DENEME_ODEME_HATASI` hiç etki etmezdi
+(`ODEME_SAGLAYICI` da hep varsayılana düşüyordu). `settings.py`'ye "Ödeme" bölümü eklendi:
+`ODEME_SAGLAYICI = ayar("ODEME_SAGLAYICI", "deneme")`, `DENEME_ODEME_HATASI = ayar("DENEME_ODEME_HATASI", "")`
+(`hazir/settings.py` eşitlendi). `env-ornek.txt` (+ `hazir/env-ornek.txt`): iki satır açıklamasıyla, ikincisi
+"CANLIDA BOŞ KALMALI". (Talimattaki `.env.ornek` bu dosya.)
+
+### 2. Serbest kalan tutar
+`siparis_detay` görünümü `siparis_ozeti(siparis)`'i şablona veriyor; çekim sonrası metin:
+**"Kartınızdan 547,05 ₺ çekildi, 39,70 ₺ kartınızda serbest kaldı."** (`odeme.cekilen`, `odeme.cozulen_fark`).
+
+### 3. Test (yerel, geri alındı)
+```
+DENEME_ODEME_HATASI=51|Yetersiz bakiye:
+  'Ödeme alınamadı: Yetersiz bakiye. Sipariş oluşturulmadı; ürünleriniz sepette duruyor.'
+  sipariş iptal/basarisiz · defter: ('basarisiz', '51', 'Yetersiz bakiye') · sepette 3 ürün
+ayar boş: 'Deneme siparişiniz alındı … 586,75 ₺ bloke …' → alindi/provizyon
+hazır: 'BH-2026-000002 hazır. Kesin tutar: 547,05 ₺', 'Karttan 547,05 ₺ çekildi.'
+müşteri: 'Kartınızdan 547,05 ₺ çekildi, 39,70 ₺ kartınızda serbest kaldı.'
+```
+
+### 4. Railway kesim servisi — BEKLİYOR
+Sıra talimattaki gibi: önce canlıda `gunu_kes --kuru`. Claude Code'a canlıda komut izni yok; Ersin çalıştırdı:
+```
+KURU ÇALIŞMA — hiçbir şey değiştirilmeyecek.
+  kesilecek: Bostanhane Beyşehir · Bahçelievler · 02.10.2026 (kesim 01.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Hacıakif · 02.10.2026 (kesim 01.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Hacıarmağan · 02.10.2026 (kesim 01.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Evsat · 02.10.2026 (kesim 01.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Yeni · 03.10.2026 (kesim 02.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · İçerişehir · 03.10.2026 (kesim 02.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Avşar · 03.10.2026 (kesim 02.10 18.00) — 0 sipariş
+  kesilecek: Bostanhane Beyşehir · Yeşilyurt · 03.10.2026 (kesim 02.10 18.00) — 0 sipariş
+Toplam: 8 gün kesilecek, 0 sipariş toplamaya açılacak.
+```
+**8 gün, 0 sipariş** — hepsi geçmiş, siparişsiz günler; kesmek kimseyi etkilemiyor. (Canlıda hâlâ eski iki günlü
+rota var: 2 Ekim Bahçelievler/Hacıakif/Hacıarmağan/Evsat = eski Salı-Cuma rotası.) **Ersin'in onayı bekleniyor.**
+**Ersin onayladı ("kes ve servisi kur"). Gerçek çalıştırma (Ersin, railway ssh):**
+`Toplam: 8 gün kesildi, 0 sipariş toplamaya açıldı.` — yukarıdaki 8 günün hepsi "kesildi".
+Servis kurulumu: Ersin'e panel adımları verildi (yeni servis `kesim`, aynı depo, Start Command
+`python manage.py gunu_kes`, Cron `*/15 * * * *`, domain yok; değişkenler `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
+`DJANGO_SECRET_KEY=${{web.DJANGO_SECRET_KEY}}`, `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=${{web.DJANGO_ALLOWED_HOSTS}}`).
+**Dikkat:** `DATABASE_URL` eksik kalırsa `settings.py` sessizce SQLite'a düşer, komut boş veritabanında
+"Kesilecek gün yok" deyip başarılı biter — çalışıyormuş gibi görünür ama hiçbir şey kesmez. Kurulum sonrası doğrulanacak.
+Not: komut her çalışmada önce W001/W002 uyarılarını basıyor (Django'nun komut öncesi sistem kontrolü). Cron
+kayıtlarında da görünecek; zararsız. İstenirse komutta `requires_system_checks = []` ile susturulabilir.
+Maliyet ölçümü (ilk 24 saat) servis açıldıktan sonra.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `bostanhane/settings.py` | Ödeme bölümü (2 ayar) | **Evet** |
+| `env-ornek.txt` | Ödeme açıklamaları | **Evet** `hazir/env-ornek.txt` |
+| `hesaplar/views.py`, `templates/hesaplar/siparis_detay.html` | `siparis_ozeti`, serbest kalan tutar | `hazir/`'de eşi yok |
+
 ## 2 Ekim 2026 (6) — odeme kuruldu ve akışa bağlandı
 
 okuduğum talimat: 2 Ekim (6)
