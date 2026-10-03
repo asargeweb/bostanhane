@@ -45,6 +45,76 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 3 Ekim 2026 (6), 23.20 — Nüfus, talep haritası, "mahalleme de gelin" sayfası
+
+okuduğum talimat: 3 Ekim (4)
+
+Canlı: commit `89b40d8`, Railway web **SUCCESS**, kesim **SUCCESS**.
+
+### Yapıldı
+- Altı `hazir/` dosyası ve iki şablon talimattaki yerlerine kuruldu. Kurmadan önce farkları
+  kontrol ettim; önceki düzeltmelerimin (kurye, IlgiKaydi admin) hiçbiri kaybolmamış.
+- Migration: `core/0006_ilgikaydi_ad_soyad_ilgikaydi_mahalle_mahalle_nufus_and_more`.
+  Beklenen dört alana ek olarak `ilgikaydi.ad_soyad` var (aşağıda nedeni).
+- Yerelde `nufus_yukle`: **68 mahalle güncellendi**. Akçabelen ve Yeşilyurt boş kaldı.
+- **`/mahalleme-gelin/`** sayfası (`hesaplar` uygulamasında):
+  - Herkese açık. İl → ilçe → mahalle seçimi, adres formunun JSON uçlarıyla. Mahalle
+    listesi olmayan ilçede serbest metin. Ad soyad, telefon zorunlu; e-posta isteğe bağlı.
+    KVKK onayı zorunlu ve aydınlatma metnine bağlantılı.
+  - Kayıt `kaynak="mahalleme gelin sayfası"` ile açılıyor; giriş yapmış kişide
+    `uye=request.user`, formdaki bilgiler önceden dolu.
+  - Aynı telefon ve aynı mahalle tekrar gönderilirse yeni kayıt açılmıyor, teşekkür mesajı
+    çıkıyor. Serbest metinde büyük-küçük harf farkı yok sayılıyor.
+  - Hizmet verilen mahalle seçilirse `Mahalle.yerel_hizmet()` ile tespit ediliyor, kayıt
+    açılmıyor ve "Bu mahalleye zaten geliyoruz!" denip vitrine yönlendiriliyor. Formda da
+    mahalle seçilir seçilmez aynı uyarı görünüyor, kişi göndermeden öğreniyor.
+  - Söz cümlesi talimattaki gibi yazıldı. "Yakında geliyoruz" ifadesi yok.
+  - İl listesinde yalnızca ilçeleri yüklü iller var (şu an Konya ve Karaman). Diğer illeri
+    seçen kişi ilçe seçemediği için gönderemezdi; ilçesiz kayıt da haritada bir yere oturmaz.
+- **Ana sayfa:** gün kartlarının altına *"Mahalleniz listede yok mu? Mahallenizi yazın"*
+  satırı eklendi. Eski "yakında" formu yerine aynı sayfaya giden bir kart kondu; ilçe
+  sormadığı için kayıtları haritaya giremiyordu.
+
+### Denemeler (yerel, geri alınan işlemde)
+```
+GET anonim: 200 · söz cümlesi: True · 'yakında geliyoruz' yok: True
+KVKK'sız: kayıt 0, hata görünüyor · mahallesiz: kayıt 0, "Mahallenizi seçin"
+1. gönderim (Adaköy): kayıt +1, uye=None, kaynak='mahalleme gelin sayfası'
+2. gönderim (aynı tel, farklı yazım 5339998877): kayıt +0, "talebiniz zaten bizde"
+hizmetli mahalle (Avşar): /urunler/ → kayıt +0, "Bu mahalleye zaten geliyoruz!"
+serbest metin (Ayrancı/Karaman, "Kızılay"): +1; "kızılay" tekrar: +0
+üye: form ön dolu, kayıt uye=üye
+ana sayfa: bağlantı var
+harita: süper admin 200 · mağaza yöneticisi 403
+```
+Canlı: `/` 200, `/mahalleme-gelin/` 200 (söz cümlesi sayfada),
+`/yonetim/core/ilgikaydi/harita/` girişsiz 302 (giriş sayfasına).
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `core/models.py` | `IlgiKaydi.ad_soyad` (CharField 120, blank) | Talimat sayfada ad soyad istiyor ama modelde alan yoktu. Sorup saklamamak da yanlış olurdu | ✓ `hazir/core_models.py` |
+| `core/admin.py` | `IlgiKaydiAdmin.list_display` başına `ad_soyad`, `search_fields`'e `ad_soyad` | Listede kimin talep ettiği görünsün | ✓ `hazir/core_admin.py` |
+| `templates/core/ana_sayfa.html` | "Mahalleniz listede yok mu?" satırı; eski form kartı → bağlantı kartı; `.dugme` stili | Talimat 5 | ✓ `hazir/ana_sayfa.html` |
+| `core/views.py` | **Değişmedi.** `ana_sayfa` hâlâ eski `IlgiFormu` POST'unu karşılıyor ama şablonda form kalmadı, kod artık kullanılmıyor | Senin dosyan; istersen sonraki sürümde temizle | — |
+| `hesaplar/forms.py`, `views.py`, `urls.py`, `templates/hesaplar/mahalleme_gelin.html` | Yeni sayfa | Talimat 5 | (benim dosyalarım) |
+| `static/js/site.js` | `form[data-gelin]` için il/ilçe/mahalle ve "zaten geliyoruz" uyarısı | | — |
+| `static/css/site.css` | `[hidden]{display:none!important}` | `.bilgi`/`.uyari` kutuları `display:flex` olduğu için `hidden` ile gizlenmiyordu | — |
+
+### Bekleyen
+- **Canlıda `nufus_yukle`**: Ersin çalıştıracak (bende canlıya komut yetkisi yok). Çıktıyı
+  buraya ekleyeceğim.
+- **Mağaza yöneticisinin haritayı açamadığı**, canlıda bir yönetici hesabıyla denenmedi.
+  Yerelde aynı kodla 403.
+- **Kesim servisinin 24 saatlik maliyeti**: 4 Ekim öğlen Railway kullanım ekranından
+  Ersin'le bakılacak.
+- Canlıda `--rotalari_esitle` çalıştırılmadı.
+
+### Karar bekleyen
+- Yok.
+
+---
+
 ## 3 Ekim 2026 (5) — Ersin'in istekleri: Ürünler listesinde satır içi Kaydet ve kategori sekmeleri
 
 (Talimat değil; Ersin fiyat girerken istedi.) **Canlı: commit `ab17559`, `a10394e`, SUCCESS.**
