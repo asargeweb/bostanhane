@@ -133,12 +133,17 @@ def duzenle_hucresi(metin, dugme, alan):
     Satır içi düzenleme hücresi: önce düz yazı + düğme, düğmeye basınca alanlar.
     Alanlar `disabled` başlar; kapalı alan forma gönderilmez, yani açılmamış
     satır Kaydet'le değişmez — yanlışlıkla giriş olmasın diye.
+
+    Açılan alanın yanında kendi Kaydet düğmesi var: uzun listede her satırdan sonra
+    sayfanın sonuna inmek gerekmesin. Listenin alttaki Kaydet'iyle aynı işi yapar
+    (`_save`), yani o anda açık olan bütün satırlar birlikte kaydedilir.
     """
     return format_html(
         '<span class="duzenle-hucre">'
         '<span class="duzenle-metin">{} '
         '<button type="button" class="button duzenle-ac">{}</button></span>'
         '<span class="duzenle-alan" hidden>{} '
+        '<button type="submit" name="_save" class="button default">Kaydet</button> '
         '<button type="button" class="button duzenle-vazgec">vazgeç</button></span>'
         '</span>', metin, dugme, alan)
 
