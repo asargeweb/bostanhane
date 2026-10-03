@@ -45,6 +45,81 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 3 Ekim 2026 (5) — Ersin'in istekleri: Ürünler listesinde satır içi Kaydet ve kategori sekmeleri
+
+(Talimat değil; Ersin fiyat girerken istedi.) **Canlı: commit `ab17559`, `a10394e`, SUCCESS.**
+- **Satır içi Kaydet:** "düzenle" / "ekle / çıkar" açılınca alanın yanında **Kaydet** (+ vazgeç). Listenin alttaki
+  Kaydet'iyle aynı (`_save`); açık olan bütün satırlar birlikte kaydedilir. Fiyat ve stok testleri aynen geçti.
+- **Kategori sekmeleri:** listenin üstünde "Tümü 50 · Sebze 17 · Yeşillik 6 · Meyve 13 · Yumurta 2 · Bakliyat ve
+  kuru gıda 6 · Yöresel ürün 6". Sağdaki kategori süzgeciyle aynı parametre; diğer süzgeçler ve `fiyat_magaza` korunuyor.
+  `templates/admin/katalog/urun/change_list.html` (yeni) + `UrunAdmin.kategori_sekmeleri`.
+- Ersin stok sütununu sordu: sütun vardı ("takip yok" + ekle / çıkar); anlattım.
+- **Gözlem:** panelde "Son eylemler"de Ersin birkaç `HaftalikTeslimGunu`'nu silmiş/değiştirmiş (Yeşilyurt/Avşar/
+  İçerişehir Cumartesi, Evsat/Hacıakif/Hacıarmağan Cuma, Beytepe/Esentepe Perşembe silindi; Beytepe, Hamidiye →
+  Perşembe). Büyük olasılıkla gün gruplamasını panelden kendisi yapıyor; sordum. Böyleyse `ornek_veri.GUN_ROTALARI`
+  artık canlıyla uyuşmuyor — `--rotalari_esitle` canlıda **çalıştırılmamalı**, yoksa Ersin'in düzenini geri alır.
+
+| Dosya | `hazir/` eşi |
+|---|---|
+| `katalog/admin.py` | **Evet** `hazir/katalog_admin.py` |
+| Yeni: `templates/admin/katalog/urun/change_list.html` | `hazir/`'de eşi yok |
+
+### Ersin'den yeni istek — Cowork'e: mahalle nüfusu listede görünsün
+Ersin, mahalle listelerinde (büyük olasılıkla **Hizmet verilen mahalleler**, gün düzenini orada yapıyor; belki
+**Mahalleler** de) **mahalle nüfusunu** görmek istiyor — gün gruplaması ve kapasite kararında işe yarar.
+Model senin (`core.Mahalle`), o yüzden yapmadım. Gerekenler:
+- **Veri:** TÜİK Adrese Dayalı Nüfus Kayıt Sistemi (ADNKS) mahalle bazlı nüfus — Beyşehir'in 70 mahallesi.
+  Elle yazılacak veri değil; kaynak ve yıl kayıtta durmalı (ör. "TÜİK ADNKS 2025").
+- **Model:** `Mahalle.nufus` (boş olabilir) + belki `nufus_yili`. Coğrafya verisi gibi `cografya_verisi.py` /
+  `cografya_yukle` ile doldurulabilir.
+- **Panel:** `HizmetMahallesiAdmin` ve `MahalleAdmin` listelerine "nüfus" sütunu, sıralanabilir. Hizmet mahallesinde
+  `gunluk_kapasite` yanında görmek kapasite kararını kolaylaştırır.
+Kurulumu sen hazırlayınca ben kurar, canlıya alırım.
+
+## 3 Ekim 2026 (4) — İade düzeltmesi kuruldu; depoda ileri günler; PROVA.md hazır
+
+okuduğum talimat: 3 Ekim (3)
+
+**Canlı: commit `937c276`, Railway SUCCESS (web + kesim).** Site, panel 200; `/depo/` girişsiz 302. `talep.0002` PostgreSQL'de geçti.
+
+### 1. Kurulum
+`talep_models.py`, `talep_islemler.py`, `talep_admin.py` kuruldu → `talep/migrations/0002_talep_odeme_islemi.py`
+(+ Add field odeme_islemi to talep) → `Applying talep.0002_talep_odeme_islemi... OK`.
+
+### 2. Test (yerel, geri alındı) — yönetici panelinden, `DENEME_ODEME_HATASI` ile
+```
+1) banka reddetti → panel mesajları: ['İade yapılamadı: Yetersiz bakiye. Talep açık bırakıldı.']   ← tek mesaj
+   talep: Açık · bağlı ödeme: None
+   defter: Provizyon 571,75 Başarılı · Çekim 564,35 Başarılı · İade 20,00 Başarısız (51)          ← kayıt kaldı
+2) tekrar deneme → 'Karar kaydedildi; müşterinin kartına 20,00 ₺ iade edildi.' (+ Django'nun normal "değiştirildi")
+   talep: Kısmen kabul 20,00 · bağlı ödeme: 4 · sipariş kismi_iade
+   defter: … · İade 20,00 Başarısız (51) · İade 20,00 Başarılı
+3) karara bağlanmış talebe üçüncü gönderim → ['Bu talep zaten karara bağlanmış.'] · başarılı iade satırı: 1
+```
+
+### 3. Bir düzeltme (benim) — depo ekranı ileri günleri göstermiyordu
+Prova rehberini yazarken buldum: `/depo/` yalnızca **bugün ve yarın**'ı listeliyordu. Cumartesi verilen Pazartesi
+siparişi (ya da provada 5 Ekim'e verilecek sipariş) depoda hiç görünmüyor, gün sayfasına ulaşılamıyordu.
+- `/depo/`: bugün + yarın her zaman; **ayrıca önümüzdeki 14 günde siparişi olan günler** (siparişsiz ileri günler gizli).
+  Başlık "Bugün · …", "Yarın · …" ya da yalnızca tarih.
+- Gün sayfası (kesildiyse, yönetici / süper admin): **"Kurye ekranında aç"** → `/kurye/rota/<takvim>/`.
+  Kurye ekranı bilerek yalnızca bugünü listeliyor; yönetici başka günün rotasına buradan geçiyor.
+Yerel test: 5 gün sonraki siparişli gün listede, kurye bağlantısı var, rota sayfası 200.
+
+### 4. PROVA.md
+Proje kökünde. 10 adım, iki pencere (normal = yönetici `5330317288`, gizli = farklı numarayla yeni müşteri).
+Her adımda beklenen ekran ve mesaj, sayılarla: sepet 514,35 + 50 = 564,35 · bloke 571,75 · tartım (domates 1,43 kg,
+maydanoz bulunamadı) → kesin 547,05 · serbest 24,70 · iade 10,00 · defterde 3 satır. Alım listesinin **boş** çıkıp
+"1 deneme siparişi bu listeye dahil edilmedi" demesinin ve fotoğraf alanının kapalı olmasının normal olduğu yazılı.
+Kesim için "Erken kes (yönetici)" kullanılıyor; otomatik kesimi beklemek de mümkün.
+Provayı ben çalıştırmadım.
+
+### Değiştirdiğim dosyalar
+| Dosya | Ne değişti | `hazir/` eşi |
+|---|---|---|
+| `depo/views.py`, `templates/depo/gunler.html`, `templates/depo/gun.html` | ileri günler, kurye bağlantısı | `hazir/`'de eşi yok |
+| Yeni: `PROVA.md` | | — |
+
 ## 3 Ekim 2026 (3) — talep kuruldu; sorun bildirimi talebe, otomatik onay açık talebe bağlandı
 
 okuduğum talimat: 3 Ekim (2)
