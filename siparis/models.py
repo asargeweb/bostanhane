@@ -670,9 +670,16 @@ def gunu_kes(teslim_takvimi):
     teslim_takvimi.durum = TeslimTakvimi.Durum.KESILDI
     teslim_takvimi.save(update_fields=["durum", "guncellendi"])
 
+    # Çağrı burada, komutta değil: gün hem zamanlanmış `gunu_kes` komutuyla hem depo
+    # ekranındaki "günü kes" düğmesiyle kesiliyor; ikisinde de müşteri haberdar olmalı.
+    # İşlev atomik olduğu için mesaj kesim kalıcı olduktan sonra gidiyor (on_commit) —
+    # geri alınan bir kesimin mesajı müşteriye gitmiş olmasın.
+    from bildirim.islemler import gun_kesildi_bildir
+
     siparisler = teslim_takvimi.siparisler.filter(durum=Siparis.Durum.ALINDI)
     adet = 0
     for siparis in siparisler:
         siparis.kesildi_isaretle()
+        transaction.on_commit(lambda s=siparis: gun_kesildi_bildir(s))
         adet += 1
     return adet

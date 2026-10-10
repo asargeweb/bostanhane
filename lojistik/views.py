@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim.islemler import teslim_edildi_bildir, yola_cikti_bildir
 from core.models import TeslimTakvimi
 from hesaplar.erisim import personel_gerekli
 from hesaplar.models import Rol
@@ -80,8 +81,14 @@ def rota(request, pk):
 def yola_cik(request, pk):
     """Paketlenmiş siparişleri YOLDA yapar — müşteri "Yolda" görsün. Paneldeki işlemle aynı."""
     takvim = get_object_or_404(gorulebilen_rotalar(request), pk=pk)
-    adet = takvim.siparisler.filter(durum=Siparis.Durum.HAZIRLANIYOR).update(
+    # Hangi siparişlerin yola çıktığını güncellemeden önce alıyoruz: toplu güncelleme
+    # nesne döndürmüyor, mesaj da yalnızca bu turda yola çıkanlara gitmeli.
+    yola_cikanlar = list(takvim.siparisler.filter(durum=Siparis.Durum.HAZIRLANIYOR))
+    adet = Siparis.objects.filter(pk__in=[s.pk for s in yola_cikanlar]).update(
         durum=Siparis.Durum.YOLDA, guncellendi=timezone.now())
+    for siparis in yola_cikanlar:
+        siparis.durum = Siparis.Durum.YOLDA
+        yola_cikti_bildir(siparis)
     messages.success(request, f"{adet} sipariş yola çıktı.")
     return redirect("kurye_rota", pk=pk)
 
@@ -120,6 +127,7 @@ def teslim_et(request, numara):
         return redirect("kurye_teslim", numara=numara)
     # Durum ve teslim zamanı birlikte modelde ayarlanıyor; otomatik onay süresi buna bağlı.
     siparis.teslim_edildi_isaretle()
+    teslim_edildi_bildir(siparis)
     messages.success(request, f"{siparis.teslim_ad_soyad} — teslim edildi.")
     return redirect("kurye_rota", pk=siparis.teslim_takvimi_id) if siparis.teslim_takvimi_id \
         else redirect("kurye")

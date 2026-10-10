@@ -116,6 +116,10 @@ def karara_bagla(talep, durum, kullanici, karar_notu, iade_tutari=None):
         talep.karar_zamani = timezone.now()
         talep.save(update_fields=["durum", "iade_tutari", "karar_notu", "karar_veren",
                                   "karar_zamani", "guncellendi"])
+    # Panelin kaydetme işlemi kendi atomik bloğunda çalışıyor; mesaj karar kalıcı
+    # olduktan sonra gitsin. Atomik blok yoksa on_commit hemen çalıştırır.
+    from bildirim.islemler import talep_karari_bildir
+    transaction.on_commit(lambda: talep_karari_bildir(talep))
     return talep
 
 

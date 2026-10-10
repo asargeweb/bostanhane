@@ -72,9 +72,10 @@ BOSTANHANE_APPS = [
     "katalog",
     "siparis",
     "odeme",
-    "talep",
     "depo",
     "lojistik",
+    "talep",
+    "bildirim",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + UCUNCU_PARTI_APPS + BOSTANHANE_APPS
@@ -191,6 +192,53 @@ ODEME_SAGLAYICI = ayar("ODEME_SAGLAYICI", "deneme")
 # Doluysa deneme sağlayıcı her isteği bu hatayla reddeder ("51|Yetersiz bakiye").
 # Ödeme reddedilince akışı denemek için; canlıda boş kalır.
 DENEME_ODEME_HATASI = ayar("DENEME_ODEME_HATASI", "")
+
+# --------------------------------------------------------------------------
+# Bildirim (SMS ve e-posta)
+# --------------------------------------------------------------------------
+# SMS firması sözleşmesi imzalanana kadar "deneme": hiçbir yere mesaj gitmez,
+# defterde "gönderildi" yazar. Vitrin "acik" moddayken deneme göndericisi
+# kullanılamaz (bildirim.saglayicilar.sms_saglayici_sec bunu reddeder) —
+# müşteriye mesaj gitmediği hâlde gitmiş görünmesi sessiz bir hatadır.
+SMS_SAGLAYICI = ayar("SMS_SAGLAYICI", "deneme")
+
+# Doluysa bütün bildirim gönderimleri bu hatayla reddedilir. Hata yolunu
+# denemek için (mesaj gitmeyince sipariş bozuluyor mu): "Operatör reddetti".
+DENEME_BILDIRIM_HATASI = ayar("DENEME_BILDIRIM_HATASI", "")
+
+# Gönderen adı (başlık). SMS sözleşmesi **asarge** adına yapılıyor ve aynı
+# hesabın altında iki başlık duracak: BOSTANHANE ve SECMENNEDIYOR. Hesapta
+# birden fazla başlık olduğu için her istekte hangisiyle gönderileceği açıkça
+# yazılmalı — yazılmazsa firma kendi varsayılanını kullanır ve Bostanhane
+# müşterisine öteki markanın adıyla mesaj gidebilir.
+#
+# Başlık tahsis edilene kadar boş kalıyor; vitrin gerçek satışa açılırken boş
+# olursa sistem başlamayı reddediyor (bildirim.saglayicilar.sms_saglayici_sec).
+SMS_BASLIK = ayar("SMS_BASLIK", "")
+
+# SMS metninin sonuna eklenen imza. **Başlık tanımlıysa kendiliğinden boşalıyor:**
+# telefonda mesaj zaten BOSTANHANE başlığıyla görünüyor, imza aynı bilgiyi
+# tekrar edip her mesajda 12 karakter yiyor. Türkçe karakterli SMS'te sınır 70
+# karakter olduğu için bu, mesajın tek parça mı iki parça mı faturalandığını
+# belirliyor — yani doğrudan fatura demek. Elle boşaltmayı beklemiyoruz; başlık
+# geldiği gün imza kendiliğinden kalkıyor.
+#
+# Başlık yoksa imza duruyor: müşteri mesajın kimden geldiğini başka türlü
+# anlayamaz.
+SMS_IMZA = ayar("SMS_IMZA", "" if SMS_BASLIK else "Bostanhane")
+
+# E-posta: ayar verilmezse Django konsola yazar — geliştirmede istediğimiz bu.
+# Canlıda SMTP bilgileri .env'den gelir.
+EMAIL_HOST = ayar("EMAIL_HOST", "")
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = int(ayar("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = ayar("EMAIL_USE_TLS", "True").lower() in ("1", "true", "evet")
+    EMAIL_HOST_USER = ayar("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = ayar("EMAIL_HOST_PASSWORD", "")
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = ayar("DEFAULT_FROM_EMAIL", "Bostanhane <bilgi@bostanhane.com>")
 
 # --------------------------------------------------------------------------
 # Parola kuralları

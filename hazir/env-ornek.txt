@@ -103,7 +103,42 @@ TALEP_ACMA_SURESI_SAAT=24
 # dönüyor mu, sepet duruyor mu, görmek için. CANLIDA BOŞ KALMALI.
 # DENEME_ODEME_HATASI=51|Yetersiz bakiye
 
+# --------------------------------------------------------------------------
+# Bildirim (SMS ve e-posta)
+# --------------------------------------------------------------------------
+# SMS firması sözleşmesi imzalanana kadar "deneme": mesaj hiçbir yere gitmez,
+# defterde "gönderildi" yazar. Vitrin gerçek satışa (acik) açılırken "deneme"
+# kalırsa sistem başlamayı reddeder — müşteriye mesaj gitmediği hâlde gitmiş
+# görünmesi, kimsenin şikâyet etmediği için fark edilmeyen bir hatadır.
+# SMS_SAGLAYICI=deneme
+
+# Yalnızca deneme için: doluysa bütün bildirimler bu hatayla reddedilir.
+# Mesaj gitmeyince sipariş bozuluyor mu, defterde iz kalıyor mu, görmek için.
+# CANLIDA BOŞ KALMALI.
+# DENEME_BILDIRIM_HATASI=Operatör reddetti
+
+# Gönderen adı (başlık). Sözleşme asarge adına; aynı hesabın altında iki başlık
+# olacak: BOSTANHANE ve SECMENNEDIYOR. Hesapta birden fazla başlık olduğu için
+# her istekte hangisiyle gönderileceği açıkça yazılmalı — yazılmazsa firma kendi
+# varsayılanını kullanır ve Bostanhane müşterisine öteki markanın adıyla mesaj
+# gider. Başlık tahsis edilince buraya yazılır:
+# SMS_BASLIK=BOSTANHANE
+
+# SMS metninin sonundaki imza. SMS_BASLIK doluysa imza KENDİLİĞİNDEN boşalır —
+# telefonda mesaj zaten o başlıkla görünüyor, imza her mesajda 12 karakter yiyor
+# ve Türkçe karakterli SMS'te sınır 70 karakter olduğu için bu, mesajın tek mi
+# iki mi SMS faturalandığını belirliyor. Elle değiştirmeniz gerekmiyor.
+# SMS_IMZA=Bostanhane
+
+# E-posta. EMAIL_HOST boşsa Django e-postayı konsola yazar (geliştirmede
+# istediğimiz bu). Canlıda kurumsal e-posta sağlayıcısının SMTP bilgileri.
+# EMAIL_HOST=
+# EMAIL_PORT=587
+# EMAIL_USE_TLS=True
+# EMAIL_HOST_USER=
+# EMAIL_HOST_PASSWORD=
+# DEFAULT_FROM_EMAIL=Bostanhane <bilgi@bostanhane.com>
+
 # Sonraki fazlarda doldurulacak
 # ODEME_SAGLAYICI_API_KEY=
-# EPOSTA_API_KEY=
 # HARITA_API_KEY=

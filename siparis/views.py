@@ -14,10 +14,12 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from bildirim.islemler import siparis_alindi_bildir
 from core.araclar import para_yaz
 from katalog.models import MagazaUrun
 from odeme.islemler import provizyon_al
@@ -165,6 +167,8 @@ def siparis_ver(request):
                                 f"ürünleriniz sepette duruyor.")
         return redirect("sepet")
 
+    # Provizyondan sonra: bloke alınamayan sipariş iptal ediliyor, ona "alındı" denmemeli.
+    transaction.on_commit(lambda: siparis_alindi_bildir(siparis))
     messages.success(request, f"Deneme siparişiniz alındı: {siparis.numara}. "
                               f"Kartınızda {para_yaz(provizyon.tutar)} bloke edildi (deneme — "
                               f"gerçek para hareketi yok). Tartımdan sonra yalnızca kesin tutar çekilecek.")

@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from bildirim.islemler import siparis_iptal_bildir
 from core.araclar import para_yaz
 from core.models import IlgiKaydi, Ilce, Mahalle
 from odeme.islemler import bloke_coz
@@ -374,5 +375,8 @@ def siparis_iptal(request, numara):
     else:
         if cozum is not None and cozum.basarili_mi:
             messages.info(request, f"Kartınızdaki {para_yaz(cozum.tutar)} bloke çözüldü.")
+    # Bloke çözme denendikten sonra. Provizyon alınamayınca yapılan iptal buradan
+    # geçmiyor — o sipariş hiç "alındı" denmeden kapandı, ona iptal mesajı gitmemeli.
+    siparis_iptal_bildir(siparis)
     return redirect("siparis_detay", numara=numara)
 

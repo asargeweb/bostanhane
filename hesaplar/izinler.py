@@ -50,6 +50,9 @@ MAGAZA_YONETICISI = {
     # Talebi müşteri açar; yönetici karar verir (iade burada kararlaşır).
     "talep.talep": ["view", "change"],
     "talep.talepgorseli": SADECE_GOR,
+    # Bildirim defteri de yalnızca okunur: gönderilmiş mesaj geriye değiştirilmez.
+    # Yönetici buraya "mesaj gitti mi, kaç parça yazıldı" diye bakar.
+    "bildirim.bildirim": SADECE_GOR,
     "hesaplar.kullanici": GOR_EKLE_DEGISTIR,  # personel ve üye ekler, silmez
     "hesaplar.adres": TUMU,
 }

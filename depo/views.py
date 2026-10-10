@@ -18,6 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim.islemler import urun_bulunamadi_bildir
 from core.araclar import para_yaz
 from core.models import TeslimTakvimi
 from hesaplar.erisim import personel_gerekli
@@ -192,6 +193,8 @@ def hazir(request, numara):
     siparis.hazirlandi_zamani = timezone.now()
     siparis.save(update_fields=["durum", "hazirlandi_zamani", "guncellendi"])
     messages.success(request, f"{siparis.numara} hazır. Kesin tutar: {para_yaz(siparis.toplam)}")
+    # Bulunamayan yoksa mesaj gitmiyor; birden çoksa tek mesajda toplanıyor.
+    urun_bulunamadi_bildir(siparis)
 
     # Kesin tutarı karttan çek. Başarısızsa hazır durumu geri alınmaz — mal hazır,
     # para sorunu ayrı bir iş; yöneticinin görmesi için not düşülür.

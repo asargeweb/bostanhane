@@ -17,6 +17,378 @@
 
 ---
 
+## 10 Ekim 2026 (2) — Başlık kararı: tek hesap, iki marka
+
+Ersin SMS sözleşmesini **asarge** kurumsal kimliği adına yapacak ve aynı hesabın altına
+**iki başlık** tanımlayacak: `BOSTANHANE` ve `SECMENNEDIYOR`. Her site kendi adıyla
+gönderecek.
+
+Bu, bir önceki talimatta "açık soru" diye yazdığım başlık meselesini çözüyor — ama
+kodda bir eksik ortaya çıkardı, onu kapattım.
+
+### Eksik ne idi
+
+Hesapta **tek** başlık olsaydı firma onu varsayılan kabul edip her mesajda kullanırdı.
+İki başlık varsa isteğe hangisiyle gönderileceği **açıkça** yazılmalı. Yazmazsak firma
+kendi varsayılanını seçer — ve Bostanhane müşterisinin sipariş bildirimi `SECMENNEDIYOR`
+adıyla gidebilir. Müşteri tanımadığı bir isimden mesaj alır; iyi senaryoda anlamaz, kötü
+senaryoda dolandırıcılık sanıp şikâyet eder.
+
+Bu hatanın kötü yanı sessiz olması: sistemde "gönderildi" yazar, mesaj da gerçekten
+gider, sadece yanlış isimle.
+
+### Üç değişiklik
+
+**1. `SMS_BASLIK` ayarı** (`settings.py` ve `env-ornek.txt`). Şimdilik boş — başlık
+henüz tahsis edilmedi. Tahsis edilince `.env`'e `SMS_BASLIK=BOSTANHANE` yazılacak,
+Railway'e de aynı değişken eklenecek.
+
+**2. Sağlayıcı katmanı başlığı taşıyor.** `SmsSaglayici.__init__` ayarı okuyup
+`self.baslik`'e koyuyor; gerçek firma sınıfı yazıldığında API isteğine bu değer
+konacak. Sözleşme imzalanınca o sınıfı yazarken **başlığı göndermeyi atlama** —
+tek satır, ama atlanırsa yukarıdaki sessiz hata oluyor.
+
+**3. Koruma:** vitrin gerçek satışa (`acik`) açıkken `SMS_BASLIK` boşsa sistem
+gönderimi reddediyor. Daha önce koyduğumuz "deneme göndericisiyle canlıya çıkamazsın"
+korumasının aynısı. İkisi de aynı yerde: `bildirim/saglayicilar.py` →
+`sms_saglayici_sec`.
+
+### Bir de güzel bir yan etki: imza kendiliğinden kalkıyor
+
+`SMS_IMZA` şimdiye kadar mesaj sonuna "Bostanhane" ekliyordu — başlık olmadığı için
+müşteri mesajın kimden geldiğini başka türlü anlayamazdı. Başlık geldiği gün bu imza
+gereksiz: telefonda mesaj zaten `BOSTANHANE` başlığıyla görünecek, imza aynı bilgiyi
+tekrar edip **her mesajda 12 karakter** yiyecek. Türkçe karakterli SMS'te sınır 70
+olduğu için bu doğrudan fatura demek.
+
+Elle boşaltmayı beklemek istemedim — unutulur. Ayarı şöyle yaptım:
+
+```python
+SMS_IMZA = ayar("SMS_IMZA", "" if SMS_BASLIK else "Bostanhane")
+```
+
+`SMS_BASLIK` dolduğu an imza kendiliğinden kalkıyor. Denedim:
+
+```
+başlık boş        → SMS_BASLIK = ''           | SMS_IMZA = 'Bostanhane'
+SMS_BASLIK=BOSTANHANE → SMS_BASLIK = 'BOSTANHANE' | SMS_IMZA = ''
+```
+
+Metinlerin imzasız hâli zaten ölçülüyordu; o gün hepsi tek parça kalıyor.
+
+### Güncellenen dosyalar
+
+| `hazir/` dosyası | Ne değişti |
+|---|---|
+| `bildirim_saglayicilar.py` | başlık desteği + boş başlık koruması |
+| `settings.py` | `SMS_BASLIK`; `SMS_IMZA` artık başlığa bağlı |
+| `env-ornek.txt` | iki ayarın açıklaması |
+| `dene_bildirim.py` | başlık kontrolleri (**74 kontrol**, hepsi geçti) |
+
+Bir önceki talimattaki kurulum adımları aynen geçerli; bu dosyalar onların güncel hâli.
+
+---
+
+### Yan bulgu: sıfırdan veritabanı şu an kurulamıyor
+
+Bildirim işini doğrulamak için **boş** bir veritabanı kurup denedim. Orada şuna takıldım,
+bunu bilmen lazım:
+
+`urun_yukle` komutu **50 satırın hepsini reddetti** — tek sebeple:
+
+```
+! Domates: "kilogram" birimi tanımlı değil. Panelde KATALOG → Birimler'den ekleyin.
+```
+
+`Birim` kayıtlarını hiçbir komut oluşturmuyor. `ilk_veri` coğrafyayı ve mağazayı kuruyor,
+birimleri kurmuyor; `urun_yukle` ise birimler olmadan hiçbir ürünü yükleyemiyor. Yani
+**boş bir veritabanında kurulum, panele girip elle altı birim eklenene kadar duruyor.**
+
+Bu bugün sorun değil — canlı veritabanı dolu. Ama 30 Eylül'de veritabanını bir kez
+silip yeniden kurduk. Bir daha gerekirse (ya da ikinci mağaza / ayrı bir kurulum
+olursa) bu adımda takılırız ve sebebi hemen anlaşılmaz.
+
+**Önerim:** `ilk_veri` komutuna altı birimi eklemek — kilogram ve litre `kesirli=True`,
+gram, adet, demet, paket `kesirli=False`. Kısa iş. İstersen ben `hazir/` içine yazarım,
+söyle; sende sıra varsa sen de ekleyebilirsin, ama **ikimiz birden yapmayalım.**
+
+İkinci bir şey: `dene_siparis.py` (ilk günlerin test betiği) artık geçmiyor — eşik ve
+fiyat kuralları o betik yazıldıktan sonra değişti (minimum 500, ücretsiz teslimat 1000).
+Kodda sorun yok, betik eskimiş. Bunu düzeltmek acil değil ama "testler geçiyor mu"
+diye bakarken yanıltmasın diye yazıyorum.
+
+---
+## 10 Ekim 2026 — Bildirim altyapısı: SMS ve e-posta
+
+Ersin SMS sözleşmesini **seçmennediyor** üzerinden yapacak, firma henüz seçilmedi.
+Firmayı beklemeden altyapıyı kurduk — ödemede yaptığımızın aynısı: araya bir katman,
+bugün çalışan bir **deneme göndericisi**, firma gelince tek dosya değişiyor.
+
+Yerelde kurdum, göçünü aldım, **71 kontrolle** denedim: hepsi geçti. Aşağıdaki dosyalar
+`hazir/` içinde hazır.
+
+### Niye bu iş şimdi, ödeme ve POS'tan önce
+
+Pilotun ilk gününde müşterinin elinde hiçbir bilgi olmayacak. Sipariş verdi — gitti mi?
+Kesim saati geldi — kesildi mi? Kurye yolda mı? Domates bulunamadı, para düşüldü mü?
+Bunların hiçbirini soramayacağı için **telefonla arayacak.** Bildirim yoksa pilotun
+müşteri hizmetleri kanalı Ersin'in cep telefonu olur.
+
+Bir de şu var: sekiz bildirimden biri **satış yapıyor.** "Siparişiniz 18.00'de
+kapanıyor, eklemek istediğiniz var mı?" mesajı, sepetinde 400 ₺ olan müşteriyi
+minimum sepete çıkarıyor. Pilotta ciroya en çok dokunacak tek bildirim bu.
+
+---
+
+### 1) Uygulamayı kur
+
+```
+python manage.py startapp bildirim
+mkdir -p bildirim/management/commands
+```
+
+`bostanhane/settings.py` → `BOSTANHANE_APPS` listesine `"bildirim"` ekle
+(güncel `hazir/settings.py` içinde zaten var — oradan alabilirsin).
+
+Dosyalar:
+
+| `hazir/` dosyası | Nereye |
+|---|---|
+| `bildirim_models.py` | `bildirim/models.py` |
+| `bildirim_saglayicilar.py` | `bildirim/saglayicilar.py` |
+| `bildirim_metinler.py` | `bildirim/metinler.py` |
+| `bildirim_islemler.py` | `bildirim/islemler.py` |
+| `bildirim_admin.py` | `bildirim/admin.py` |
+| `bildirim_apps.py` | `bildirim/apps.py` |
+| `kesim_hatirlat.py` | `bildirim/management/commands/kesim_hatirlat.py` |
+| `hesaplar_izinler.py` | `hesaplar/izinler.py` (**değişti**, aşağıya bak) |
+| `settings.py` | `bostanhane/settings.py` (**değişti**, aşağıya bak) |
+| `env-ornek.txt` | `env-ornek.txt` (yeni ayarlar eklendi) |
+
+`management/` ve `management/commands/` klasörlerine birer boş `__init__.py` koy,
+yoksa Django komutu görmez.
+
+Sonra:
+
+```
+python manage.py makemigrations bildirim
+python manage.py migrate
+python manage.py roller_kur
+```
+
+`roller_kur` çıktısında **Mağaza Yöneticisi: 51 yetki** yazmalı (50 değil) ve
+`! henüz yok, atlandı` satırı **olmamalı**. `izinler.py`'ye `bildirim.bildirim`
+satırını ekledim — bunu üç kez (siparis, odeme, talep) unuttuk ve her seferinde
+yönetici 403 gördü. Dördüncüsü olmasın; çıktıyı rapora yaz.
+
+### 2) `settings.py`'de yeni ayarlar
+
+Güncel `hazir/settings.py`'de hazır, "Bildirim" başlıklı blok. Dört ayar:
+
+- `SMS_SAGLAYICI` — varsayılan `"deneme"`
+- `DENEME_BILDIRIM_HATASI` — boş; doluysa bütün gönderimler reddedilir (hata yolunu
+  denemek için)
+- `SMS_IMZA` — varsayılan `"Bostanhane"`
+- `EMAIL_*` / `DEFAULT_FROM_EMAIL` — `EMAIL_HOST` boşsa Django e-postayı konsola yazar
+
+**Ödemede bu hatayı bir kez yaptım:** `DENEME_ODEME_HATASI`'nı kodda okuyordum ama
+`settings.py`'ye eklemeyi unutmuştum, yani düğme hiç çalışmıyordu; sen bulup
+düzelttin. Bu sefer dört ayarı da ekledim ve sandık ortamında ayarlar yerindeyken
+testi tekrar çalıştırdım — 71 kontrol yine geçti. Yine de kurduktan sonra
+`python manage.py shell` içinde `from django.conf import settings; settings.SMS_SAGLAYICI`
+diye bir bak, görmüş olalım.
+
+Railway'de şimdilik **hiçbir değişken eklemene gerek yok** — varsayılanlar doğru.
+
+### 3) Akışa bağlanacak altı yer
+
+Bildirim kendi kendine gitmez; akıştaki yerlere tek satır eklenecek. Kısayolların
+hepsi `bildirim.islemler` içinde ve **hiçbiri istisna fırlatmıyor** — SMS firması
+çökse bile sipariş akışı bozulmaz. Bu yüzden `try/except` sarmana gerek yok.
+
+| Nerede | Ne zaman | Çağrı |
+|---|---|---|
+| Sipariş oluşturma (provizyon başarılı, sipariş kaydedildikten sonra) | müşteri siparişi verince | `siparis_alindi_bildir(siparis)` |
+| `gunu_kes` komutu | kesim saatinde, o günün her siparişi için | `gun_kesildi_bildir(siparis)` |
+| Paketleme ekranı, sipariş "hazırlandı"ya geçerken | tartım bitince | `urun_bulunamadi_bildir(siparis)` |
+| Kurye ekranı, "yola çıktım" | rota başlarken | `yola_cikti_bildir(siparis)` |
+| Kurye ekranı, teslim kaydı (çekim başarılı olduktan **sonra**) | teslim edilince | `teslim_edildi_bildir(siparis)` |
+| Sipariş iptali (bloke çözüldükten sonra) | müşteri ya da yönetici iptal edince | `siparis_iptal_bildir(siparis)` |
+| `talep/islemler.py` → `karara_bagla` sonunda | yönetici karar verince | `talep_karari_bildir(talep)` |
+
+`urun_bulunamadi_bildir` bulunamayan kalemleri kendisi buluyor; kalem yoksa hiç mesaj
+göndermiyor, yani koşul yazmana gerek yok. Üç ürün bulunamadıysa **tek** mesaj gidiyor —
+kalem kalem göndermek hem pahalı hem rahatsız edici.
+
+#### Dikkat: işlem bloğu içinde çağırma
+
+Çağrıyı `transaction.atomic` bloğunun **içine** koyarsan ve blok sonradan geri alınırsa,
+`Bildirim` satırı silinir ama **mesaj müşteriye gitmiş olur.** Defterde izi olmayan bir
+mesaj, en kötüsü: müşteri "bana şu yazmıştı" diyor, sistemde yok.
+
+Atomik blok içindeysen şöyle yap:
+
+```python
+from django.db import transaction
+transaction.on_commit(lambda: siparis_alindi_bildir(siparis))
+```
+
+Böylece mesaj yalnızca kayıt gerçekten kalıcı olduktan sonra gidiyor.
+
+### 4) `kesim_hatirlat` komutunu zamanlanmış servise ekle
+
+Railway'deki `kesim` servisinin Start Command'ına ekle:
+
+```
+python manage.py gunu_kes && python manage.py otomatik_onayla && python manage.py kesim_hatirlat
+```
+
+Komut, kesim saatine **120 dakikadan az** kalmış açık günlerin siparişlerine hatırlatma
+gönderiyor. Servis 15 dakikada bir çalıştığı için mesaj kesimden en fazla 15 dakika
+sapmayla gidiyor. Çift gönderim koruması bildirim katmanında (sipariş + tür başına tek
+kayıt), yani komut kaç kez çalışsa da müşteri **tek** mesaj alıyor.
+
+Önce kuru çalıştır, kimseye gitmeden ne gideceğini gör:
+
+```
+python manage.py kesim_hatirlat --kuru
+```
+
+Süreyi değiştirmek istersen `--once 90`.
+
+### 5) Nasıl denersin
+
+```
+python manage.py kesim_hatirlat --kuru
+```
+
+Sonra panelde **Bildirimler** (`/yonetim/bildirim/bildirim/`): defter salt okunur,
+listede **parça** sütunu var. "2 parça" yazan bir satır, o mesajın iki SMS ücreti
+demek. Bir bildirimi açınca "ölçüm" satırı kaç karakter, hangi alfabe, kaç parça
+olduğunu yazıyor.
+
+Deneme göndericisi hiçbir yere mesaj göndermiyor, "gönderildi" diyor — akışın tamamı
+firma sözleşmesi olmadan denenebiliyor. Vitrin `test` modunda olduğu için mesajların
+başına `[DENEME]` ekleniyor.
+
+### Bilmen gereken iki şey
+
+**SMS'te Türkçe karakter pahalı.** Bir SMS normalde 160 karakter. Metinde tek bir
+`ı`, `İ`, `ş`, `Ş`, `ğ` ya da `Ğ` varsa sınır **70 karaktere** düşüyor — operatör
+alfabeyi değiştirmek zorunda kalıyor. (`ç ö ü` sorun değil, onlar standart alfabede.)
+Sekiz metni de 70'in altına sığdırdım. Ölçen testi `hazir/dene_bildirim.py` olarak
+bıraktım — proje köküne kopyalayıp `python dene_bildirim.py` ile çalıştırabilirsin.
+Örnek veriye dayanıyor (`ornek_veri` çalıştırılmış olmalı); 71 kontrol yapıyor ve
+sekiz metnin kaç SMS parçası ettiğini de ölçüyor. Metinlere dokunursan çalıştır.
+
+Küçük bir uyarı: test ileri tarihli **açık** bir teslim günü arıyor. Geçmişte açık
+kalmış bir gün varsa "sipariş saati doldu" diye yanlış alarm veriyor — bende de oldu,
+kodda sorun yoktu, eski gün duruyordu. Öyle bir şey görürsen takvime bak.
+
+**Başlık (gönderen adı) meselesi.** Sözleşme seçmennediyor'un şirketi üzerinden
+yapılacak. Operatörler SMS başlığını sözleşmedeki unvana göre veriyor; firmaya
+**baştan** "BOSTANHANE başlığını da alabilir miyim" diye sorulmalı. Alınamazsa müşteri
+mesajı tanımadığı bir başlıktan alır. Bu Ersin'in sorması gereken bir şey, ben
+`YAZILIM-YAPILACAKLAR.md`'ye yazdım; sen de teklif alırken aklında tut.
+
+Başlık BOSTANHANE olarak alınırsa `SMS_IMZA`'yı **boşalt** — mesaj zaten o başlıkla
+görünüyor, imza her mesajda 12 karakter yiyor ve 70 sınırında bu doğrudan fatura demek.
+
+### Rapora yazmanı istediklerim
+
+1. `roller_kur` çıktısı — Mağaza Yöneticisi kaç yetki, atlanan var mı
+2. Altı tetik noktasının hangi dosya ve satırlara girdiği
+3. `kesim_hatirlat --kuru` çıktısı
+4. Canlı: commit ve Railway durumu
+5. **Hâlâ cevap alamadığım soru:** `kesim` servisinin ilk 24 saatte gerçekte kaç
+   çalıştırma/ne kadar kaynak harcadığı. İki kez sordum. Bilmiyorsan "bilmiyorum,
+   şu ekranda görünmüyor" yaz, kapatalım.
+
+Bir de 4 Ekim tarihli **test şeridi** talimatı duruyor — `/mahalleme-gelin/` sayfasının
+üstünde "deneme modundasınız, siparişler gerçek değildir" şeridi canlıda hâlâ görünüyor.
+Ersin o sayfaya reklam verecek. Bildirimden önce onu kapatman daha iyi; beş dakikalık iş.
+
+---
+## 4 Ekim 2026 — Reklam öncesi bir sorun: test şeridi talep sayfasında
+
+`/mahalleme-gelin/` sayfasını canlıda ziyaretçi gözüyle okudum. Metin iyi, akış doğru,
+"zaten geliyoruz" kontrolünü formda anında göstermen de güzel olmuş — kişi göndermeden
+öğreniyor.
+
+Ama sayfanın en üstünde şu yazıyor:
+
+> ⚠ Deneme modundasınız — siparişler gerçek değildir, ödeme alınmaz.
+
+### Bu şerit bu sayfada olmamalı — acil
+
+Ersin bu sayfaya **reklam verecek.** Senaryoyu düşün: Üzümlü'de oturan biri Instagram'da
+reklamı görüyor, tıklıyor, sayfada okuduğu ilk cümle *"deneme modundasınız, gerçek
+değildir"* oluyor. Sonra ondan adını ve telefonunu bırakmasını istiyoruz.
+
+Üç sebeple yanlış:
+
+1. **Doğru değil.** Bu sayfada sipariş yok. Kişinin bıraktığı talep **gerçekten**
+   kaydediliyor, haritada sayılıyor ve şube kararını etkiliyor. "Gerçek değildir"
+   demek yalan oluyor.
+2. **Güveni kırıyor.** Para harcanıp getirilen ziyaretçiye ilk söylenen şey "burası
+   sahici değil" olmamalı.
+3. **Yanlış yerde.** Şerit sipariş verilebilen ekranlar için yazıldı; orada doğru ve
+   gerekli.
+
+**Yapılacak:** test şeridi yalnızca **sipariş akışındaki** sayfalarda görünsün —
+vitrin, ürün sayfası, sepet, siparişlerim, hesabım. Şu sayfalarda görünmesin:
+
+- `/mahalleme-gelin/`
+- Altı yasal sayfa (yabancı birinin mesafeli satış sözleşmesini okurken "deneme
+  modundasınız" görmesi tuhaf)
+- Ana sayfa — burada tartışmalı, kararı sana bırakıyorum: ziyaretçi henüz sipariş
+  akışında değil, ama girişten sonra vitrine geçecek. Bence ana sayfada **kalsın**;
+  oradan vitrine geçiliyor.
+
+`taban.html` senin dosyan. Uygulaması muhtemelen şablon bloğuyla: şeridi varsayılan
+olarak gösterip talep ve yasal sayfalarda kapatan bir blok, ya da görünüme bir bayrak.
+Nasıl yapacağına sen karar ver, sadece **tek yerden** yönetilsin — her şablonda ayrı ayrı
+koşul yazarsak bir sonraki sayfada yine unutulur.
+
+### Bir de: ölü kod temizliği
+
+`core/views.py`'deki `IlgiFormu` ve `ana_sayfa`'nın POST işleyicisi artık kullanılmıyor —
+şablondan formu çıkardın, haklıydın. Kodu temizledim; eski formun **ilçe sormadığı için**
+kaldırıldığını da dosyanın başına yazdım, sonradan bakan "demek iki yerden kayıt
+açılıyormuş" diye düşünmesin.
+
+```powershell
+Copy-Item hazir\core_views.py core\views.py -Force
+```
+
+Yerelde denedim: ana sayfa 200, gün kartları yerinde, eski form kalıntısı yok,
+"mahalleme gelin" bağlantısı duruyor.
+
+### `ad_soyad` eklemen doğru
+
+Talimatta sayfada ad soyad istiyordum ama modele alan koymayı unutmuşum. "Sorup
+saklamamak da yanlış olurdu" demişsin — aynen öyle. Kişiye bir şey sorup çöpe atmak,
+hem anlamsız hem de KVKK'nın "gereğinden fazla veri toplama" ilkesine ters.
+
+### Raporda görmek istediklerim
+
+- `Canlı: commit X, SUCCESS` satırı
+- `/mahalleme-gelin/` ve yasal sayfalarda test şeridinin **görünmediği**
+- Vitrin ve sepette şeridin hâlâ **göründüğü**
+- Ana sayfanın 200 döndüğü ve gün kartlarının yerinde olduğu
+- Kesim servisinin ilk 24 saatlik gerçek maliyeti (dünden kaldı)
+- Mağaza yöneticisiyle canlıda talep haritasının açılmadığı (yerelde denendi, canlıda kalmıştı)
+
+### Bunları yapma
+
+- Test şeridini tamamen kaldırma — sipariş ekranlarında gerekli ve doğru.
+- `core/views.py`, `core/talep_haritasi.py`, `talep/`, `odeme/` dosyalarını değiştirme.
+- Canlıda `vitrin_modu = acik`.
+
+---
+
+---
+
 ## 3 Ekim 2026 (4) — Mahalle nüfusu, talep haritası ve "mahalleme de gelin" sayfası
 
 Depoda ileri günleri bulup düzeltmen iyi oldu — prova rehberini yazarken
