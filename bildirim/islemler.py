@@ -60,19 +60,6 @@ def _anahtar(siparis, tur, ek=""):
     return f"{temel}-{ek}" if ek else temel
 
 
-def _sms_gonder(bildirim, magaza):
-    saglayici = sms_saglayici_sec(magaza)
-    bildirim.saglayici = saglayici.ad
-    return saglayici.gonder(bildirim.adres, bildirim.metin, bildirim.istek_anahtari)
-
-
-def _eposta_gonder(bildirim):
-    saglayici = eposta_saglayici_sec()
-    bildirim.saglayici = saglayici.ad
-    return saglayici.gonder(bildirim.adres, bildirim.konu, bildirim.metin,
-                            bildirim.istek_anahtari)
-
-
 def gonder(siparis, tur, *args, anahtar_eki="", **kwargs):
     """
     Siparişle ilgili bir bildirimi gönderir. **Asla istisna fırlatmaz.**
@@ -106,24 +93,48 @@ def _gonder(siparis, tur, *args, anahtar_eki="", **kwargs):
     telefon = siparis.teslim_telefon or (uye.telefon if uye else "")
     anahtar = _anahtar(siparis, tur, anahtar_eki)
     if telefon and not Bildirim.objects.filter(istek_anahtari=anahtar).exists():
-        bildirim = Bildirim.objects.create(
-            alici=uye, siparis=siparis, kanal=Bildirim.Kanal.SMS, tur=tur,
-            adres=telefon, metin=sms_metni, istek_anahtari=anahtar)
-        sonuc = _sms_gonder(bildirim, magaza)
-        _sonucu_yaz(bildirim, sonuc)
-        cikti.append(bildirim)
+        # **Sağlayıcı, satır açılmadan önce seçiliyor.** Seçim hata verebiliyor
+        # (vitrin gerçek satışa açık ama sağlayıcı "deneme", ya da başlık boş).
+        # Satırı önce açsaydık, hata durumunda defterde "bekliyor" durumunda
+        # takılı bir kayıt kalırdı — ve istek anahtarı tutulduğu için ayar
+        # düzeltildikten sonra o mesaj bir daha denenmezdi. Müşteri siparişinin
+        # bildirimini hiç almazdı, sistemde de "gönderilmedi" diye değil
+        # "bekliyor" diye görünürdü.
+        try:
+            saglayici = sms_saglayici_sec(magaza)
+        except Exception:
+            # Ayar hatası: kaydı açmıyoruz, anahtar serbest kalıyor; ayar
+            # düzeltilince aynı mesaj yeniden denenebiliyor. E-posta kanalı
+            # bundan etkilenmiyor, aşağıda devam ediyor.
+            kayit.exception("SMS sağlayıcısı seçilemedi: %s %s", siparis.numara, tur)
+        else:
+            bildirim = Bildirim.objects.create(
+                alici=uye, siparis=siparis, kanal=Bildirim.Kanal.SMS, tur=tur,
+                adres=telefon, metin=sms_metni, istek_anahtari=anahtar)
+            bildirim.saglayici = saglayici.ad
+            sonuc = saglayici.gonder(telefon, sms_metni, anahtar)
+            _sonucu_yaz(bildirim, sonuc)
+            cikti.append(bildirim)
 
     # -- E-posta -----------------------------------------------------------
     eposta = getattr(uye, "eposta", "") if uye else ""
     eposta_anahtar = f"{anahtar}-eposta"
     if eposta and not Bildirim.objects.filter(istek_anahtari=eposta_anahtar).exists():
-        bildirim = Bildirim.objects.create(
-            alici=uye, siparis=siparis, kanal=Bildirim.Kanal.EPOSTA, tur=tur,
-            adres=eposta, konu=konu, metin=eposta_metni,
-            istek_anahtari=eposta_anahtar)
-        sonuc = _eposta_gonder(bildirim)
-        _sonucu_yaz(bildirim, sonuc)
-        cikti.append(bildirim)
+        # Aynı gerekçe: sağlayıcı önce seçiliyor, satır sonra açılıyor.
+        try:
+            saglayici = eposta_saglayici_sec()
+        except Exception:
+            kayit.exception("E-posta sağlayıcısı seçilemedi: %s %s",
+                            siparis.numara, tur)
+        else:
+            bildirim = Bildirim.objects.create(
+                alici=uye, siparis=siparis, kanal=Bildirim.Kanal.EPOSTA, tur=tur,
+                adres=eposta, konu=konu, metin=eposta_metni,
+                istek_anahtari=eposta_anahtar)
+            bildirim.saglayici = saglayici.ad
+            sonuc = saglayici.gonder(eposta, konu, eposta_metni, eposta_anahtar)
+            _sonucu_yaz(bildirim, sonuc)
+            cikti.append(bildirim)
 
     return cikti
 

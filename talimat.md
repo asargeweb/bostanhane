@@ -17,6 +17,156 @@
 
 ---
 
+## 10 Ekim 2026 (3) — Raporuna cevap: üç düzeltme, bir karar
+
+Rapor temiz. Üç yerde talimattan ayrılmanın gerekçelerinin hepsi doğru, özellikle ikisi:
+
+**`gunu_kes()` işlevine koymak komuta koymaktan iyiydi.** Günün iki yerden kesildiğini
+ben kaçırmışım; komuta koysaydık depo ekranından elle kesilen günün müşterileri hiç
+mesaj almayacaktı ve bunu ancak biri şikâyet edince öğrenirdik.
+
+**İptali `iptal_et()`'e değil müşteri görünümüne koymak doğru karar.** Provizyon
+alınamayan kişiye "siparişiniz iptal edildi" demek, hiç kurulmamış bir şeyi bozulmuş
+gibi anlatmak olurdu. Ekranda "sipariş oluşturulmadı" yazarken SMS'te "iptal edildi"
+demek, insanı parasının gidip gelmediğini düşündürür.
+
+Üçüncüsü (`yola_cik`'ın toplu `update()` yapması) benim de bu turda başıma geldi —
+aşağıda.
+
+---
+
+### 1. Senin bulduğun hata düzeltildi (sağlayıcı sırası)
+
+Haklıydın: `sms_saglayici_sec` hata verdiğinde `Bildirim` satırı "bekliyor"da takılı
+kalıyordu ve istek anahtarı tutulduğu için ayar düzeltildikten sonra **o mesaj bir daha
+denenmiyordu.** Müşteri siparişinin bildirimini hiç almazdı, defterde de "gönderilmedi"
+değil "bekliyor" görünürdü — yani yanlış teşhise götüren bir iz.
+
+Önerdiğin çözümü uyguladım: **sağlayıcı satır açılmadan önce seçiliyor.** Seçim hata
+verirse kayıt hiç açılmıyor, anahtar serbest kalıyor, hata loga yazılıyor. E-posta
+kanalı bundan etkilenmiyor — SMS ayarı bozuksa e-posta yine gidiyor. Aynısını e-posta
+sağlayıcısı için de yaptım.
+
+`_sms_gonder` ve `_eposta_gonder` yardımcılarını kaldırdım; iki satırlık işi ayrı
+işleve almak, tam da bu hatayı gizleyen şeydi.
+
+Hatayı yeniden üreten bir kontrol de yazdım — doğru çalıştığından emin olmak için
+kodu eski (hatalı) sırasına geri alıp testi çalıştırdım:
+
+```
+eski hatalı sıra:  HATA defterde takılı kayıt yok ['bekliyor']
+                   HATA ayar düzelince mesaj gidiyor bekliyor
+düzeltilmiş hâl:   SONUÇ: hepsi geçti
+```
+
+### 2. Panel toplu işlemleri — karar
+
+Sorduğun şey bir bildirim eksiği değil, **para eksiğiydi.** Üç işleme teker teker baktım:
+
+**"Hazırlandı olarak işaretle" — kaldırdım.** Ham bir `update()` yapıyordu: durumu
+"hazırlanıyor"a çekiyor, tartımı ve — asıl önemlisi — o anda yapılan **çekimi**
+atlıyordu. Panelden işaretlenen sipariş hazırlanmış görünüyor, parası hiç çekilmemiş
+oluyordu; kartta yalnızca bloke duruyor ve bir süre sonra kendiliğinden çözülüyor.
+**Ürün gider, para gelmez.** Buna bildirim eklemek sorunu çözmezdi, sessiz olmaktan
+çıkarıp gürültülü yapardı. Hazırlama ve tartım depo ekranının işi; çekim orada.
+
+**"Yola çıktı" ve "Teslim edildi" — kaldı, bildirim eklendi.** Bunlar para hareketine
+dokunmuyor (çekim depoda yapılıyor, teslimde para işlemi yok), yani elle düzeltme için
+panelde durmaları güvenli: kurye telefonundan işaretlemeyi unutmuş olabilir, ekran
+açılmamış olabilir. Artık ikisi de müşteriye bildirim gönderiyor.
+
+"Yola çıktı"da senin tuzağına ben de düştüm: toplu `update()` nesne döndürmediği için
+bildirim gönderilecek siparişler sonradan bulunamıyordu. Senin yaptığın gibi önce
+listeye alıp sonra güncelliyorum.
+
+Panel işlemleri de artık test ediliyor (gerçek POST ile):
+
+```
+OK  'Hazırlandı olarak işaretle' panelden kalktı
+OK  'Yola çıktı' işlemi duruyor
+OK  panelden yola çıktı → bildirim gitti
+OK  panelden teslim edildi → bildirim gitti
+OK  sipariş teslim durumuna geçti
+```
+
+`dene_siparis_panel.py`'de "hazırlandı işlemi çalıştı" diye bir kontrol vardı; onu
+"kaldırılan işlem durumu değiştirmiyor"a çevirdim. O betik yine geçiyor.
+
+### 3. `ilk_veri`'ye birimler eklendi
+
+Senin bana bıraktığın işi yaptım. Dokuz birim: Kilogram, Gram, Litre, Adet, Demet,
+Paket, Kavanoz, Şişe, Kutu.
+
+Üç şeye dikkat ettim:
+
+- **Adlar ve kısaltmalar canlıdaki yazımla birebir aynı.** İlk denememde "kilogram"
+  yazdım ve komut çöktü: `UNIQUE constraint failed: katalog_birim.kisaltma`. Canlıda
+  "Kilogram" var; ad farklı olduğu için yeni kayıt açmaya çalışıyor, kısaltma tek
+  olmak zorunda olduğu için patlıyor. Bunu kendi dolu sandık veritabanımda yakaladım,
+  sende patlamasın.
+- **Hem ada hem kısaltmaya bakıyor,** büyük-küçük harf farkını yok sayıyor. Panelden
+  eklenmiş bir birimin üstüne ikinci kayıt açmıyor.
+- `kesirli` alanı doğru: Kilogram ve Litre `True`, diğerleri `False`. Tartılı ürün
+  kesirli birim istiyor, "1,5 demet maydanoz" ise reddedilmeli.
+
+Her dağıtımda çalışabilir, denedim:
+
+```
+dolu veritabanı:   2 birim eklendi (toplam 9)      ← Gram ve Litre eksikmiş
+ikinci çalıştırma: · 9 birim yerinde.
+```
+
+Ve asıl mesele — **sıfırdan veritabanı artık kuruluyor:**
+
+```
+sıfır veritabanı → migrate → ilk_veri: 9 birim eklendi (toplam 9)
+                           → urun_yukle: 50 ürün yüklendi
+```
+
+Önce 50 satırın hepsi reddediliyordu. Şimdi hepsi geçiyor.
+
+### 4. Kapattığım iki madde
+
+**Kesim servisinin maliyeti: kapattık.** Üç kez sordum, cevabın net: CLI göstermiyor,
+o ekrana erişimin yok. Haklısın, daha fazla sormam anlamsız. Ersin'e Railway → Usage
+sayfasından bakmasını söyleyeceğim; bakmazsa bilinmeyecek ve bu kabul edilebilir —
+servis 15 dakikada bir üç kısa komut çalıştırıyor, ölçeği belli.
+
+**Ana sayfa şeridi:** sana katılıyorum, eklemeyelim. Giriş yapmamış ziyaretçiye
+"deneme modundasınız" demenin bir faydası yok; sipariş akışına girince şerit zaten
+görünüyor.
+
+### 5. Küçük iki şey
+
+**`dene_bildirim.py` git'e girdi** — kalsın, zararı yok, ama proje kökünde durması
+dağınık. `denemeler/` klasörü açıp bütün `dene_*.py`'leri oraya taşımak ister misin?
+Karar senin, ben dokunmuyorum (senin kökünde senin dosyaların var).
+
+**Talep haritası canlıda mağaza yöneticisiyle denenmedi** — yerelde 403 veriyor ve
+**doğrusu bu:** mağaza yöneticisi `IlgiKaydi` görmüyor, harita da onun verisi.
+`admin_site.admin_view` yalnızca `is_staff`'a baktığı için araya `has_view_permission`
+kontrolü koymuştum; 403 o kontrolün çalıştığını gösteriyor. Canlıda da aynı olmalı,
+fırsat bulursan bir bak ama acil değil.
+
+---
+
+### Güncellenen dosyalar
+
+| `hazir/` dosyası | Ne değişti |
+|---|---|
+| `bildirim_islemler.py` | sağlayıcı satır açılmadan önce seçiliyor (senin bulduğun hata) |
+| `siparis_admin.py` | "hazırlandı" işlemi kaldırıldı; diğer ikisi bildirim gönderiyor |
+| `ilk_veri.py` | dokuz birim güvenceleniyor |
+| `dene_bildirim.py` | **82 kontrol** — takılı kayıt ve panel işlemleri dahil |
+| `dene_siparis_panel.py` | kaldırılan işlemin kontrolü güncellendi |
+
+Dört takım da geçiyor: `dene_bildirim` 82, `dene_odeme`, `dene_talep`,
+`dene_siparis_panel`. `manage.py check` temiz.
+
+`siparis_admin.py` ve `ilk_veri.py` kurulu dosyaların üstüne yazılacak — kurmadan önce
+farkına bak, bu turda o dosyalarda senin bir düzeltmen varsa kaybolmasın.
+
+---
 ## 10 Ekim 2026 (2) — Başlık kararı: tek hesap, iki marka
 
 Ersin SMS sözleşmesini **asarge** kurumsal kimliği adına yapacak ve aynı hesabın altına

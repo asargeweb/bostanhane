@@ -175,7 +175,7 @@ class SiparisAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
                               ("teslim_zamani", "onay_zamani"),
                               ("olusturuldu", "guncellendi"))}),
     )
-    actions = ["hazirlandi_isaretle", "yola_cikti_isaretle", "teslim_edildi_isaretle"]
+    actions = ["yola_cikti_isaretle", "teslim_edildi_isaretle"]
 
     # -- sütunlar ----------------------------------------------------------
     @admin.display(description="üye", ordering="uye__ad_soyad")
@@ -225,25 +225,48 @@ class SiparisAdmin(MagazaKisitliAdmin, admin.ModelAdmin):
         return format_html_join(mark_safe("<br>"), "{}", ((s,) for s in satirlar))
 
     # -- işlemler ----------------------------------------------------------
-    @admin.action(description="Hazırlandı olarak işaretle")
-    def hazirlandi_isaretle(self, request, queryset):
-        from django.utils import timezone
-        adet = queryset.exclude(durum=Siparis.Durum.IPTAL).update(
-            durum=Siparis.Durum.HAZIRLANIYOR, hazirlandi_zamani=timezone.now())
-        self.message_user(request, f"{adet} sipariş hazırlandı olarak işaretlendi.")
+    #
+    # "Hazırlandı olarak işaretle" **kaldırıldı.** Bu işlem ham bir `update()`
+    # yapıyordu: durumu "hazırlanıyor"a çekiyor, ama tartımı ve — asıl önemlisi —
+    # o anda yapılan **çekimi** atlıyordu. Panelden işaretlenen sipariş
+    # hazırlanmış görünüyor, parası hiç çekilmemiş oluyordu; kartta yalnızca
+    # bloke duruyor ve bir süre sonra kendiliğinden çözülüyor. Yani ürün gider,
+    # para gelmez. Hazırlama ve tartım depo ekranının işi (`/depo/`), orada
+    # çekim de bildirim de yapılıyor.
+    #
+    # Aşağıdaki iki işlem elle düzeltme içindir (kurye telefonundan
+    # işaretlemeyi unuttu, ekran açılmadı). İkisi de para hareketine
+    # dokunmuyor, bu yüzden panelde durmaları güvenli — ama artık müşteriye
+    # bildirim de gönderiyorlar, yoksa panelden teslim edilen sipariş sessiz
+    # kalıyordu.
 
     @admin.action(description="Yola çıktı olarak işaretle")
     def yola_cikti_isaretle(self, request, queryset):
-        adet = queryset.exclude(durum=Siparis.Durum.IPTAL).update(durum=Siparis.Durum.YOLDA)
-        self.message_user(request, f"{adet} sipariş yola çıktı.")
+        from bildirim.islemler import yola_cikti_bildir
+
+        # Önce listeye alınıyor: toplu `update()` nesne döndürmediği için
+        # bildirim gönderilecek siparişler sonradan bulunamaz. (CC aynı
+        # tuzağa kurye ekranında rastladı.)
+        siparisler = list(queryset.exclude(durum=Siparis.Durum.IPTAL)
+                                  .exclude(durum=Siparis.Durum.YOLDA))
+        for siparis in siparisler:
+            siparis.durum = Siparis.Durum.YOLDA
+            siparis.save(update_fields=["durum", "guncellendi"])
+            yola_cikti_bildir(siparis)
+        self.message_user(
+            request, f"{len(siparisler)} sipariş yola çıktı, müşterilere bildirildi.")
 
     @admin.action(description="Teslim edildi olarak işaretle")
     def teslim_edildi_isaretle(self, request, queryset):
+        from bildirim.islemler import teslim_edildi_bildir
+
         adet = 0
         for siparis in queryset.exclude(durum=Siparis.Durum.IPTAL):
             siparis.teslim_edildi_isaretle()
+            teslim_edildi_bildir(siparis)
             adet += 1
-        self.message_user(request, f"{adet} sipariş teslim edildi olarak işaretlendi.")
+        self.message_user(
+            request, f"{adet} sipariş teslim edildi, müşterilere bildirildi.")
 
     def has_add_permission(self, request):
         """Sipariş panelden açılmaz; müşteri verir."""

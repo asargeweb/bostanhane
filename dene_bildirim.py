@@ -191,9 +191,28 @@ with override_settings(SMS_SAGLAYICI=GercekGibi.ad, SMS_BASLIK="BOSTANHANE"):
 with override_settings(SMS_BASLIK=""):
     kontrol("başlık boşken sağlayıcıda da boş", sms_saglayici_sec().baslik == "")
 
+print("— ayar hatası defterde takılı kayıt bırakmıyor")
+# Vitrin açık + sağlayıcı "deneme" → seçim hata veriyor. Eskiden satır önce
+# açıldığı için defterde "bekliyor" durumunda takılı bir kayıt kalıyordu ve
+# istek anahtarı tutulduğu için ayar düzeltilse bile o mesaj bir daha
+# denenmiyordu. (Bu hatayı CC buldu.)
+sipX = siparis_ac()
+Bildirim.objects.filter(siparis=sipX).delete()
+cikti = islemler.siparis_alindi_bildir(sipX)          # vitrin hâlâ ACIK
+kontrol("ayar hatasında bildirim dönmedi", cikti == [], cikti)
+kontrol("defterde takılı kayıt yok",
+        not Bildirim.objects.filter(siparis=sipX, kanal=Bildirim.Kanal.SMS).exists(),
+        list(Bildirim.objects.filter(siparis=sipX).values_list("durum", flat=True)))
+
 ayarlar.vitrin_modu = eski_mod
 ayarlar.save(update_fields=["vitrin_modu", "guncellendi"])
 kontrol("test modunda çalışıyor", sms_saglayici_sec(m).ad == "deneme")
+
+# Ayar düzeldi: aynı mesaj şimdi gidebilmeli — anahtar serbest kalmış olmalı.
+cikti = islemler.siparis_alindi_bildir(sipX)
+smsX = Bildirim.objects.filter(siparis=sipX, kanal=Bildirim.Kanal.SMS).first()
+kontrol("ayar düzelince mesaj gidiyor", smsX is not None and smsX.gonderildi_mi,
+        smsX.durum if smsX else "kayıt yok")
 
 # Metinlerin imzasız hâli yukarıda, "SMS parça ölçümü" bölümünde zaten ölçülüyor:
 # başlık tahsis edilip imza kendiliğinden kalktığı gün hepsi tek parça kalıyor.
@@ -253,6 +272,31 @@ kontrol("mağaza yöneticisi listeyi görüyor (403 değil)", y.status_code == 2
 y = cy.get("/yonetim/")
 kontrol("panel ana sayfasında Bildirimler görünüyor",
         "bildirim/bildirim" in y.content.decode())
+
+print("— sipariş panelindeki toplu işlemler de bildirim gönderiyor")
+# CC'nin sorduğu konu: panelden "teslim edildi" yapılınca müşteriye mesaj
+# gitmiyordu. "Hazırlandı" işlemi ise çekimi atladığı için tamamen kaldırıldı.
+sipP = siparis_ac()
+Bildirim.objects.filter(siparis=sipP).delete()
+y = c.get("/yonetim/siparis/siparis/")
+govde = y.content.decode()
+kontrol("'Hazırlandı olarak işaretle' panelden kalktı",
+        "Hazırlandı olarak işaretle" not in govde)
+kontrol("'Yola çıktı' işlemi duruyor", "Yola çıktı olarak işaretle" in govde)
+
+c.post("/yonetim/siparis/siparis/",
+       {"action": "yola_cikti_isaretle", "_selected_action": [str(sipP.pk)]})
+kontrol("panelden yola çıktı → bildirim gitti",
+        Bildirim.objects.filter(siparis=sipP, tur=Bildirim.Tur.YOLA_CIKTI,
+                                durum=Bildirim.Durum.GONDERILDI).exists())
+c.post("/yonetim/siparis/siparis/",
+       {"action": "teslim_edildi_isaretle", "_selected_action": [str(sipP.pk)]})
+kontrol("panelden teslim edildi → bildirim gitti",
+        Bildirim.objects.filter(siparis=sipP, tur=Bildirim.Tur.TESLIM_EDILDI,
+                                durum=Bildirim.Durum.GONDERILDI).exists())
+sipP.refresh_from_db()
+kontrol("sipariş teslim durumuna geçti", sipP.durum == Siparis.Durum.TESLIM_EDILDI,
+        sipP.durum)
 
 print()
 print("SONUÇ: hepsi geçti" if hata == 0 else f"SONUÇ: {hata} hata")
