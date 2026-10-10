@@ -45,6 +45,133 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 10 Ekim 2026, 12.40 — Test şeridi, bildirim altyapısı kuruldu ve akışa bağlandı
+
+okuduğum talimat: 10 Ekim (2), 10 Ekim (1), 4 Ekim
+
+Canlı: commit `b91f0c5` (şerit) web **SUCCESS** · commit `b0e1b6c` (bildirim) web **SUCCESS**.
+Canlı kayıtta `Applying bildirim.0001_initial... OK` ve `Mağaza Yöneticisi: 51 yetki`.
+
+### 1. Test şeridi (4 Ekim) — yapıldı
+
+Tek yerden yönetiliyor: `core/baglam.py` → `SERITSIZ_SAYFALAR` (URL adlarıyla).
+Bağlam işlemcisi `test_seridi` diye yeni bir değişken veriyor, `taban.html` artık
+`test_modu`'na değil ona bakıyor. Yeni bir sayfanın şeridi kapanacaksa listeye bir satır.
+
+```
+yerel, anonim:  /mahalleme-gelin/ ve 6 yasal sayfa → 200, şerit yok
+yerel, üye:     /urunler/ /sepet/ /hesabim/ /hesabim/siparisler/ → şerit VAR
+                /mahalleme-gelin/ /iptal-ve-iade/ → şerit yok
+canlı, anonim:  / /mahalleme-gelin/ /iptal-ve-iade/ /mesafeli-satis-sozlesmesi/
+                /aydinlatma-metni/ → 200, şerit yok
+```
+
+**Ana sayfa:** şerit zaten yoktu. `ana_sayfa.html` `taban.html`'i genişletmiyor,
+kendi iskeleti var. "Kalsın" önerin için ayrıca bir şey yapmadım. İstersen
+ekleyebilirim, ama giriş yapmamış ziyaretçiye "deneme modundasınız" demenin bir
+faydasını görmüyorum.
+
+`hazir/core_views.py` → `core/views.py` kuruldu. Ana sayfa 200, gün kartları yerinde,
+"mahalleme gelin" bağlantısı var, eski form yok.
+
+### 2. Bildirim kuruldu (10 Ekim 1 + 2)
+
+- `startapp bildirim`, dosyalar yerinde, `management/` ve `commands/` içinde `__init__.py`.
+  `bildirim/views.py` ve `tests.py` silindi.
+- `settings.py`, `izinler.py`, `env-ornek.txt` → `hazir/` hâlleri. Tek fark uygulama
+  sırasıydı (`talep` yeri), önemsiz.
+- `settings` kontrolü: `deneme '' 'Bostanhane' console.EmailBackend`. Dört ayar da okunuyor.
+- `roller_kur` (yerel ve canlı): **Mağaza Yöneticisi 51 yetki**, `! henüz yok, atlandı` yok.
+- `dene_bildirim.py`: **74 kontrol, hepsi geçti** (başlık kontrolleri dahil).
+
+```
+python manage.py kesim_hatirlat --kuru
+10.10.2026 12.31 · veritabanı: sqlite · hatırlatma penceresi: 120 dk
+KURU ÇALIŞMA — hiçbir şey gönderilmeyecek.
+Hatırlatılacak gün yok.
+```
+(Yerelde 120 dakika içinde kesimi olan açık gün yok. Göndererek çalışan yolu
+`dene_bildirim.py` deniyor ve geçiyor.)
+
+### 3. Yedi tetik noktası
+
+| Ne | Dosya | Nasıl |
+|---|---|---|
+| Sipariş alındı | `siparis/views.py` → `siparis_ver`, provizyon başarılı olduktan sonra | `on_commit` |
+| Gün kesildi | `siparis/models.py` → `gunu_kes()` işlevi (komutta **değil**) | `on_commit`, sipariş başına |
+| Ürün bulunamadı | `depo/views.py` → `hazir`, durum kaydedildikten sonra, çekimden önce | doğrudan |
+| Yola çıktı | `lojistik/views.py` → `yola_cik` | doğrudan |
+| Teslim edildi | `lojistik/views.py` → `teslim_et` | doğrudan |
+| İptal | `hesaplar/views.py` → `siparis_iptal`, bloke çözüldükten sonra | doğrudan |
+| Talep kararı | `talep/islemler.py` → `karara_bagla` sonu | `on_commit` |
+
+Talimattan ayrıldığım üç yer var, nedenleriyle:
+
+- **Gün kesildi, komuta değil `gunu_kes()` işlevine kondu.** Gün iki yerden kesiliyor:
+  zamanlanmış komut ve depo ekranındaki "günü kes" düğmesi. Komuta koysaydım, elle
+  kesilen günün müşterileri mesaj almazdı. İşlev `@transaction.atomic` olduğu için
+  `on_commit` kullandım.
+- **İptal, `Siparis.iptal_et()`'e değil müşteri iptal görünümüne kondu.** `iptal_et`
+  provizyon alınamadığında da çağrılıyor. Oraya koysaydım, kartı reddedilen kişiye
+  "siparişiniz iptal edildi" SMS'i giderdi. Oysa ona hiç "alındı" denmedi ve ekranda
+  "sipariş oluşturulmadı" yazıyor.
+- **Yola çıktı:** `yola_cik` toplu `update()` yapıyordu, yani nesne dönmüyordu.
+  Önce siparişleri listeye alıp sonra güncelliyorum, mesaj yalnızca bu turda yola
+  çıkanlara gidiyor. Kurye düğmeye ikinci kez basarsa yeni mesaj gitmiyor (denendi).
+- Teslimde "çekim başarılı olduktan sonra" deniyordu, ama çekim teslimde değil depoda
+  "hazır" anında yapılıyor. Teslimde para işlemi yok; çağrı `teslim_edildi_isaretle()`
+  sonrasında.
+
+**Uçtan uca deneme** (gerçek ekranlardan geçerek, sonunda geri alındı): **25 kontrol, hepsi geçti.**
+```
+sipariş verildi → 'alındı' 1 · kart reddedildi → hiç bildirim yok (ne alındı ne iptal)
+müşteri iptali → 'iptal' 1 · depo "günü kes" → 'kesildi' 1, iptal siparişe gitmedi
+tartım + domates bulunamadı + hazır → 'bulunamadı' 1:
+   "[DENEME] Domates bulunamadı, 49,35 ₺ düşüldü. Bostanhane"
+yola çık → 1, ikinci basış → yine 1 · teslim → 1:
+   "[DENEME] BH-2026-000010 teslim edildi. Çekilen: 690,00 ₺. Bostanhane"
+talep reddi → 'talep kararı' 1
+DENEME_BILDIRIM_HATASI dolu → sipariş yine açıldı, defterde başarısız satır var
+```
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi |
+|---|---|---|---|
+| `siparis/models.py` | `gunu_kes()` içinde `on_commit(gun_kesildi_bildir)` | Yukarıda | ✓ `hazir/siparis_models.py` |
+| `talep/islemler.py` | `karara_bagla` sonunda `on_commit(talep_karari_bildir)` | Talimat; panel kaydı atomik | ✓ `hazir/talep_islemler.py` |
+| `core/baglam.py`, `templates/taban.html` | `SERITSIZ_SAYFALAR`, `test_seridi` | 4 Ekim talimatı | — (benim dosyalarım) |
+| `siparis/views.py`, `depo/views.py`, `lojistik/views.py`, `hesaplar/views.py` | tetik çağrıları | Talimat 3 | — |
+
+### Bekleyen — Ersin'in yapması gereken
+- **`kesim` servisinin Start Command'ı henüz değişmedi.** Railway panelinde
+  `kesim` servisi → Settings → Start Command alanına şunu yazmalı:
+  `python manage.py gunu_kes && python manage.py otomatik_onayla && python manage.py kesim_hatirlat`
+  Bunu panelden yapmak gerekiyor, CLI'dan değiştirmedim. O zamana kadar
+  "kesim yaklaştı" hatırlatması gitmez. Diğer altı bildirim zaten çalışıyor.
+- **Kesim servisinin ilk 24 saatlik maliyeti: bilmiyorum.** CLI kullanım/maliyet
+  göstermiyor, bu ekrana erişimim yok. Railway panelinde proje → **Usage** sayfasında
+  servis bazında görünüyor; Ersin oradan bakmazsa bilinmeyecek. Kapatalım derim, ya da
+  Ersin bir ekran görüntüsü atsın.
+- Mağaza yöneticisiyle talep haritasının canlıda 403 verdiği hâlâ canlı bir yönetici
+  hesabıyla denenmedi (yerelde 403).
+
+### Sorunlar / gözlemler
+- **Panel işlemleri bildirim göndermiyor.** `siparis/admin.py`'deki "Hazırlandı / Yola
+  çıktı / Teslim edildi olarak işaretle" toplu işlemleri durumu değiştiriyor ama mesaj
+  göndermiyor. Ersin bir siparişi panelden "teslim edildi" yaparsa müşteriye SMS gitmez.
+  Senin dosyan olduğu için dokunmadım. Bağlansın mı, yoksa bu işlemler kalksın mı
+  (hazırlandı işlemi çekim de yapmıyor)?
+- `bildirim.islemler._gonder` içinde `sms_saglayici_sec` hata verirse (vitrin açık,
+  başlık boş) `Bildirim` satırı "bekliyor" durumunda kalıyor. İstek anahtarı dolu
+  olduğu için ayar düzeltildikten sonra **o mesaj bir daha denenmiyor.** Canlıya
+  çıkışta koruma zaten devrede olacağı için pratikte nadir, ama bilgin olsun.
+  Sağlayıcıyı satır açmadan önce seçmek çözerdi.
+- **`ilk_veri`'ye birimler:** sen yaz, ben dokunmadım ("ikimiz birden yapmayalım").
+- Yerel `dene_bildirim.py` proje kökünde, git'e girdi.
+
+### Karar bekleyen
+- Panel toplu işlemleri (yukarıda).
+
 ## 3 Ekim 2026 (6), 23.20 — Nüfus, talep haritası, "mahalleme de gelin" sayfası
 
 okuduğum talimat: 3 Ekim (4)
