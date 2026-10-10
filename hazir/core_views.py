@@ -3,53 +3,31 @@ Bostanhane — core görünümleri (views)
 
 Bu dosya `core/views.py` yerine geçer.
 
-Şimdilik tek sayfa var: yayına hazırlık sayfası. Ziyaretçi mahallesini ve e-postasını
-bırakabiliyor; bu kayıtlar yönetim panelinde "İlgi kayıtları" altında birikiyor.
-Açılışta ilk haber verilecek kitle bu liste olacak.
+Ana sayfa: teslim günleri ve mahalleler.
+
+**Kaldırılan:** burada bir `IlgiFormu` vardı — ziyaretçi e-postasını ve mahallesini
+serbest metin olarak bırakıyordu. Yerini `/mahalleme-gelin/` sayfası aldı.
+
+Neden kaldırıldı: eski form **ilçe sormuyordu**. İlçesiz kayıt talep haritasında
+bir yere oturmuyor, "nereye talep var" sorusuna cevap vermiyordu. Yeni sayfa
+il → ilçe → mahalle soruyor ve resmî mahalleye bağlıyor.
+
+Claude Code 3 Ekim'de şablondan formu çıkardı; bu görünümdeki POST işleyicisi
+kullanılmadan duruyordu. Ölü kod yanıltıcıdır: sonradan bakan "demek iki yerden
+kayıt açılıyor" diye düşünür.
 """
 
-from django import forms
-from django.contrib import messages
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 
-from .models import Gun, IlgiKaydi, Magaza
-
-
-class IlgiFormu(forms.ModelForm):
-    class Meta:
-        model = IlgiKaydi
-        fields = ["eposta", "telefon", "mahalle_adi"]
-        widgets = {
-            "eposta": forms.EmailInput(attrs={
-                "placeholder": "e-posta adresiniz", "required": True, "autocomplete": "email"}),
-            "telefon": forms.TextInput(attrs={
-                "placeholder": "telefon (isteğe bağlı)", "autocomplete": "tel"}),
-            "mahalle_adi": forms.TextInput(attrs={
-                "placeholder": "mahalleniz", "autocomplete": "off"}),
-        }
+from .models import Gun, Magaza
 
 
 def ana_sayfa(request):
-    """Yayına hazırlık sayfası ve ilgi kaydı formu."""
-    if request.method == "POST":
-        form = IlgiFormu(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(
-                request,
-                "Kaydınızı aldık. Mahallenize başladığımız gün ilk siz haberdar olacaksınız."
-            )
-            return redirect("ana_sayfa")
-    else:
-        form = IlgiFormu()
-
+    """Teslim günleri ve o günlere düşen mahalleler."""
     magaza = Magaza.objects.filter(aktif=True).select_related("il", "ilce").first()
-    gunler = gun_gun_mahalleler(magaza)
-
     return render(request, "core/ana_sayfa.html", {
-        "form": form,
         "magaza": magaza,
-        "gunler": gunler,
+        "gunler": gun_gun_mahalleler(magaza),
     })
 
 
