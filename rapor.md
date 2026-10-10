@@ -143,11 +143,9 @@ DENEME_BILDIRIM_HATASI dolu → sipariş yine açıldı, defterde başarısız s
 | `siparis/views.py`, `depo/views.py`, `lojistik/views.py`, `hesaplar/views.py` | tetik çağrıları | Talimat 3 | — |
 
 ### Bekleyen — Ersin'in yapması gereken
-- **`kesim` servisinin Start Command'ı henüz değişmedi.** Railway panelinde
-  `kesim` servisi → Settings → Start Command alanına şunu yazmalı:
-  `python manage.py gunu_kes && python manage.py otomatik_onayla && python manage.py kesim_hatirlat`
-  Bunu panelden yapmak gerekiyor, CLI'dan değiştirmedim. O zamana kadar
-  "kesim yaklaştı" hatırlatması gitmez. Diğer altı bildirim zaten çalışıyor.
+- ~~`kesim` servisinin Start Command'ı~~ **yapıldı** (Ersin panelden, 12.42). `railway status`:
+  `kesim` start `python manage.py gunu_kes && python manage.py otomatik_onayla && python manage.py kesim_hatirlat`,
+  cron `*/15 * * * *`; `web` start `''`. İlk zamanlanmış çalışmanın kaydına bir sonraki turda bakılacak.
 - **Kesim servisinin ilk 24 saatlik maliyeti: bilmiyorum.** CLI kullanım/maliyet
   göstermiyor, bu ekrana erişimim yok. Railway panelinde proje → **Usage** sayfasında
   servis bazında görünüyor; Ersin oradan bakmazsa bilinmeyecek. Kapatalım derim, ya da
