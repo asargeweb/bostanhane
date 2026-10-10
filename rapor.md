@@ -45,6 +45,64 @@
 
 <!-- Raporlar buradan aşağıya, en yenisi en üstte. -->
 
+## 10 Ekim 2026 (2), 14.40 — Sağlayıcı sırası, panel işlemleri, birimler kuruldu
+
+okuduğum talimat: 10 Ekim (3)
+
+Canlı: commit `f861059`, web **SUCCESS**.
+
+### Yapıldı
+- Kurmadan önce baktım: `siparis/admin.py`, `ilk_veri.py`, `bildirim/islemler.py`
+  önceki `hazir/` hâlleriyle birebir aynıydı, yani üzerine yazınca kaybolan bir düzeltmem yok.
+- Kuruldu: `bildirim/islemler.py`, `siparis/admin.py`, `core/management/commands/ilk_veri.py`,
+  `dene_bildirim.py`, `dene_siparis_panel.py` (proje kökü). `manage.py check` temiz.
+
+### Çıktılar
+```
+dene_bildirim.py        82 kontrol, SONUÇ: hepsi geçti
+dene_siparis_panel.py   SONUÇ: hepsi geçti  ('Hazırlandı olarak işaretle' listede yok,
+                        kaldırılan işlem durumu/zamanı değiştirmiyor)
+tetik denemem (25)      SONUÇ: hepsi geçti   ← yeni islemler.py ile akış bozulmadı
+
+yerel ilk_veri:   2 birim eklendi (toplam 9).   ikinci kez: · 9 birim yerinde.
+canlı ilk_veri:   2 birim eklendi (toplam 9).   · Katalogda 50 ürün var.
+canlı roller_kur: Mağaza Yöneticisi 51 yetki
+```
+`dene_odeme` ve `dene_talep` bende yok (`hazir/`'da da yok), onları çalıştıramadım.
+
+**Kesim servisi, yeni Start Command'la** (canlı kayıt, 15 dakikada bir, üç komut sırayla):
+```
+10.10.2026 14.30 · veritabanı: postgresql · açık gün: 169
+10.10.2026 14.30 · veritabanı: postgresql · onay bekleyen teslim: 0
+Otomatik onaylanacak sipariş yok.
+10.10.2026 14.30 · veritabanı: postgresql · hatırlatma penceresi: 120 dk
+Hatırlatılacak gün yok.
+```
+
+### Sorunlar
+- **`dene_siparis_panel.py` ilk çalıştırmada çöktü:** *"Seçtiğiniz teslim günü için sipariş
+  saati doldu."* Kodda sorun yok, sebep test verisi. Betik en erken **açık** günü seçiyor.
+  Yerelde kesim servisi çalışmadığı için kesim saati geçmiş ama hâlâ açık **17 gün** var,
+  betik de bunlardan birini seçiyordu. `dene_bildirim` için yazdığın uyarının aynısı.
+  Yerel veriyi kesmek yerine betiği düzelttim: süzgece `kesim_zamani__gt=timezone.now()`
+  ekledim. Böylece kimin veritabanında çalışırsa çalışsın geçiyor.
+
+### Değiştirdiğim dosyalar (Cowork'ün eşitlemesi için)
+| Dosya | Ne değişti | Neden | `hazir/` eşi güncellendi mi |
+|---|---|---|---|
+| `dene_siparis_panel.py` | gün seçimine `kesim_zamani__gt=timezone.now()` | geçmiş açık gün seçip çöküyordu | ✓ `hazir/dene_siparis_panel.py` |
+
+### Sorularına cevap
+- **`denemeler/` klasörü:** taşımayalım. Betikler projenin modüllerini köke göre içe
+  alıyor. `python denemeler/dene_x.py` diye çalıştırınca Python kökü görmez ve her
+  betiğe yol ayarı eklemek gerekir. Kökte iki dosya var, dağınıklık o zahmete değmez.
+  Sayı artarsa yeniden bakarız.
+- **Talep haritası, canlıda mağaza yöneticisiyle:** canlıda şifresi bilinen bir yönetici
+  hesabı yok, denemedim. Açıklaman doğru, kapatılabilir.
+
+### Karar bekleyen
+- Yok.
+
 ## 10 Ekim 2026, 12.40 — Test şeridi, bildirim altyapısı kuruldu ve akışa bağlandı
 
 okuduğum talimat: 10 Ekim (2), 10 Ekim (1), 4 Ekim
